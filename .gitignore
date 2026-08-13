@@ -1,0 +1,91 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+# Lint / 类型检查缓存（mypy/ruff 自带 .gitignore 兜底，显式声明防子目录漏网）
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+build/
+.vite/
+
+# Data
+data/*.db
+data/*.json
+!data/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swoop
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Obsidian
+.obsidian/
+
+# TypeScript/Vite 产物
+apps/web/tsconfig.tsbuildinfo
+
+# Playwright / 浏览器自动化产物（截图、录屏）
+.playwright-cli/
+.playwright-mcp/
+# 注意：不要用全局 *.png/*.jpg —— 会误伤 docs/ 架构图与 apps/web/public/ 静态资源。
+# 只忽略明确的截图产物目录：
+tmp/*.png
+tmp/*.jpg
+tmp/*.jpeg
+.playwright-cli/*.png
+.playwright-mcp/*.png
+
+# Local AI / agent state
+.reasonix/
+
+# 本地临时脚本/冒烟产物（可能含密钥与截图，禁止入库）
+tmp/
+.zcode/
+
+# 工具缓存与本地配置（§4.1.5）
+.claude/
+.pytest_cache/
+*.pkg
+
+# CodeGraph 本地索引（.codegraph/ 为生成产物，可随时 codegraph init 重建）
+.codegraph/
+
+# Mimosa 安全扫描产物（本地 finding ledger / hook state，含会话级缓存）
+.mimosa/
+# 临时参考仓（图谱开发用，审查后删除）
+vendor/
+
+# 数据缓存（repo-cache 为克隆缓存，graph-db 为图谱索引；DB 备份均禁止入库）
+data/repo-cache/
+data/graph-db/
+data/graph-engine-cache/
+data/*.bak*
+data/app.db.bak*
+data/*.db-shm
+data/*.db-wal
+
+# 图谱引擎构建产物（C sidecar + layout CMake；全局 build/ 已覆盖，此处显式声明）
+services/graph_engine/graph_engine_core/build/
+services/graph_engine/layout/build/
+

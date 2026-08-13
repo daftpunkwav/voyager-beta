@@ -1,0 +1,2 @@
+# Python 统一 LF 行尾：防止 Windows 编辑器保存为 CRLF 导致整文件 diff 噪音（git blame 被摧毁）
+*.py text eol=lf

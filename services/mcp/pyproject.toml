@@ -1,0 +1,13 @@
+[project]
+name = "mcp"
+version = "0.1.0"
+description = "Voyager MCP Server — 对外暴露 GitHub / 文档 / 代码等 MCP 工具"
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mcp_runtime"]

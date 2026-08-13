@@ -1,0 +1,195 @@
+/* 全局补充：Toast、Loading 等 React 组件；页面视觉以 design-system + pages/*.css 为准 */
+
+#root {
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+}
+
+.loading-spinner {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--sp) * 3);
+  padding: calc(var(--sp) * 4);
+}
+.loading-spinner--fullscreen {
+  min-height: 60vh;
+  justify-content: center;
+}
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--bg-300);
+  border-top-color: var(--brand-500);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.toast {
+  background: var(--bg-50);
+  color: var(--text-800);
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--bg-300);
+  box-shadow: var(--shadow-md);
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 200px;
+  max-width: 360px;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--sp) * 3);
+  animation: rpToastIn 0.25s var(--ease);
+}
+@keyframes rpToastIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.toast--success {
+  border-left: 4px solid var(--success);
+}
+.toast--error {
+  border-left: 4px solid var(--error);
+}
+.toast--warning {
+  border-left: 4px solid var(--warning);
+}
+.toast--info {
+  border-left: 4px solid var(--brand-500);
+}
+.toast__close {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1.25rem;
+}
+.toast-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-500);
+  flex-shrink: 0;
+}
+.toast-title {
+  font-weight: 600;
+}
+.toast-hint {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-500);
+  line-height: 1.4;
+}
+
+.modal-overlay,
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.drawer-overlay {
+  justify-content: flex-end;
+}
+.modal {
+  padding: 22px 24px 20px;
+  max-width: 440px;
+  width: min(440px, 100%);
+  border-radius: var(--radius-lg);
+  box-sizing: border-box;
+}
+.modal--wide {
+  max-width: 560px;
+  width: min(560px, 100%);
+}
+.modal__title {
+  margin: 0 0 10px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-800);
+  line-height: 1.3;
+}
+.modal__message {
+  margin: 0 0 20px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-500);
+}
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.drawer {
+  width: 420px;
+  max-width: 90vw;
+  height: 100%;
+  padding: calc(var(--sp) * 5);
+  overflow-y: auto;
+}
+
+.markdown-body {
+  line-height: 1.6;
+  font-size: 0.9375rem;
+}
+.markdown-body pre {
+  background: var(--md-panel-bg);
+  color: var(--md-panel-fg);
+  padding: var(--md-panel-pad);
+  border-radius: var(--md-panel-radius);
+  overflow-x: auto;
+  border: 1px solid var(--md-panel-border);
+  box-shadow: var(--md-panel-shadow);
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+}
+.markdown-body pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font-family: inherit;
+}
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+}
+.markdown-body blockquote {
+  margin: 12px 0;
+  border-radius: var(--md-panel-radius);
+  border: 1px solid var(--md-panel-border);
+  border-left: 3px solid var(--md-panel-accent);
+  background: var(--md-panel-bg);
+  box-shadow: var(--md-panel-shadow);
+  color: var(--md-panel-muted);
+  padding: 12px 16px 12px 14px;
+}

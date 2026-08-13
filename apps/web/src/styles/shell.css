@@ -1,0 +1,31 @@
+/* 应用壳补充（原型 HTML 使用 .main / .gh-bound，design-system 未单独定义） */
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.gh-bound {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-50);
+  border: 1px solid var(--bg-300);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-700);
+}
+
+.notes-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100vh;
+  overflow: hidden;
+}
