@@ -159,10 +159,14 @@ async def execute(
         for hook in quota or ():
             hook(req)
         input_obj = coerce_input(cap.input_model, args, domain=registry.domain)
+        # 约定:handler 声明 _actor 参数时注入调用者 ActorRef(parity:写 secret 等
+        # 操作需要知道"是谁在调",§8.8;handler 不声明则不可见)
+        params = inspect.signature(cap.handler).parameters
+        inject = {"_actor": actor.actor} if (actor is not None and "_actor" in params) else {}
         result = (
-            cap.handler(input_obj)
+            cap.handler(input_obj, **inject)
             if cap.input_model is not None
-            else cap.handler(**args)
+            else cap.handler(**args, **inject)
         )
         if inspect.isawaitable(result):
             result = await result

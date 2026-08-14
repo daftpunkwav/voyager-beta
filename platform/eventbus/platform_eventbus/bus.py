@@ -19,11 +19,13 @@ from platform_eventbus.log import EventLog
 
 @dataclass
 class Subscription:
-    """进程内订阅。lagged=True 表示有事件因队列满未直推,需 read_missed 补读。"""
+    """进程内订阅。lagged=True 表示有事件因队列满未直推,需 read_missed 补读。
+    last_seq 记录已消费的最大 seq,供消费方推进游标(崩溃不重复消费)。"""
 
     patterns: tuple[str, ...]
     queue: asyncio.Queue = field(default_factory=asyncio.Queue)
     lagged: bool = False
+    last_seq: int = 0
 
     def matches(self, event_type: str) -> bool:
         return any(fnmatch.fnmatchcase(event_type, p) for p in self.patterns)
@@ -31,8 +33,11 @@ class Subscription:
     async def get(self, timeout: float | None = None) -> Event:
         """取下一条直推事件。"""
         if timeout is None:
-            return await self.queue.get()
-        return await asyncio.wait_for(self.queue.get(), timeout)
+            seq, event = await self.queue.get()
+        else:
+            seq, event = await asyncio.wait_for(self.queue.get(), timeout)
+        self.last_seq = seq
+        return event
 
 
 class EventBus:
@@ -54,7 +59,7 @@ class EventBus:
             if not sub.matches(event.type):
                 continue
             try:
-                sub.queue.put_nowait(event)
+                sub.queue.put_nowait((seq, event))
             except asyncio.QueueFull:
                 sub.lagged = True
         return seq

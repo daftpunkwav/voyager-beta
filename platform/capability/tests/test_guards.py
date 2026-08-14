@@ -121,3 +121,26 @@ class TestLongRunning:
             return {"pong": True}
 
         assert await execute(reg, "ping", USER_CTX, {}) == {"pong": True}
+
+
+class TestActorInjection:
+    """parity 需要:handler 声明 _actor 时注入调用者 ActorRef;不声明则不可见。"""
+
+    async def test_actor_injected_when_declared(self) -> None:
+        reg = Registry("agent")
+
+        @capability(reg, name="whoami", description="回显调用者")
+        def whoami(_actor: ActorRef = None) -> dict:
+            return {"id": _actor.id if _actor else None}
+
+        out = await execute(reg, "whoami", AGENT_CTX, {})
+        assert out == {"id": "agent.main"}
+
+    async def test_actor_not_injected_when_not_declared(self) -> None:
+        reg = Registry("agent")
+
+        @capability(reg, name="ping2", description="无 _actor 参数")
+        def ping2() -> dict:
+            return {"pong": True}
+
+        assert await execute(reg, "ping2", AGENT_CTX, {}) == {"pong": True}

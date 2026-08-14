@@ -37,6 +37,7 @@ class SettingsStore:
     """设置项存取。defs 由各服务在启动时注册(代码侧),values 持久化(数据侧)。"""
 
     def __init__(self, db_path: str | Path, bus: EventBus | None = None) -> None:
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.executescript(_SCHEMA)
         self._lock = threading.Lock()

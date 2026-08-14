@@ -29,6 +29,7 @@ class EventLog:
     """追加写、按序读。线程安全(单连接 + 写锁);跨进程共享同一 db 文件。"""
 
     def __init__(self, db_path: str | Path) -> None:
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.executescript(_SCHEMA)
