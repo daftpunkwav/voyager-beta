@@ -91,6 +91,21 @@ class TestSecretBoundary:
         assert mine["has_api_key"] is True
         assert "sk-secret" not in repr(providers)  # key 永不出现在能力出口
 
+    async def test_key_without_material_reads_back_guide(self, deps, monkeypatch) -> None:
+        """本机未配密钥材料:统一错误体带引导文案,而非 500。"""
+        from platform_secrets import SecretUnavailableError
+
+        def boom(key: str, plain: str) -> None:
+            raise SecretUnavailableError("未配置密钥材料")
+
+        monkeypatch.setattr(deps[1], "set", boom)
+        pid = await _add_sample()
+        with pytest.raises(ServiceError) as exc:
+            await execute(registry, "set_api_key", USER_CTX,
+                          {"provider_id": pid, "api_key": "sk-x"})
+        assert exc.value.body.code == "LLM.UNAVAILABLE"
+        assert "SECRETS_ENCRYPTION_KEY" in exc.value.body.hint
+
 
 class TestConnectionAndUsage:
     async def test_test_connection_ok(self, deps) -> None:

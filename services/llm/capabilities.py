@@ -12,7 +12,7 @@ from typing import Any
 
 from platform_capability import Registry, capability
 from platform_contracts import ActorKind, ActorRef, ErrorSuffix, ServiceError
-from platform_secrets import SecretStore
+from platform_secrets import SecretStore, SecretUnavailableError
 
 from .catalog import BUILTIN_PROVIDERS, get_preset, valid_format
 from .client import complete as llm_complete
@@ -146,7 +146,14 @@ def set_api_key(provider_id: str, api_key: str, _actor: ActorRef = None) -> dict
         )
     _require_provider(provider_id)
     deps = _require_deps()
-    deps.secrets.set(_key_name(provider_id), api_key)
+    try:
+        deps.secrets.set(_key_name(provider_id), api_key)
+    except SecretUnavailableError:
+        # BYOK:本机未配密钥材料时给出可读引导,而非 500
+        raise ServiceError(
+            _DOMAIN, ErrorSuffix.UNAVAILABLE, "加密仓不可用:本机未配置密钥材料",
+            hint="在仓库根 .env 设置 SECRETS_ENCRYPTION_KEY 后重启",
+        ) from None
     return {"provider_id": provider_id, "has_api_key": True}
 
 
