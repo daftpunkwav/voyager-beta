@@ -92,7 +92,7 @@ async def search_repos(query: str, token: str | None = None,
 
 async def list_starred(username: str, token: str | None = None,
                        limit: int = 100) -> list[dict[str, Any]]:
-    data = await _request(f"/users/{username}/stars", token,
+    data = await _request(f"/users/{username}/starred", token,
                           params={"per_page": min(limit, 100)})
     return [
         {

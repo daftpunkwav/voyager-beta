@@ -38,6 +38,11 @@ def _mock_github(monkeypatch) -> None:
                 "name": "langgraph", "html_url": "https://github.com/langchain-ai/langgraph",
                 "owner": {"login": "langchain-ai"}, "description": "编排",
                 "stargazers_count": 100, "language": "Python"}]})
+        if path.endswith("/starred"):
+            return httpx.Response(200, json=[{
+                "name": "langgraph", "html_url": "https://github.com/langchain-ai/langgraph",
+                "owner": {"login": "langchain-ai"}, "description": "星标仓库",
+                "stargazers_count": 100, "language": "Python"}])
         return httpx.Response(200, json={
             "name": path.rsplit("/", 1)[-1], "html_url": f"https://github.com{path}",
             "description": "测试仓库", "stargazers_count": 42, "language": "Python"})
@@ -121,6 +126,12 @@ class TestRepo:
         out = await execute(registry, "search_remote_repos", AGENT_CTX,
                             {"query": "langgraph"})
         assert out[0]["name"] == "langgraph"
+
+    async def test_list_starred(self, deps) -> None:
+        """真实端点为 /users/{u}/starred(迁移期曾误写 /stars)。"""
+        out = await execute(registry, "list_starred_repos", USER_CTX,
+                            {"username": "someone"})
+        assert out[0]["owner"] == "langchain-ai" and out[0]["stars"] == 100
 
     async def test_github_token_user_only(self, deps) -> None:
         with pytest.raises(ServiceError) as exc:
