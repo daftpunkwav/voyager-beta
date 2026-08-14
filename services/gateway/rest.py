@@ -1,7 +1,7 @@
 """gateway 服务装配(§6.3 / §13.1):对人类的唯一聚合入口。
 
-uvicorn rest:app_factory --factory --port 8000(独立运行=空挂载,
-仅 chat/activity/health;挂载清单由部署入口经 create_app 注入)。
+uvicorn services.gateway.rest:app_factory --factory --port 8000(独立运行=
+空挂载,仅 chat/activity/health;挂载清单与生命周期由部署入口经 create_app 注入)。
 
 错误约定:ServiceError → 统一错误体(§7.10),经全局 exception handler
 兜底——能力路由内的错误由 build_router 已映射,这里兜住 chat/activity
@@ -10,6 +10,8 @@ uvicorn rest:app_factory --factory --port 8000(独立运行=空挂载,
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -36,6 +38,7 @@ def create_app(
     *,
     db_path: str | Path = _DEFAULT_DB,
     bus: EventBus | None = None,
+    lifespan=None,
     issuer=None,
     auth: list | None = None,
     quota: list | None = None,
@@ -50,7 +53,12 @@ def create_app(
     limiter = RateLimiter(rate_limit_per_minute, sse_max_connections)
     probe = HealthProbe(bus)
 
-    app = FastAPI(title="gateway")
+    if lifespan is None:
+        @asynccontextmanager
+        async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+            yield
+
+    app = FastAPI(title="gateway", lifespan=lifespan)
 
     @app.exception_handler(ServiceError)
     async def _service_error(_req: Request, exc: ServiceError) -> JSONResponse:
