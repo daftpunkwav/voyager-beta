@@ -28,11 +28,11 @@ from platform_eventbus import EventBus, EventLog
 from .ratelimit import RateLimiter
 
 _DOMAIN = "gateway"
-#: 人类时间线关心的事件(聊天 + 进度 + 弹窗 + 跳转指令 + 笔记产物卡;
+#: 人类时间线关心的事件(聊天 + 进度 + 弹窗 + 跳转指令 + 产物卡;
 #: note.edited 不入流——编辑器自动保存会产生高频噪音)
 _STREAM_TYPES = (
     DomainEvent.AGENT_MESSAGE, "agent.ask", DomainEvent.AGENT_NAVIGATE,
-    "task.*", "note.created",
+    "task.*", "note.created", "source.added", "source.ready", "source.removed",
 )
 _HISTORY_TYPES = (DomainEvent.USER_MESSAGE, DomainEvent.AGENT_MESSAGE)
 
