@@ -1,0 +1,16 @@
+[project]
+name = "platform-actor"
+version = "0.1.0"
+description = "actor 模型、本机会话令牌、调用上下文(鉴权机制,§7.4)"
+requires-python = ">=3.11"
+dependencies = ["platform-contracts"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["platform_actor"]
