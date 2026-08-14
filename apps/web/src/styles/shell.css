@@ -58,6 +58,137 @@
 }
 .degraded__message { font-size: 14px; color: var(--text-800); font-weight: 500; }
 
+/* ---------- 设置页 ---------- */
+.settings-layout {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 24px;
+  margin-top: 16px;
+}
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.setting-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 560px;
+}
+.setting-field__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.setting-field__label { font-size: 13px; font-weight: 600; color: var(--text-800); }
+.setting-field__error { color: var(--error); }
+.setting-input {
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--bg-300);
+  background: var(--bg-50);
+  color: var(--text-800);
+  width: 100%;
+  box-sizing: border-box;
+}
+.setting-input:focus { outline: 2px solid var(--brand-300); outline-offset: -1px; }
+.setting-input--invalid { border-color: var(--error); outline-color: var(--error); }
+.setting-input--json { font-family: var(--font-mono); resize: vertical; }
+.setting-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.setting-badge--ok { background: var(--success-surface); color: var(--success); }
+.setting-badge--none { background: var(--bg-200); color: var(--text-500); }
+
+/* Switch(bool 控件) */
+.switch {
+  width: 40px;
+  height: 24px;
+  border-radius: 999px;
+  border: none;
+  background: var(--bg-300);
+  position: relative;
+  transition: background 0.15s var(--ease);
+  flex-shrink: 0;
+}
+.switch--on { background: var(--success); }
+.switch__knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.2));
+  transition: transform 0.15s var(--ease);
+}
+.switch--on .switch__knob { transform: translateX(16px); }
+
+/* LLM 提供商卡片 */
+.provider-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.provider-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--bg-100);
+  border: 1px solid var(--bg-300);
+}
+.provider-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.provider-card__name { font-weight: 700; font-size: 14px; color: var(--text-800); }
+.provider-card__meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-500);
+}
+.provider-card__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.provider-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--bg-100);
+  border: 1px solid var(--bg-300);
+  max-width: 560px;
+}
+.provider-editor label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-700);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 /* ---------- 健康调试页 ---------- */
 .health-grid {
   display: grid;
