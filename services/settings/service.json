@@ -1,3 +1,5 @@
 {"name": "settings", "version": "0.1.0", "protocol": "0.1.0", "port": 8080,
- "capabilities": [], "subscribes": ["settings.changed"],
- "publishes": ["settings.changed"], "status": "skeleton"}
+ "capabilities": ["list_themes", "get_theme", "set_theme", "get_settings",
+                  "get_setting", "set_setting"],
+ "subscribes": [],
+ "publishes": ["settings.changed"], "status": "implemented"}
