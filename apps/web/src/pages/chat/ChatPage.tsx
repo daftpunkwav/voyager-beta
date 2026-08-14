@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useChatStore } from './chatStore';
 import { useChatStream } from './useChatStream';
 import { MessageList, TaskCards } from './MessageList';
+import { AskDialog } from './AskDialog';
 
 export function ChatPage() {
   const navigate = useNavigate();
@@ -75,6 +76,7 @@ export function ChatPage() {
           发送
         </button>
       </div>
+      <AskDialog />
     </section>
   );
 }
