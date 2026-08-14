@@ -10,6 +10,10 @@ const NAV_GROUPS: { label: string; items: { to: string; label: string }[] }[] = 
     items: [{ to: '/', label: '对话' }],
   },
   {
+    label: '领域',
+    items: [{ to: '/notes', label: '笔记' }],
+  },
+  {
     label: '系统',
     items: [
       { to: '/system/health', label: '服务状态' },
