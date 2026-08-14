@@ -46,16 +46,15 @@ class TestAggregation:
                                    type=SettingType.CHOICE, default="updated",
                                    choices=("updated", "title"))])
         all_items = await execute(registry, "get_settings", USER_CTX, {})
-        assert {i["module"] for i in all_items} >= {
-            "appearance", "interaction", "privacy", "notes"}
+        assert {i["module"] for i in all_items} >= {"appearance", "privacy", "notes"}
         notes_only = await execute(registry, "get_settings", USER_CTX,
                                    {"module": "notes"})
         assert [i["key"] for i in notes_only] == ["notes.sort.default"]
 
     async def test_get_setting(self, deps) -> None:
         item = await execute(registry, "get_setting", AGENT_CTX,
-                             {"key": "interaction.arbiter.mode"})
-        assert item["value"] == "queue"  # 默认排队(用户拍板)
+                             {"key": "privacy.activity_report"})
+        assert item["value"] is True  # 行为上报默认开
 
     async def test_unknown_key(self, deps) -> None:
         with pytest.raises(ServiceError) as ei:
