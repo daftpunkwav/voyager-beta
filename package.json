@@ -9,32 +9,20 @@
   "overrides": {
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "@redocly/openapi-core": {
-      "js-yaml": "^4.3.1"
-    },
     "postcss": {
       "nanoid": "^3.3.18"
     }
   },
   "scripts": {
-    "prepare": "husky",
     "dev:web": "npm run dev -w web",
     "build:web": "npm run build -w web",
     "preview:web": "npm run preview -w web",
     "test:web": "npm run test -w web",
-    "test:web:e2e": "npm run test:e2e -w web",
     "lint:web": "npm run lint -w web",
     "typecheck:web": "npm run typecheck -w web",
-    "test:api": "pytest tests -q",
-    "test": "npm run test:api && npm run test:web",
-    "export:openapi": "python scripts/export_openapi.py",
-    "generate:types": "npm run export:openapi && npm run generate -w types",
-    "lint:py": "ruff check services/",
-    "typecheck:py": "mypy services/api/api_backend",
-    "audit:web": "npm audit --audit-level=high",
-    "ci": "npm run generate:types && npm run lint:py && npm run typecheck:py && npm run test:api && npm run lint:web && npm run typecheck:web && npm run test:web && npm run audit:web",
-    "dev:api": "node scripts/dev-uvicorn.mjs api_backend.main:app 19878 services/api API_PORT",
-    "dev:agent": "node scripts/dev-uvicorn.mjs agent_runtime.main:app 19877 services/agent AGENT_PORT"
+    "lint:py": "ruff check platform agent services",
+    "test:py": "pytest platform agent services/_template -q",
+    "audit:web": "npm audit --audit-level=high"
   },
   "devDependencies": {
     "husky": "^9.1.7",
@@ -43,15 +31,6 @@
   "lint-staged": {
     "apps/web/src/**/*.{ts,tsx}": [
       "eslint --max-warnings 0"
-    ],
-    "services/api/**/*.py": [
-      "ruff check --fix"
-    ],
-    "services/graph_engine/graph_engine_runtime/**/*.py": [
-      "ruff check --fix"
-    ],
-    "services/graph_engine/graph_engine_fallback/**/*.py": [
-      "ruff check --fix"
     ],
     ".env": [
       "echo '错误: .env 文件禁止提交,请先从暂存区移除!' && exit 1"
