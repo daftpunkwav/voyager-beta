@@ -11,6 +11,7 @@ from platform_contracts import LOCAL_USER, DomainEvent, JobStatus
 from platform_eventbus import EventBus, EventLog
 
 from services._template.capabilities import registry
+from services._template.store import JobStore
 
 fastapi = pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
@@ -36,7 +37,7 @@ class TestCapabilities:
 def app(tmp_path):
     log = EventLog(tmp_path / "events.db")
     bus = EventBus(log)
-    application = create_app(tmp_path / "template.db", bus=bus)
+    application = create_app(tmp_path, bus=bus)
     application.state.event_log = log
     yield application
     log.close()
@@ -57,20 +58,22 @@ class TestRest:
 
 
 class TestJobFlow:
-    def test_submit_job_end_to_end(self, app) -> None:
+    def test_submit_job_end_to_end(self, app, tmp_path) -> None:
         """提交 → 202 → worker 执行 → 落库 completed + task.completed 事件。"""
+        probe = JobStore(tmp_path / "template.db")  # 另开连接轮询,不依赖 app 内部
         with TestClient(app) as client:
             resp = client.post("/capabilities/submit_job", json={})
             assert resp.status_code == 202
             job_id = resp.json()["job"]["job_id"]
             deadline = time.time() + 5
             while time.time() < deadline:
-                job = app.state.store.get(job_id)
+                job = probe.get(job_id)
                 if job and job["status"] == JobStatus.COMPLETED.value:
                     break
                 time.sleep(0.05)
             else:
                 pytest.fail("任务超时未完成")
+        probe.close()
         log: EventLog = app.state.event_log
         completed = [e for _, e in log.read_after(types=[DomainEvent.TASK_COMPLETED])]
         assert any(e.payload["job_id"] == job_id for e in completed)

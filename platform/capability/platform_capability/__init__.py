@@ -15,6 +15,7 @@ from platform_capability.guards import (
     summarize_args,
 )
 from platform_capability.registry import Registry
+from platform_capability.wiring import Wiring
 
 __all__ = [
     "SENSITIVE_KEYS",
@@ -26,6 +27,7 @@ __all__ = [
     "InMemoryAuditSink",
     "LocalAuth",
     "Registry",
+    "Wiring",
     "build_router",
     "build_server",
     "build_tool_specs",

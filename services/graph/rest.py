@@ -1,4 +1,8 @@
-"""graph 服务 REST 入口(§13.1):uvicorn rest:app_factory --factory --port 8030"""
+"""graph 服务 REST 入口(§13.1)。
+
+独立运行:uvicorn services.graph.rest:app_factory --factory --port 8030(仓库根)。
+装配逻辑全部在 wiring.py;本文件只是 HTTP 薄壳。
+"""
 
 from __future__ import annotations
 
@@ -11,12 +15,8 @@ from platform_capability import build_router
 from platform_contracts import HealthReport, HealthStatus
 from platform_eventbus import EventBus
 
-from .capabilities import Deps, init_deps, registry
-from .engines.adapter import EngineAdapter
-from .index_queue import IndexQueue
-from .pipelines.code.analyze import analyze_repo
 from .scheduler import IndexScheduler
-from .store import GraphStore
+from .wiring import wire
 
 _DEFAULT_DATA = Path(__file__).parent / "data"
 
@@ -29,30 +29,21 @@ def create_app(
     engine_mode: str = "auto",
     scheduler: IndexScheduler | None = None,
 ) -> FastAPI:
-    data_dir = Path(data_dir)
-    store = GraphStore(data_dir / "graph.db")
-    queue = IndexQueue(data_dir / "index.db")
-    adapter = EngineAdapter(c_base_url=c_url,
-                            python_data_root=data_dir / "engine-python",
-                            bus=bus, mode=engine_mode)
-    init_deps(Deps(store=store, queue=queue, adapter=adapter, bus=bus))
-
-    async def _run_job(job: dict) -> None:
-        await analyze_repo(adapter, store, project=job["project"],
-                           repo_path=job["repo_path"])
-
-    sched = scheduler or IndexScheduler(queue, _run_job, bus)
+    w = wire(data_dir, bus=bus, c_url=c_url, engine_mode=engine_mode,
+             scheduler=scheduler)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        await sched.start()
+        if w.start:
+            await w.start()
         yield
-        await sched.stop()
-        store.close()
-        queue.close()
+        if w.stop:
+            await w.stop()
+        if w.close:
+            w.close()
 
     app = FastAPI(title="graph", lifespan=lifespan)
-    app.include_router(build_router(registry))
+    app.include_router(build_router(w.registry))
 
     @app.get("/health")
     async def health() -> dict:

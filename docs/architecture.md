@@ -581,19 +581,27 @@ voyager/                              # 仓库根(目录名即功能名)
 office 的全部操作、code-exec 的全部运行时等)在对应模块卡 `docs/modules/<domain>.md`
 中详细设计并持续演进;新增能力只改该服务的 `capabilities.py` 注册表与模块卡,本文档不动。
 
-### 8.1 通用模板(六件套)
+### 8.1 通用模板(七件套)
+
+每个服务是一个**包**(目录含 `__init__.py`,内部模块一律相对导入——
+`services.<domain>.<mod>` 全局唯一,聚合运行与同 session 全量测试因此可行):
 
 ```
 services/<domain>/
 ├── capabilities.py    # 能力注册表(单一事实来源)
-├── rest.py            # 注册表 → FastAPI router
-├── mcp_server.py      # 注册表 → FastMCP server(stdio / streamable HTTP)
+├── wiring.py          # 装配:store/deps 组装,独立运行与聚合运行共用
+├── rest.py            # 薄壳:wire() → 注册表 → FastAPI router
+├── mcp_server.py      # 薄壳:wire() → 注册表 → FastMCP server
 ├── worker.py          # 本领域队列与调度(无长任务则省略)
 ├── store.py           # 本领域数据访问(独立命名空间)
 ├── settings.py        # 本服务设置项声明(经 platform/settings 框架)
 ├── service.json       # 模块卡:名称、端口、能力清单、订阅的事件类型
-└── tests/             # 本服务全部测试
+└── tests/             # 本服务全部测试(含 __init__.py,完整包路径)
 ```
+
+装配产物形态统一为 `platform_capability.Wiring`(registry + probe/start/stop/close):
+独立运行的 `rest.py` 与聚合运行的装配根(`deploy/`)调同一个 `wire()`,
+接线逻辑单一来源。
 
 ### 8.2 sources(资源聚合服务)
 
@@ -1243,8 +1251,9 @@ CI 依赖扫描强制执行,违反即构建失败。
 
 ### 13.1 独立开发、编译与运行
 
-- 每个领域服务:进入目录即可独立起进程(自带注册表 → REST + MCP),
-  测试只跑自己目录;
+- 每个领域服务:进入目录即可独立起进程(自带注册表 → REST + MCP,
+  `python -m services.<domain>.<rest|mcp_server>`),
+  测试既可目录内单跑、也可仓库根同 session 全量跑(服务是包,模块路径唯一);
 - agent:独立进程,启动时按 service.json 发现并连接各服务;
 - gateway / web:各自独立,web 只需 gateway 一个地址;
 - 单体模式(§3.3):一个命令装进单进程供调试;

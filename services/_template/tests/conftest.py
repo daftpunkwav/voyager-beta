@@ -1,4 +1,4 @@
-"""把服务目录加入 sys.path:模板是非包扁平模块,测试需从服务目录导入。"""
+"""把仓库根加入 sys.path:测试经包路径 services._template.<mod> 导入。"""
 
 import sys
 from pathlib import Path
