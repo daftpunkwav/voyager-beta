@@ -15,7 +15,8 @@ from platform_contracts import (
     JobStatus,
 )
 from platform_eventbus import EventBus
-from store import JobStore
+
+from .store import JobStore
 
 _ACTOR = ActorRef(kind=ActorKind.SYSTEM, id="template.worker")
 

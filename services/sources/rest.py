@@ -10,16 +10,17 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from capabilities import SourcesDeps, init_all, registry
 from fastapi import FastAPI
-from modules.books.store import BookStore
-from modules.news.store import NewsStore
-from modules.repo.store import RepoStore
-from modules.repo.worker import RepoWorker
 from platform_capability import build_router
 from platform_contracts import HealthReport, HealthStatus
 from platform_eventbus import EventBus
 from platform_secrets import SecretStore
+
+from .capabilities import SourcesDeps, init_all, registry
+from .modules.books.store import BookStore
+from .modules.news.store import NewsStore
+from .modules.repo.store import RepoStore
+from .modules.repo.worker import RepoWorker
 
 _DEFAULT_DATA = Path(__file__).parent / "data"
 _DEFAULT_WORKSPACE = Path(__file__).parents[2] / "workspace"

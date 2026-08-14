@@ -15,8 +15,8 @@ from platform_contracts import ActorKind, ActorRef, ErrorSuffix, JobRef, Service
 from platform_eventbus import EventBus
 from platform_secrets import SecretStore
 
-from modules.repo import github
-from modules.repo.store import RepoStore
+from . import github
+from .store import RepoStore
 
 _DOMAIN = "sources"
 registry = Registry(_DOMAIN)

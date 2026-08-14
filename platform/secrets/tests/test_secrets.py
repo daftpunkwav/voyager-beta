@@ -1,7 +1,6 @@
 """secrets 测试:加密往返、材料来源、无材料降级、键名列举不回值。"""
 
 import pytest
-
 from platform_secrets import SecretStore, SecretUnavailableError, load_key_material
 
 
@@ -12,7 +11,7 @@ class TestStore:
         assert store.get("llm.provider.openai.api_key") == "sk-abc"
         assert store.has("llm.provider.openai.api_key")
         # 库里只有密文
-        raw = store._conn.execute("SELECT ciphertext FROM secrets").fetchone()[0]  # noqa: SLF001
+        raw = store._conn.execute("SELECT ciphertext FROM secrets").fetchone()[0]
         assert "sk-abc" not in raw
         store.close()
 

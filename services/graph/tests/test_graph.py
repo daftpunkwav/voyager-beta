@@ -2,17 +2,18 @@
 引擎回退、Python 引擎端到端索引小仓库、仓库关联。"""
 
 import pytest
-from capabilities import Deps, init_deps, registry
-from engines.adapter import EngineAdapter
-from index_queue import IndexQueue
-from pipelines.code.analyze import analyze_repo
-from pipelines.code.relate import relate_repos
 from platform_actor import ActorContext
 from platform_capability import execute
 from platform_contracts import LOCAL_USER, ActorKind, ActorRef, ServiceError
 from platform_eventbus import EventBus, EventLog
-from scheduler import IndexScheduler
-from store import GraphStore
+
+from services.graph.capabilities import Deps, init_deps, registry
+from services.graph.engines.adapter import EngineAdapter
+from services.graph.index_queue import IndexQueue
+from services.graph.pipelines.code.analyze import analyze_repo
+from services.graph.pipelines.code.relate import relate_repos
+from services.graph.scheduler import IndexScheduler
+from services.graph.store import GraphStore
 
 USER_CTX = ActorContext(actor=LOCAL_USER)
 AGENT_CTX = ActorContext(actor=ActorRef(kind=ActorKind.AGENT, id="agent.main", scopes=()))

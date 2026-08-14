@@ -13,7 +13,8 @@ from dataclasses import dataclass
 from platform_capability import Registry, capability
 from platform_contracts import JobRef
 from platform_eventbus import EventBus
-from store import JobStore
+
+from .store import JobStore
 
 registry = Registry("template")
 

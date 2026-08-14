@@ -7,10 +7,11 @@ def main():
     import tempfile
     from pathlib import Path
 
-    from capabilities import Deps, init_deps, registry
     from platform_capability import build_server
     from platform_secrets import SecretStore
-    from store import ProviderStore
+
+    from .capabilities import Deps, init_deps, registry
+    from .store import ProviderStore
 
     data = Path(tempfile.gettempdir()) / "llm-mcp"
     init_deps(Deps(store=ProviderStore(data / "llm.db"),

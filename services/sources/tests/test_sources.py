@@ -8,17 +8,18 @@ from pathlib import Path
 
 import httpx
 import pytest
-from capabilities import SourcesDeps, init_all, registry
-from modules.books.store import BookStore
-from modules.news.store import NewsStore
-from modules.repo import github as github_mod
-from modules.repo.store import RepoStore
-from modules.repo.worker import RepoWorker
 from platform_actor import ActorContext
 from platform_capability import execute
 from platform_contracts import LOCAL_USER, ActorKind, ActorRef, ServiceError
 from platform_eventbus import EventBus, EventLog
 from platform_secrets import SecretStore
+
+from services.sources.capabilities import SourcesDeps, init_all, registry
+from services.sources.modules.books.store import BookStore
+from services.sources.modules.news.store import NewsStore
+from services.sources.modules.repo import github as github_mod
+from services.sources.modules.repo.store import RepoStore
+from services.sources.modules.repo.worker import RepoWorker
 
 USER_CTX = ActorContext(actor=LOCAL_USER)
 AGENT_CTX = ActorContext(actor=ActorRef(kind=ActorKind.AGENT, id="agent.main", scopes=()))

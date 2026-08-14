@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from store import GraphStore
+from ...store import GraphStore
 
 _EXTERNAL_HINTS = ("fastapi", "django", "flask", "react", "vue", "sqlalchemy",
                    "pydantic", "numpy", "pandas", "httpx", "click", "rich")

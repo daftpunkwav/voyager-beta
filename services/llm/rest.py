@@ -7,12 +7,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from capabilities import Deps, init_deps, registry
 from fastapi import FastAPI
 from platform_capability import build_router
 from platform_contracts import HealthReport, HealthStatus
 from platform_secrets import SecretStore
-from store import ProviderStore
+
+from .capabilities import Deps, init_deps, registry
+from .store import ProviderStore
 
 _DEFAULT_DATA = Path(__file__).parent / "data"
 

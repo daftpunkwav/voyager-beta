@@ -5,15 +5,17 @@ import time
 from pathlib import Path
 
 import pytest
-from capabilities import registry
 from platform_actor import ActorContext
 from platform_capability import execute
 from platform_contracts import LOCAL_USER, DomainEvent, JobStatus
 from platform_eventbus import EventBus, EventLog
 
+from services._template.capabilities import registry
+
 fastapi = pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
-from rest import create_app
+
+from services._template.rest import create_app
 
 USER_CTX = ActorContext(actor=LOCAL_USER)
 SERVICE_DIR = Path(__file__).parent.parent

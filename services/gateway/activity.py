@@ -12,7 +12,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from platform_contracts import LOCAL_USER, ActorRef, DomainEvent, ErrorSuffix, Event, ServiceError
 from platform_eventbus import EventBus
-from ratelimit import RateLimiter
+
+from .ratelimit import RateLimiter
 
 _DOMAIN = "gateway"
 _ACTIVITY_KINDS = ("page_view", "pointer", "selection", "manual")  # 上报类别初始集

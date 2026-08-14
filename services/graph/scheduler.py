@@ -10,9 +10,10 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from index_queue import IndexQueue
 from platform_contracts import ActorKind, ActorRef, Event
 from platform_eventbus import EventBus
+
+from .index_queue import IndexQueue
 
 _ACTOR = ActorRef(kind=ActorKind.SYSTEM, id="graph.scheduler")
 

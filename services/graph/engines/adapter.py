@@ -12,7 +12,7 @@ from typing import Any, Protocol
 from platform_contracts import ActorKind, ActorRef, Event
 from platform_eventbus import EventBus
 
-from engines.c.client import CEngineClient
+from .c.client import CEngineClient
 
 _ACTOR = ActorRef(kind=ActorKind.SYSTEM, id="graph.engine")
 
@@ -29,7 +29,7 @@ class _PythonEngineAdapter:
     flavor = "python"
 
     def __init__(self, data_root: Any) -> None:
-        from engines.python.engine import GraphEngine
+        from .python.engine import GraphEngine
         self._engine = GraphEngine(data_root)
 
     async def health(self) -> bool:

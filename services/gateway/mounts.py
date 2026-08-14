@@ -11,9 +11,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from fastapi import FastAPI
-from health import HealthProbe, ProbeFn
 from platform_capability import build_router
 from platform_capability.registry import Registry
+
+from .health import HealthProbe, ProbeFn
 
 
 @dataclass(frozen=True)

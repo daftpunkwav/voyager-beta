@@ -14,7 +14,8 @@ from dataclasses import dataclass
 from platform_capability import Registry, capability
 from platform_contracts import ActorKind, ActorRef, ErrorSuffix, ServiceError
 from platform_settings import SettingsStore
-from settings import DEFS, THEMES
+
+from .defs import DEFS, THEMES
 
 _DOMAIN = "settings"
 registry = Registry(_DOMAIN)

@@ -3,10 +3,12 @@
 import asyncio
 
 import pytest
-from conftest import MountSpec, _echo_registry
 from fastapi.testclient import TestClient
 from platform_contracts import LOCAL_USER, ActorKind, ActorRef, DomainEvent, Event
-from rest import create_app
+
+from services.gateway.rest import create_app
+
+from .conftest import MountSpec, _echo_registry
 
 
 @pytest.fixture()
@@ -33,7 +35,7 @@ class TestChat:
     def test_post_and_history(self, client, bus) -> None:
         r = client.post("/api/chat/messages", json={"content": "你好"})
         assert r.status_code == 200 and r.json()["seq"] >= 1
-        asyncio.get_event_loop().run_until_complete(bus.publish(Event(
+        asyncio.run(bus.publish(Event(
             type=DomainEvent.AGENT_MESSAGE,
             actor=ActorRef(kind=ActorKind.AGENT, id="agent.main"),
             payload={"content": "你好,我在"},
@@ -49,7 +51,7 @@ class TestChat:
 
     def test_sse_replay_then_close(self, client, bus) -> None:
         """断线续传:带 after_seq 连流,先补日志里的存量事件(once 模式追平即关)。"""
-        asyncio.get_event_loop().run_until_complete(bus.publish(Event(
+        asyncio.run(bus.publish(Event(
             type=DomainEvent.AGENT_MESSAGE,
             actor=ActorRef(kind=ActorKind.AGENT, id="agent.main"),
             payload={"content": "离线时的回复"},

@@ -10,15 +10,16 @@ import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 
-from modules.books import capabilities as books_caps
-from modules.books.store import BookStore
-from modules.news import capabilities as news_caps
-from modules.news.store import NewsStore
-from modules.repo import capabilities as repo_caps
-from modules.repo.store import RepoStore
 from platform_capability import Registry
 from platform_eventbus import EventBus
 from platform_secrets import SecretStore
+
+from .modules.books import capabilities as books_caps
+from .modules.books.store import BookStore
+from .modules.news import capabilities as news_caps
+from .modules.news.store import NewsStore
+from .modules.repo import capabilities as repo_caps
+from .modules.repo.store import RepoStore
 
 registry = Registry("sources")
 registry.merge(repo_caps.registry, books_caps.registry, news_caps.registry)

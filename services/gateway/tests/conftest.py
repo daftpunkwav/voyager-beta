@@ -7,10 +7,10 @@ import pytest
 from platform_capability import Registry, capability
 from platform_eventbus import EventBus, EventLog
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # 仓库根
 
-from mounts import MountSpec
-from rest import create_app
+from services.gateway.mounts import MountSpec
+from services.gateway.rest import create_app
 
 _echo_registry = Registry("echo")
 

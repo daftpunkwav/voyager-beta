@@ -9,11 +9,11 @@ from platform_contracts import ActorKind, ActorRef
 from platform_eventbus import EventBus, EventLog
 from platform_settings import SettingsStore
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # 仓库根
 
-import capabilities
-from capabilities import Deps
-from settings import DEFS
+from services.settings import capabilities
+from services.settings.capabilities import Deps
+from services.settings.defs import DEFS
 
 USER_CTX = ActorContext(actor=ActorRef(kind=ActorKind.USER, id="user.local"))
 AGENT_CTX = ActorContext(actor=ActorRef(kind=ActorKind.AGENT, id="agent.main", scopes=()))

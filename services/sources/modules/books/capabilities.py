@@ -9,7 +9,7 @@ from pathlib import Path
 from platform_capability import Registry, capability
 from platform_contracts import ErrorSuffix, ServiceError
 
-from modules.books.store import BookStore
+from .store import BookStore
 
 _DOMAIN = "sources"
 registry = Registry(_DOMAIN)

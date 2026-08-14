@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from capabilities import Deps, init_deps, registry
 from fastapi import FastAPI
 from platform_capability import build_router
 from platform_contracts import HealthReport, HealthStatus
 from platform_eventbus import EventBus
-from store import NoteStore
+
+from .capabilities import Deps, init_deps, registry
+from .store import NoteStore
 
 _DEFAULT_DB = Path(__file__).parent / "data" / "notes.db"
 

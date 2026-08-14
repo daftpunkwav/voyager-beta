@@ -15,7 +15,7 @@ from pathlib import Path
 from platform_contracts import ActorKind, ActorRef, Event
 from platform_eventbus import EventBus
 
-from modules.repo.store import RepoStore
+from .store import RepoStore
 
 _ACTOR = ActorRef(kind=ActorKind.SYSTEM, id="sources.repo.worker")
 

@@ -10,13 +10,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from catalog import BUILTIN_PROVIDERS, get_preset, valid_format
-from client import complete as llm_complete
-from client import test_connection as llm_test
 from platform_capability import Registry, capability
 from platform_contracts import ActorKind, ActorRef, ErrorSuffix, ServiceError
 from platform_secrets import SecretStore
-from store import ProviderStore
+
+from .catalog import BUILTIN_PROVIDERS, get_preset, valid_format
+from .client import complete as llm_complete
+from .client import test_connection as llm_test
+from .store import ProviderStore
 
 _DOMAIN = "llm"
 registry = Registry(_DOMAIN)

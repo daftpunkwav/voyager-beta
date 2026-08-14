@@ -11,7 +11,8 @@ from dataclasses import dataclass
 from platform_capability import Registry, capability
 from platform_contracts import ActorKind, ActorRef, ErrorSuffix, Event, ServiceError
 from platform_eventbus import EventBus
-from store import NoteStore
+
+from .store import NoteStore
 
 _DOMAIN = "notes"
 _ACTOR = ActorRef(kind=ActorKind.SYSTEM, id="notes.service")

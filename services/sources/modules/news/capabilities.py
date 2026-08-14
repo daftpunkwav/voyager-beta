@@ -9,7 +9,7 @@ from platform_capability import Registry, capability
 from platform_contracts import ErrorSuffix, ServiceError
 from platform_eventbus import EventBus
 
-from modules.news.store import NewsStore, html_to_text
+from .store import NewsStore, html_to_text
 
 _DOMAIN = "sources"
 registry = Registry(_DOMAIN)

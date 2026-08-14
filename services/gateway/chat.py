@@ -24,7 +24,8 @@ from platform_contracts import (
     ServiceError,
 )
 from platform_eventbus import EventBus, EventLog
-from ratelimit import RateLimiter
+
+from .ratelimit import RateLimiter
 
 _DOMAIN = "gateway"
 #: 人类时间线关心的事件(聊天 + 进度 + 弹窗 + 跳转指令)

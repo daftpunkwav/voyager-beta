@@ -3,15 +3,16 @@
 网络出口一律 mock(httpx.MockTransport),测试不触网。
 """
 
-import client as client_mod
 import httpx
 import pytest
-from capabilities import Deps, init_deps, registry
 from platform_actor import ActorContext
 from platform_capability import execute
 from platform_contracts import LOCAL_USER, ActorKind, ActorRef, ServiceError
 from platform_secrets import SecretStore
-from store import ProviderStore
+
+from services.llm import client as client_mod
+from services.llm.capabilities import Deps, init_deps, registry
+from services.llm.store import ProviderStore
 
 USER_CTX = ActorContext(actor=LOCAL_USER)
 AGENT_CTX = ActorContext(actor=ActorRef(kind=ActorKind.AGENT, id="agent.main", scopes=()))

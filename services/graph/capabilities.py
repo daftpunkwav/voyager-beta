@@ -10,13 +10,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from engines.adapter import EngineAdapter
-from index_queue import IndexQueue
-from pipelines.ai import guide as ai_guide
 from platform_capability import Registry, capability
 from platform_contracts import ActorRef, ErrorSuffix, JobRef, ServiceError
 from platform_eventbus import EventBus
-from store import GraphStore
+
+from .engines.adapter import EngineAdapter
+from .index_queue import IndexQueue
+from .pipelines.ai import guide as ai_guide
+from .store import GraphStore
 
 _DOMAIN = "graph"
 registry = Registry(_DOMAIN)

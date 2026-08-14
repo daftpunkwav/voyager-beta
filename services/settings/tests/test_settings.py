@@ -1,11 +1,13 @@
 """settings 服务能力测试(§8.8):主题、聚合 schema、secret 边界、变更事件。"""
 
 import pytest
-from capabilities import registry
-from conftest import AGENT_CTX, USER_CTX
 from platform_capability import execute
 from platform_contracts import ServiceError
 from platform_settings import SettingDef, SettingType
+
+from services.settings.capabilities import registry
+
+from .conftest import AGENT_CTX, USER_CTX
 
 
 class TestTheme:
@@ -19,7 +21,7 @@ class TestTheme:
 
     async def test_agent_can_switch_theme(self, deps) -> None:
         """铁律:用户能改的(agent 除隐私外)也能改。"""
-        store, log = deps
+        _store, log = deps
         out = await execute(registry, "set_theme", AGENT_CTX,
                             {"theme": "light", "font_scale": 1.2})
         assert out["theme"] == "light" and out["font_scale"] == 1.2

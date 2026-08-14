@@ -1,12 +1,13 @@
 """notes 服务测试(§8.3):CRUD、摘要/全文两级加载、关联、事件。"""
 
 import pytest
-from capabilities import Deps, init_deps, registry
 from platform_actor import ActorContext
 from platform_capability import execute
 from platform_contracts import LOCAL_USER, ActorKind, ActorRef, ServiceError
 from platform_eventbus import EventBus, EventLog
-from store import NoteStore
+
+from services.notes.capabilities import Deps, init_deps, registry
+from services.notes.store import NoteStore
 
 USER_CTX = ActorContext(actor=LOCAL_USER)
 AGENT_CTX = ActorContext(actor=ActorRef(kind=ActorKind.AGENT, id="agent.main", scopes=()))

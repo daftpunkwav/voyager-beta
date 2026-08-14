@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from capabilities import DEFS, Deps, init_deps, registry
 from fastapi import FastAPI
 from platform_capability import build_router
 from platform_contracts import HealthReport, HealthStatus
 from platform_eventbus import EventBus
 from platform_settings import SettingsStore
+
+from .capabilities import DEFS, Deps, init_deps, registry
 
 _DEFAULT_DB = Path(__file__).parent / "data" / "settings.db"
 

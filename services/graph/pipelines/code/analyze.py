@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from engines.adapter import EngineAdapter
-from store import GraphStore
+from ...engines.adapter import EngineAdapter
+from ...store import GraphStore
 
 
 async def analyze_repo(

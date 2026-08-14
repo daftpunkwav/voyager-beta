@@ -6,16 +6,17 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from capabilities import Deps, init_deps, registry
-from engines.adapter import EngineAdapter
 from fastapi import FastAPI
-from index_queue import IndexQueue
-from pipelines.code.analyze import analyze_repo
 from platform_capability import build_router
 from platform_contracts import HealthReport, HealthStatus
 from platform_eventbus import EventBus
-from scheduler import IndexScheduler
-from store import GraphStore
+
+from .capabilities import Deps, init_deps, registry
+from .engines.adapter import EngineAdapter
+from .index_queue import IndexQueue
+from .pipelines.code.analyze import analyze_repo
+from .scheduler import IndexScheduler
+from .store import GraphStore
 
 _DEFAULT_DATA = Path(__file__).parent / "data"
 

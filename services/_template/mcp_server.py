@@ -1,6 +1,6 @@
 """注册表 → MCP server(stdio)。agent / 外部客户端经此消费本服务能力。
 
-运行:python mcp_server.py(需 pip install 'mcp>=1.0';
+运行:python -m services._template.mcp_server(需 pip install 'mcp>=1.0';
 stdio 装配方式以所用 MCP SDK 版本文档为准)
 """
 
@@ -13,9 +13,10 @@ def main():
     import tempfile
     from pathlib import Path
 
-    from capabilities import Deps, init_deps, registry
     from platform_capability import build_server
-    from store import JobStore
+
+    from .capabilities import Deps, init_deps, registry
+    from .store import JobStore
 
     store = JobStore(Path(tempfile.gettempdir()) / "template-mcp.db")
     init_deps(Deps(store=store, bus=None, queue=asyncio.Queue()))

@@ -12,12 +12,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from activity import build_activity_router
-from chat import build_chat_router
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from health import HealthProbe
-from mounts import MountSpec, mount_services
 from platform_contracts import (
     LOCAL_USER,
     HealthReport,
@@ -25,7 +21,12 @@ from platform_contracts import (
     ServiceError,
 )
 from platform_eventbus import EventBus, EventLog
-from ratelimit import RateLimiter
+
+from .activity import build_activity_router
+from .chat import build_chat_router
+from .health import HealthProbe
+from .mounts import MountSpec, mount_services
+from .ratelimit import RateLimiter
 
 _DEFAULT_DB = Path(__file__).parent / "data" / "events.db"
 

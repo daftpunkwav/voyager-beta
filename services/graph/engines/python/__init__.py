@@ -3,6 +3,6 @@
 纯 Python(ast/正则),无外部依赖;统一 `call(name, args)` 分派。
 """
 
-from engines.python.engine import GraphEngine, get_engine
+from .engine import GraphEngine, get_engine
 
 __all__ = ["GraphEngine", "get_engine"]
