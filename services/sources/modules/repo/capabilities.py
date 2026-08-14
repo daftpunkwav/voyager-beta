@@ -130,8 +130,11 @@ def remove_repo(repo_id: str) -> dict:
     deps = require_deps()
     repo = _require_repo(repo_id)
     deps.store.remove(repo_id)
+    if repo["local_path"]:
+        # 本地目录清理由 worker 异步做(与克隆同一队列,保序)
+        deps.queue.put_nowait(("remove", repo_id, repo["local_path"]))
     return {"removed": repo_id, "name": repo["name"],
-            "local_path": repo["local_path"]}  # 本地目录清理由 worker 异步做
+            "local_path": repo["local_path"]}
 
 
 @capability(registry, name="search_remote_repos", description="搜索 GitHub 仓库(未导入的候选)",

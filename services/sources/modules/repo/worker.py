@@ -63,8 +63,17 @@ class RepoWorker:
 
     async def _loop(self) -> None:
         while True:
-            rid = await self._queue.get()
-            await self._run_one(rid)
+            item = await self._queue.get()
+            # 克隆任务为 str(rid);删除任务为 ("remove", rid, local_path)
+            if isinstance(item, tuple) and item[0] == "remove":
+                await self._run_remove(item[2])
+            else:
+                await self._run_one(item)
+
+    async def _run_remove(self, local_path: str) -> None:
+        """删除仓库的本地克隆目录(remove_repo 落库后投递,异步清理)。"""
+        if local_path:
+            shutil.rmtree(local_path, ignore_errors=True)
 
     async def _run_one(self, rid: str) -> None:
         repo = self._store.get(rid, with_readme=False)

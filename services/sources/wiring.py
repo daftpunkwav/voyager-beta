@@ -26,6 +26,7 @@ def wire(
     workspace: str | Path,
     bus: EventBus | None = None,
     secrets: SecretStore | None = None,
+    clone_fn=None,
 ) -> Wiring:
     data_dir = Path(data_dir)
     repo_store = RepoStore(data_dir / "repo.db")
@@ -38,7 +39,7 @@ def wire(
         repo_store=repo_store, book_store=book_store, news_store=news_store,
         secrets=secrets, bus=bus, repo_queue=queue, workspace=Path(workspace),
     ))
-    worker = RepoWorker(repo_store, bus, queue, Path(workspace))
+    worker = RepoWorker(repo_store, bus, queue, Path(workspace), clone_fn=clone_fn)
 
     def close() -> None:
         repo_store.close()

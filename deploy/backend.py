@@ -45,10 +45,12 @@ def build(
     workspace_dir: str | Path | None = None,
     *,
     llm: object | None = None,
+    clone_fn=None,
 ) -> FastAPI:
     """装配整个后端;uvicorn deploy.backend:build --factory。
 
     llm:测试注入口(agent.llm.LLMClient 协议);省略时走 llm 服务能力(ServiceLLM)。
+    clone_fn:sources 克隆函数测试注入口;省略时真 git clone(不 mock 骗用户)。
     """
     from services.gateway.mounts import MountSpec
     from services.gateway.rest import create_app as gateway_create
@@ -72,7 +74,7 @@ def build(
         "settings": wire_settings(data_root / "settings", bus=bus, store=settings_store),
         "llm": wire_llm(data_root / "llm", secrets=secrets),
         "sources": wire_sources(data_root / "sources", workspace=workspace,
-                                bus=bus, secrets=secrets),
+                                bus=bus, secrets=secrets, clone_fn=clone_fn),
         "notes": wire_notes(data_root / "notes", bus=bus),
         "graph": wire_graph(data_root / "graph", bus=bus),
     }
