@@ -7,6 +7,7 @@ import { useSourcesStore } from './sourcesStore';
 import { RepoCard } from './RepoCard';
 import { ImportDialog } from './ImportDialog';
 import { RepoDetail } from './RepoDetail';
+import { RemoteSearch } from './RemoteSearch';
 
 const STREAM_PATTERNS = [
   'task.progress',
@@ -22,6 +23,7 @@ export function SourcesPage() {
     useSourcesStore();
   const progress = useSourcesStore((s) => s.progress);
   const [importing, setImporting] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,6 +51,9 @@ export function SourcesPage() {
       <div className="sources-toolbar">
         <button type="button" className="btn btn-primary" onClick={() => setImporting((v) => !v)}>
           导入仓库
+        </button>
+        <button type="button" className="btn" onClick={() => setSearching((v) => !v)}>
+          库外搜索 / Stars
         </button>
         <span className="sources-toolbar__spacer" />
         <label className="small muted">
@@ -93,6 +98,7 @@ export function SourcesPage() {
           }}
         />
       ) : null}
+      {searching ? <RemoteSearch onDone={() => setSearching(false)} /> : null}
 
       {loading ? (
         <div className="loading-spinner">
