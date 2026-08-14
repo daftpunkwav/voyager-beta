@@ -1,3 +1,11 @@
-{"name": "notes", "version": "0.1.0", "protocol": "0.1.0", "port": 8020,
- "capabilities": [], "subscribes": [],
- "publishes": ["note.created", "note.edited"], "status": "skeleton"}
+{
+  "name": "notes",
+  "version": "0.1.0",
+  "protocol": "0.1.0",
+  "port": 8020,
+  "capabilities": ["create_note", "update_note", "delete_note", "list_notes",
+                   "get_note", "link_note"],
+  "subscribes": [],
+  "publishes": ["note.created", "note.edited", "note.deleted"],
+  "status": "implemented"
+}
