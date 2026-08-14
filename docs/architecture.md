@@ -1280,10 +1280,6 @@ CI 依赖扫描强制执行,违反即构建失败。
    office(doc/slides)→ code-exec(容器)→ browser(desktop)⬜;
 5. **生态** ⬜:插件与外接 MCP、自建 subagent、可选多机部署(微服务化平移)。
 
-**切换遗留**:旧树(services/api、services/agent、graph_engine 残留、
-packages/py-shared、services/mcp 占位)仍在线,待 apps/web 重写指向 gateway、
-agent 经 MCP client 接线各领域能力后,统一退役删除。
-
 ## 15. 决策记录(已定稿)
 
 | # | 议题 | 决策 |
