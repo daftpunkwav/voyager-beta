@@ -17,7 +17,7 @@ def reach_out_tool(bus: EventBus | None) -> dict[str, AgentTool]:
             Event(
                 type=DomainEvent.AGENT_MESSAGE,
                 actor=AGENT_MAIN,
-                payload={"text": text, "proactive": True},
+                payload={"content": text, "proactive": True},
             )
         )
         return "[已发送]"

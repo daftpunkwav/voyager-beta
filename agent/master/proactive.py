@@ -122,7 +122,7 @@ class ProactiveEngine:
                 Event(
                     type=DomainEvent.AGENT_MESSAGE,
                     actor=AGENT_MAIN,
-                    payload={"text": text, "proactive": True},
+                    payload={"content": text, "proactive": True},
                     trace_id=trace_id,
                 )
             )
