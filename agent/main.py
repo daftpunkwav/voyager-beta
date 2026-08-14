@@ -64,12 +64,16 @@ class AgentApp:
     asker: AskUser
     spawner: Spawner
     registry: Any  # agent 能力注册表(§5 capabilities.py)
+    owns_settings: bool = True  # 共享 store(聚合运行)时为 False,close 不关它
+    owns_log: bool = True  # 共享 bus(聚合运行共用 EventLog)时为 False
 
     def close(self) -> None:
         """关闭持有文件句柄的组件(测试与关停路径用)。"""
         self.memory.close()
-        self.settings.close()
-        self.log.close()
+        if self.owns_settings:
+            self.settings.close()
+        if self.owns_log:
+            self.log.close()
 
 
 def build_agent(
@@ -78,16 +82,24 @@ def build_agent(
     workspace_dir: str | Path | None = None,
     llm: LLMClient | None = None,
     bus: EventBus | None = None,
+    settings_store: SettingsStore | None = None,
+    extra_tools: dict[str, AgentTool] | None = None,
 ) -> AgentApp:
     data_dir = Path(data_dir)
     llm = llm or FakeLLM()
+    owns_log = bus is None
 
     log = EventLog(data_dir / "events.db")
     bus = bus or EventBus(log)
     cursors = CursorStore(log.conn)
 
-    settings = SettingsStore(data_dir / "settings.db", bus=bus)
-    settings.register(AGENT_SETTING_DEFS)
+    owns_settings = settings_store is None
+    settings = settings_store or SettingsStore(data_dir / "settings.db", bus=bus)
+    # register 对重复键抛 CONFLICT:共享 store 上只注册尚未注册的键(agent.* 前缀)
+    existing = {d["key"] for d in settings.list_schema()}
+    fresh = [d for d in AGENT_SETTING_DEFS if d.key not in existing]
+    if fresh:
+        settings.register(fresh)
 
     workspace = ensure_workdir(workspace_dir or settings.get("agent.workspace.dir"))
     memory = Memory(data_dir / "memory")
@@ -132,6 +144,7 @@ def build_agent(
     ):
         tools.update(group)
     tools.update(spawn_tool(lambda *a, **kw: _master["master"].dispatch_task(*a, **kw)))
+    tools.update(extra_tools or {})  # 领域能力桥(聚合运行注入,§9.4)
     toolbelt = Toolbelt(tools, policy, confirm=_confirm, meter=meter)
 
     scheduler = Scheduler(max_concurrent=int(settings.get("agent.subagents.max_concurrent")))
@@ -231,6 +244,8 @@ def build_agent(
         asker=asker,
         spawner=spawner,
         registry=registry,
+        owns_settings=owns_settings,
+        owns_log=owns_log,
     )
 
 
