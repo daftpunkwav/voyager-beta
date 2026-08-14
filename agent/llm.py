@@ -6,6 +6,7 @@ FakeLLM 用于确定性测试与无 key 降级(§9.18)。
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -54,7 +55,9 @@ ScriptFn = Callable[[list[dict[str, Any]], list[ToolSpec] | None], LLMReply]
 
 
 class FakeLLM:
-    """脚本化伪 LLM:依次弹出脚本;耗尽后返回默认文本;也可用函数动态生成。"""
+    """脚本化伪 LLM:依次弹出脚本;耗尽后返回默认文本;也可用函数动态生成。
+
+    dynamic 允许同步或异步函数(异步可模拟延迟/时序场景)。"""
 
     def __init__(
         self,
@@ -73,7 +76,10 @@ class FakeLLM:
     ) -> LLMReply:
         self.calls.append({"messages": messages, "tools": tools})
         if self._dynamic is not None:
-            return self._dynamic(messages, tools)
+            out = self._dynamic(messages, tools)
+            if inspect.isawaitable(out):
+                out = await out
+            return out
         if self._script:
             return self._script.pop(0)
         return LLMReply(text=self._default)

@@ -41,9 +41,15 @@ class Backend:
 
 
 def build(
-    data_dir: str | Path | None = None, workspace_dir: str | Path | None = None
+    data_dir: str | Path | None = None,
+    workspace_dir: str | Path | None = None,
+    *,
+    llm: object | None = None,
 ) -> FastAPI:
-    """装配整个后端;uvicorn deploy.backend:build --factory。"""
+    """装配整个后端;uvicorn deploy.backend:build --factory。
+
+    llm:测试注入口(agent.llm.LLMClient 协议);省略时走 llm 服务能力(ServiceLLM)。
+    """
     from services.gateway.mounts import MountSpec
     from services.gateway.rest import create_app as gateway_create
     from services.graph.wiring import wire as wire_graph
@@ -79,7 +85,8 @@ def build(
 
     agent = build_agent(
         data_dir=data_root / "agent", workspace_dir=workspace,
-        llm=ServiceLLM(_call), bus=bus, settings_store=settings_store,
+        llm=llm if llm is not None else ServiceLLM(_call),
+        bus=bus, settings_store=settings_store,
         extra_tools=make_domain_tools(mounts),
     )
     mounts.append(MountSpec(domain="agent", registry=agent.registry,
