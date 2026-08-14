@@ -1266,16 +1266,23 @@ CI 依赖扫描强制执行,违反即构建失败。
 
 ## 14. 演进路线(面向最终形态的建设顺序)
 
-1. **地基**:platform(contracts/capability/eventbus/actor/settings/health)
-   + gateway + sources(repo 子模块)与 graph(程序化管线)两个服务 +
-   agent 最小 loop(对话 + 异步任务);
-2. **agent 成人**:Lucien + subagent 体系 + 分层上下文 + 仲裁(排队默认) +
-   policy 权限 + 工作目录 + 轮数上限;
-3. **主动性**:observe + 行为上报 + 记忆 + skill 自动整理 + 主动触达 +
-   悬浮窗与页面感知;
-4. **场景扩张**:sources 加 books/news + graph 的 AI 管线 → office(doc/slides)
-   → code-exec(容器) → browser(desktop) + llm 服务;
-5. **生态**:插件与外接 MCP、自建 subagent、可选多机部署(微服务化平移)。
+> 进度标注(重置迁移批):✅ 已完成 / 🔶 部分 / ⬜ 未开始。
+
+1. **地基** ✅:platform(contracts/capability/eventbus/actor/settings/secrets/health)
+   + gateway(聚合 REST/SSE/chat 桥/限流/健康聚合)+ sources(repo 全量 +
+   books/news 最小集)+ notes + graph(程序化管线 + AI 管线 guide +
+   引擎适配 C 优先回退 Python + 优先级队列)+ settings + llm;
+2. **agent 成人** ✅:Lucien + subagent 体系 + 分层上下文 + 仲裁(排队默认) +
+   policy 权限 + 工作目录 + 轮数上限;人格提示词已自旧版移植;
+3. **主动性** 🔶:observe + 行为上报入口(gateway ✅)+ 记忆 + 主动触达已就绪;
+   悬浮窗与页面感知待前端(apps/web 重写 ⬜);
+4. **场景扩张** 🔶:sources 的 books/news 与 graph 的 AI 管线已就位;
+   office(doc/slides)→ code-exec(容器)→ browser(desktop)⬜;
+5. **生态** ⬜:插件与外接 MCP、自建 subagent、可选多机部署(微服务化平移)。
+
+**切换遗留**:旧树(services/api、services/agent、graph_engine 残留、
+packages/py-shared、services/mcp 占位)仍在线,待 apps/web 重写指向 gateway、
+agent 经 MCP client 接线各领域能力后,统一退役删除。
 
 ## 15. 决策记录(已定稿)
 
