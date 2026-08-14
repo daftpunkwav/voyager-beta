@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "example-search": {
+      "command": "npx",
+      "args": ["-y", "example-search-mcp"],
+      "note": "外接 MCP server 配置示例;启用需用户逐项或整包批准(§9.13)"
+    }
+  }
+}

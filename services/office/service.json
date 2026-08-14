@@ -1,0 +1,3 @@
+{"name": "office", "version": "0.1.0", "protocol": "0.1.0", "port": 8040,
+ "capabilities": [], "subscribes": [],
+ "publishes": ["doc.created", "doc.edited"], "status": "skeleton"}

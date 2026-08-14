@@ -1,0 +1,15 @@
+{
+  "name": "example",
+  "version": "0.1.0",
+  "description": "最小插件示例:一个 skill、一个 hook、一个外接 MCP 配置",
+  "permissions": {
+    "scopes": ["notes.write"],
+    "network": "off",
+    "fs": "none"
+  },
+  "contains": {
+    "skills": ["skills/daily-note"],
+    "hooks": ["hooks/on-note-created.json"],
+    "mcp": "mcp.json"
+  }
+}

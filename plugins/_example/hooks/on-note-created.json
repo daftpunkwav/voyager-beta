@@ -1,0 +1,5 @@
+{
+  "on": "note.created",
+  "description": "笔记创建后:若标题含 TODO 则打上待办标签(示例,默认停用)",
+  "enabled": false
+}

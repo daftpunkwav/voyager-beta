@@ -1,0 +1,2 @@
+{"name": "llm", "version": "0.1.0", "protocol": "0.1.0", "port": 8070,
+ "capabilities": [], "subscribes": [], "publishes": [], "status": "skeleton"}
