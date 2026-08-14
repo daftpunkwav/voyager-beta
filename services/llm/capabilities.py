@@ -181,6 +181,7 @@ async def complete(
     model: str = "",
     max_tokens: int = 4096,
     temperature: float = 0.7,
+    tools: list[dict] | None = None,
     _actor: ActorRef = None,
 ) -> dict:
     deps = _require_deps()
@@ -192,7 +193,7 @@ async def complete(
     try:
         result = await llm_complete(
             p, api_key=key, model=use_model, messages=messages,
-            max_tokens=max_tokens, temperature=temperature,
+            max_tokens=max_tokens, temperature=temperature, tools=tools,
         )
     except Exception as exc:  # 失败也计量(ok=0)
         deps.store.record_usage(provider_id, use_model, 0, 0,
@@ -203,6 +204,7 @@ async def complete(
         result.output_tokens, caller=_actor.id if _actor else "",
     )
     return {"text": result.text, "model": result.model,
+            "tool_calls": [dict(tc) for tc in result.tool_calls],
             "usage": {"input_tokens": result.input_tokens,
                       "output_tokens": result.output_tokens}}
 

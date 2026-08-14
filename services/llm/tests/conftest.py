@@ -1,4 +1,4 @@
-"""把服务目录加入 sys.path:服务为非包扁平模块,测试需从服务目录导入。"""
+"""把仓库根加入 sys.path:测试经包路径 services.llm.<mod> 导入。"""
 
 import sys
 from pathlib import Path
