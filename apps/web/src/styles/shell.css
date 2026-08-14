@@ -189,6 +189,192 @@
   gap: 4px;
 }
 
+/* ---------- Agent Chat ---------- */
+/* 聊天页占据整个视口高度:主列定高,消息区内部滚动,页面级不滚 */
+.main:has(.chat-page) { height: 100vh; min-height: 0; }
+.content:has(.chat-page) {
+  max-width: none;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.chat-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 10px;
+}
+.chat-status { text-align: right; }
+.chat-stream {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 2px;
+  scroll-behavior: smooth;
+}
+.chat-bubble {
+  max-width: min(72ch, 86%);
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.55;
+  position: relative;
+}
+.chat-bubble--user {
+  align-self: flex-end;
+  background: var(--brand-500);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.chat-bubble--agent {
+  align-self: flex-start;
+  background: var(--bg-100);
+  border: 1px solid var(--bg-300);
+  color: var(--text-800);
+  border-bottom-left-radius: 4px;
+}
+.chat-md > :first-child { margin-top: 0; }
+.chat-md > :last-child { margin-bottom: 0; }
+.chat-md pre {
+  background: var(--bg-900);
+  color: var(--bg-100);
+  padding: 10px 12px;
+  border-radius: 8px;
+  overflow: auto;
+  font-size: 12.5px;
+}
+.chat-md code { font-family: var(--font-mono); font-size: 12.5px; }
+.chat-proactive-tag {
+  position: absolute;
+  top: -8px;
+  left: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--chart-5), var(--chart-4));
+  color: #fff;
+}
+.chat-system {
+  align-self: center;
+  font-size: 12px;
+  color: var(--text-500);
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--bg-200);
+}
+.chat-typing {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 14px 16px;
+}
+.chat-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-400);
+  animation: chatDot 1.2s infinite ease-in-out;
+}
+.chat-typing span:nth-child(2) { animation-delay: 0.15s; }
+.chat-typing span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes chatDot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+.chat-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chat-card {
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--bg-100);
+  border: 1px solid var(--bg-300);
+}
+.chat-card--failed { border-color: var(--error); background: var(--error-surface); }
+.chat-card--completed { border-color: var(--success); }
+.chat-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.chat-card__label { font-size: 13px; font-weight: 600; color: var(--text-800); }
+.chat-card__bar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--bg-300);
+  overflow: hidden;
+}
+.chat-card__fill {
+  height: 100%;
+  background: var(--brand-500);
+  transition: width 0.3s var(--ease);
+}
+.chat-input {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.chat-input textarea {
+  flex: 1;
+  font: inherit;
+  font-size: 14px;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--bg-300);
+  background: var(--bg-50);
+  color: var(--text-800);
+  resize: none;
+}
+.chat-input textarea:focus { outline: 2px solid var(--brand-300); outline-offset: -1px; }
+
+/* ask_user 弹窗 */
+.ask-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal, 1000);
+}
+.ask-dialog {
+  width: min(480px, 92vw);
+  background: var(--bg-50);
+  border-radius: 14px;
+  border: 1px solid var(--bg-300);
+  box-shadow: var(--shadow-md);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ask-dialog__prompt { font-size: 14px; font-weight: 600; color: var(--text-800); }
+.ask-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ask-option {
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--bg-300);
+  background: var(--bg-50);
+  color: var(--text-800);
+  font: inherit;
+  font-size: 13px;
+}
+.ask-option:hover { border-color: var(--brand-400); }
+.ask-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
 /* ---------- 健康调试页 ---------- */
 .health-grid {
   display: grid;
