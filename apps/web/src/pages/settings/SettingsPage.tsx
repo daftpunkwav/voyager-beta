@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Degraded } from '@/shell/Degraded';
 import { SettingField } from './SettingField';
 import { moduleLabel, useSettingsStore } from './settingsStore';
+import { ProviderSection } from './ProviderSection';
 
 export function SettingsPage() {
   const { items, loading, error, load } = useSettingsStore();
@@ -42,12 +43,21 @@ export function SettingsPage() {
                 {moduleLabel(m)}
               </button>
             ))}
+            <button
+              type="button"
+              className={`nav-item ${active === 'providers' ? 'active' : ''}`}
+              onClick={() => setActive('providers')}
+            >
+              LLM 提供商
+            </button>
           </nav>
           <div className="settings-body">
             {loading && items.length === 0 ? (
               <div className="loading-spinner">
                 <div className="spinner" />
               </div>
+            ) : active === 'providers' ? (
+              <ProviderSection />
             ) : (
               visible.map((item) => <SettingField key={item.key} item={item} />)
             )}
