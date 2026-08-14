@@ -1,2 +1,14 @@
-{"name": "llm", "version": "0.1.0", "protocol": "0.1.0", "port": 8070,
- "capabilities": [], "subscribes": [], "publishes": [], "status": "skeleton"}
+{
+  "name": "llm",
+  "version": "0.1.0",
+  "protocol": "0.1.0",
+  "port": 8070,
+  "capabilities": [
+    "list_builtin_providers", "list_providers", "get_provider_defaults",
+    "add_provider", "update_provider", "remove_provider", "set_api_key",
+    "list_models", "test_connection", "complete", "get_usage_stats"
+  ],
+  "subscribes": [],
+  "publishes": [],
+  "status": "implemented"
+}
