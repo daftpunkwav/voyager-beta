@@ -150,7 +150,7 @@ class TestRepoWorker:
         assert types == ["source.ready"]  # agent 的 observe 靠它接手(§9.2)
 
     async def test_clone_failure_marks_failed(self, deps, tmp_path) -> None:
-        d, log = deps
+        d, _log = deps
         rid = d.repo_store.add({"owner": "o", "name": "bad",
                                 "url": "https://github.com/o/bad"})
 
