@@ -1,31 +1,107 @@
-/* 应用壳补充（原型 HTML 使用 .main / .gh-bound，design-system 未单独定义） */
+/* 应用壳补充样式:主列布局、服务徽章、降级态(复用 design-system token) */
+
 .main {
   display: flex;
   flex-direction: column;
-  min-width: 0;
   min-height: 100vh;
-  min-height: 100dvh;
+  min-width: 0;
 }
 
-.gh-bound {
+/* ---------- 服务徽章条 ---------- */
+.svc-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  justify-content: flex-end;
+}
+.svc-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 32px;
-  padding: 0 12px;
-  border-radius: var(--radius-pill);
-  background: var(--bg-50);
-  border: 1px solid var(--bg-300);
+  padding: 3px 10px;
+  border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
+  font-family: var(--font-mono);
+  background: var(--bg-200);
   color: var(--text-700);
+  border: 1px solid var(--bg-300);
 }
+.svc-badge__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--bg-400);
+}
+.svc-badge--up .svc-badge__dot { background: var(--success); }
+.svc-badge--down { background: var(--error-surface); color: var(--error); border-color: var(--error); }
+.svc-badge--down .svc-badge__dot { background: var(--error); }
 
-.notes-main {
-  flex: 1;
+/* ---------- 降级态 ---------- */
+.degraded {
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  min-height: 100vh;
-  overflow: hidden;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 20px;
+  border-radius: var(--radius);
+  background: var(--error-surface);
+  border: 1px solid rgba(255, 59, 48, 0.25);
+  max-width: 560px;
+}
+.degraded__code {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--error);
+  letter-spacing: 0.04em;
+}
+.degraded__message { font-size: 14px; color: var(--text-800); font-weight: 500; }
+
+/* ---------- 健康调试页 ---------- */
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.health-card {
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--bg-100);
+  border: 1px solid var(--bg-300);
+}
+.health-card__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.health-card__status--up { color: var(--success); }
+.health-card__status--down { color: var(--error); }
+.debug-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 640px;
+}
+.debug-panel textarea,
+.debug-panel input {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--bg-300);
+  background: var(--bg-50);
+  color: var(--text-800);
+}
+.debug-panel pre {
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--bg-800);
+  color: var(--bg-100);
+  font-size: 12px;
+  overflow: auto;
+  max-height: 320px;
+  white-space: pre-wrap;
 }

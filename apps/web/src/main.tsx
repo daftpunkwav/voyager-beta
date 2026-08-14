@@ -1,27 +1,25 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { initApiClient } from '@/api/client';
+import { BrowserRouter } from 'react-router-dom';
 import { App } from '@/App';
+import { useTheme } from '@/shell/useTheme';
 import '@/styles/design-system.css';
-import '@/styles/liquid-glass.css';
 import '@/styles/shell.css';
-import '@/styles/pages/index.css';
 import '@/styles/global.css';
-import 'highlight.js/styles/github-dark.min.css';
 
-async function bootstrap() {
-  await initApiClient();
-
-  const rootEl = document.getElementById('root');
-  if (!rootEl) {
-    throw new Error('Root element #root not found');
-  }
-
-  createRoot(rootEl).render(
+function Root() {
+  useTheme();
+  return (
     <StrictMode>
-      <App />
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
     </StrictMode>
   );
 }
 
-void bootstrap();
+const rootEl = document.getElementById('root');
+if (!rootEl) {
+  throw new Error('Root element #root not found');
+}
+createRoot(rootEl).render(<Root />);
