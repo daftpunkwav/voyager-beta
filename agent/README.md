@@ -1,7 +1,9 @@
-# agent — Agent Runtime(骨架)
+# agent — Agent Runtime
 
 常驻进程,系统的决策者(docs/architecture.md §9)。有自己的事件循环,
 **不因用户输入才工作**:观察事件流,自主决定是否行动。
+
+装配入口 `main.py: build_agent()`(测试同用);运行:仓库根 `python -m agent.main`。
 
 | 目录 | 职责 | 文档锚点 |
 |---|---|---|
@@ -20,4 +22,4 @@
 顶层 `capabilities.py` / `settings.py`:agent 自己也暴露能力(读/改 agent 设置、
 查记忆、查任务),经 gateway 与用户同权(§2 铁律 4 parity)。
 
-实现顺序见 §14:第 2 步"agent 成人"。
+实现顺序见 §14:第 2 步"agent 成人"与第 3 步"主动性"已完成(测试见 tests/)。
