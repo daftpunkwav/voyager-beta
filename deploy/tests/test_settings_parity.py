@@ -6,10 +6,10 @@
 """
 
 from fastapi.testclient import TestClient
+from platform_settings import SettingDef, SettingType
 
 from agent.llm import ToolCall
 from deploy.backend import build
-from platform_settings import SettingDef, SettingType
 
 _SECRET_KEY = "test.secret_token"
 
