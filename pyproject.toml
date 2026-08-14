@@ -5,10 +5,34 @@ description = "AI-driven open source project learning platform (monorepo root)"
 requires-python = ">=3.11"
 
 [tool.uv.workspace]
-members = ["services/api", "services/agent", "services/graph_engine", "services/mcp", "packages/py-shared"]
+members = [
+    "services/api",
+    "services/agent",
+    "services/graph_engine",
+    "services/mcp",
+    "packages/py-shared",
+    "platform/contracts",
+    "platform/actor",
+    "platform/eventbus",
+    "platform/capability",
+    "platform/settings",
+    "platform/health",
+]
 
 [tool.uv.sources]
 py-shared = { workspace = true }
+platform-contracts = { workspace = true }
+platform-actor = { workspace = true }
+platform-eventbus = { workspace = true }
+platform-capability = { workspace = true }
+platform-settings = { workspace = true }
+platform-health = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
 
 [tool.ruff]
 target-version = "py311"
