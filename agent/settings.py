@@ -1,0 +1,45 @@
+"""agent 自身设置项(§8.8):用户能改的 agent 也能改(secret 除外,框架层强制)。
+
+轮数上限(§9.19)、仲裁模式(§9.7)、触达预算(§9.8)、网络/工作目录(§9.9/§9.10)、
+记忆保留(§9.11)、观察开关(§9.2)——全部非 secret,用户与 agent 同权修改,入审计。
+"""
+
+from platform_settings import SettingDef, SettingType
+
+DEFS = [
+    SettingDef(key="agent.rounds.max", module="agent", type=SettingType.INT,
+               default=20, min=1, max=200, description="ReAct 轮数上限(全局默认)"),
+    SettingDef(key="agent.rounds.tool_max", module="agent", type=SettingType.INT,
+               default=40, min=1, max=500, description="工具调用轮数上限(全局默认)"),
+    SettingDef(key="agent.arbiter.mode", module="agent", type=SettingType.CHOICE,
+               default="queue", choices=("auto", "queue", "guide"),
+               description="任务执行中来新消息的处理模式(§9.7)"),
+    SettingDef(key="agent.direct_chat", module="agent", type=SettingType.BOOL,
+               default=False, description="直聊模式:简单问答由主 agent 直接回复(默认关)"),
+    SettingDef(key="agent.style", module="agent", type=SettingType.STR,
+               default="热心", description="人格风格(毒舌/热心/严谨…)"),
+    SettingDef(key="agent.proactive.per_session", module="agent", type=SettingType.INT,
+               default=3, min=0, max=20, description="主动触达:每会话上限"),
+    SettingDef(key="agent.proactive.per_day", module="agent", type=SettingType.INT,
+               default=10, min=0, max=100, description="主动触达:每日上限"),
+    SettingDef(key="agent.proactive.follow_up_max", module="agent", type=SettingType.INT,
+               default=2, min=0, max=5, description="追问链上限"),
+    SettingDef(key="agent.proactive.quiet_start", module="agent", type=SettingType.INT,
+               default=23, min=0, max=23, description="安静时段开始(小时)"),
+    SettingDef(key="agent.proactive.quiet_end", module="agent", type=SettingType.INT,
+               default=7, min=0, max=23, description="安静时段结束(小时)"),
+    SettingDef(key="agent.workspace.dir", module="agent", type=SettingType.STR,
+               default="workspace", description="agent 默认工作目录(§9.10)"),
+    SettingDef(key="agent.network.mode", module="agent", type=SettingType.CHOICE,
+               default="whitelist", choices=("off", "whitelist", "all"),
+               description="网络权限模式(§9.9)"),
+    SettingDef(key="agent.network.domains", module="agent", type=SettingType.JSON,
+               default=["github.com", "arxiv.org"], description="网络白名单域名"),
+    SettingDef(key="agent.subagents.max_concurrent", module="agent", type=SettingType.INT,
+               default=3, min=1, max=16, description="subagent 并发上限"),
+    SettingDef(key="agent.memory.retention_days", module="agent", type=SettingType.INT,
+               default=90, min=0, max=3650,
+               description="情节记忆保留天数;0 = 交 agent 管理(§9.11)"),
+    SettingDef(key="agent.observe.auto_index", module="agent", type=SettingType.BOOL,
+               default=False, description="观察到新资源就绪时自动建立图谱索引(§9.2)"),
+]
