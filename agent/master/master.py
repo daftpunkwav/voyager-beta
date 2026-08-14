@@ -170,7 +170,7 @@ class Master:
                 Event(
                     type=DomainEvent.AGENT_MESSAGE,
                     actor=AGENT_MAIN,
-                    payload={"text": text},
+                    payload={"content": text},
                     trace_id=trace_id,
                 )
             )

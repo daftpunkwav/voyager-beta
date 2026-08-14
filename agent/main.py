@@ -207,7 +207,7 @@ def build_agent(
         bus,
         {
             DomainEvent.USER_MESSAGE: lambda ev: master.handle_user_message(
-                ev.payload.get("text", ""), trace_id=ev.trace_id
+                ev.payload.get("content", ""), trace_id=ev.trace_id
             ),
             DomainEvent.USER_ONLINE: lambda ev: proactive.on_user_online(
                 trace_id=ev.trace_id

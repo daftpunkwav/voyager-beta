@@ -18,7 +18,7 @@ def _app(tmp_path, llm: FakeLLM | None = None):
 
 def _replies(app) -> list[str]:
     return [
-        e.payload["text"] for _, e in app.log.read_after(types=[DomainEvent.AGENT_MESSAGE])
+        e.payload["content"] for _, e in app.log.read_after(types=[DomainEvent.AGENT_MESSAGE])
     ]
 
 
