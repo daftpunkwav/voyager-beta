@@ -17,6 +17,7 @@ members = [
     "platform/capability",
     "platform/settings",
     "platform/health",
+    "platform/secrets",
 ]
 
 [tool.uv.sources]
@@ -27,6 +28,7 @@ platform-eventbus = { workspace = true }
 platform-capability = { workspace = true }
 platform-settings = { workspace = true }
 platform-health = { workspace = true }
+platform-secrets = { workspace = true }
 
 [dependency-groups]
 dev = [
