@@ -85,9 +85,9 @@ data/app.db.bak*
 data/*.db-shm
 data/*.db-wal
 
-# 图谱引擎构建产物（C sidecar + layout CMake；全局 build/ 已覆盖，此处显式声明）
-services/graph_engine/graph_engine_core/build/
-services/graph_engine/layout/build/
+# 图谱引擎构建产物（C core + layout；全局 build/ 已覆盖，此处显式声明）
+services/graph/engines/c/core/build/
+services/graph/engines/c/layout/build/
 
 # 运行期数据（"它的脑"）与 agent 工作区（"它的家"）：内容为用户数据，不入库；
 # 目录结构经 git add -f 保留 README

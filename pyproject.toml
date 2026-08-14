@@ -3,14 +3,14 @@ name = "app"
 version = "2.0.0"
 description = "AI-driven open source project learning platform (monorepo root)"
 requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "httpx>=0.27.0",
+]
 
 [tool.uv.workspace]
 members = [
-    "services/api",
-    "services/agent",
-    "services/graph_engine",
-    "services/mcp",
-    "packages/py-shared",
     "platform/contracts",
     "platform/actor",
     "platform/eventbus",
@@ -21,7 +21,6 @@ members = [
 ]
 
 [tool.uv.sources]
-py-shared = { workspace = true }
 platform-contracts = { workspace = true }
 platform-actor = { workspace = true }
 platform-eventbus = { workspace = true }
@@ -44,26 +43,19 @@ line-length = 100
 extend-select = ["I"]  # 未排序导入
 
 [tool.ruff.lint.per-file-ignores]
-# ensure_service_paths() / sys.path hack 必须置于模块导入之前，属有意为之
-"services/api/api_backend/main.py" = ["E402"]
-"services/agent/agent_runtime/main.py" = ["E402"]
-"services/api/api_backend/migrations/alembic/env.py" = ["E402"]
-"tests/conftest.py" = ["E402"]  # sys.path 注入必须在 api_backend import 之前，属有意为之
 # 继承/随附代码(非本服务手写):Python 回退引擎为旧实现迁移稿,C 引擎 scripts 为随附工具脚本
 "services/graph/engines/python/**" = ["BLE001", "S110", "S112", "SIM102", "SIM103", "SIM115", "UP031", "PERF102", "PERF402", "PIE810", "PLW1510", "RUF013", "RUF059", "ISC004", "RUF007"]
 "services/graph/engines/c/core/scripts/**" = ["BLE001", "S110", "S112", "SIM102", "SIM103", "SIM115", "UP031", "PERF102", "PERF402", "PIE810", "PLW1510", "RUF013", "RUF059", "ISC004", "RUF007"]
 
 [tool.mypy]
 python_version = "3.11"
-mypy_path = ["services/api", "services/agent", "services/graph_engine", "packages/py-shared"]
 explicit_package_bases = true
 namespace_packages = true
 plugins = ["pydantic.mypy"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = [".", "services/api", "services/agent", "services/graph_engine", "packages/py-shared"]
+testpaths = ["platform", "agent", "services/_template"]
 asyncio_mode = "auto"
 filterwarnings = ["ignore::DeprecationWarning"]
-norecursedirs = ["data", "vendor", ".venv", "node_modules", "openwiki", "build", "dist"]
+norecursedirs = ["data", "vendor", ".venv", "node_modules", "build", "dist"]
