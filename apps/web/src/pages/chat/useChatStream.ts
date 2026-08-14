@@ -4,7 +4,13 @@ import { useEffect } from 'react';
 import { subscribe } from '@/bridge/stream';
 import { type ChatEvent, useChatStore } from './chatStore';
 
-const STREAM_PATTERNS = ['agent.message', 'agent.ask', 'agent.navigate', 'task.*'];
+const STREAM_PATTERNS = [
+  'agent.message',
+  'agent.ask',
+  'agent.navigate',
+  'task.*',
+  'note.created',
+];
 
 export function useChatStream(onNavigate: (path: string) => void) {
   useEffect(() => {

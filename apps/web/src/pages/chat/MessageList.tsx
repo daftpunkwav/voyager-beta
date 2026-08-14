@@ -1,6 +1,7 @@
 /** 消息流渲染:user/agent 气泡(Markdown+高亮)、系统提示、任务进度卡、思考态。 */
 
 import { useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -13,16 +14,26 @@ import { type ChatMessage, useChatStore } from './chatStore';
 export function MessageList() {
   const messages = useChatStore((s) => s.messages);
   const thinking = useChatStore((s) => s.thinking);
+  const artifacts = useChatStore((s) => s.artifacts);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages.length, thinking]);
+  }, [messages.length, thinking, artifacts.length]);
 
   return (
     <div className="chat-stream">
       {messages.map((m) => (
         <Bubble key={`${m.seq}-${m.role}`} msg={m} />
+      ))}
+      {artifacts.map((a) => (
+        <Link key={a.seq} to={`/notes?open=${a.noteId}`} className="note-artifact">
+          <span className="note-artifact__icon" aria-hidden>
+            ▤
+          </span>
+          <span>已创建笔记:{a.title}</span>
+          <span className="small muted">查看 →</span>
+        </Link>
       ))}
       {thinking ? (
         <div className="chat-bubble chat-bubble--agent chat-typing" aria-label="正在处理">

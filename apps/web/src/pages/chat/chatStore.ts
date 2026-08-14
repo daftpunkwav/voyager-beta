@@ -19,6 +19,13 @@ export interface ProgressCard {
   error?: string;
 }
 
+/** 笔记产物卡(note.created):点击跳 /notes?open=<id>。 */
+export interface NoteArtifact {
+  seq: number;
+  noteId: string;
+  title: string;
+}
+
 export interface PendingQuestion {
   questionId: string;
   prompt: string;
@@ -41,12 +48,13 @@ interface ChatState {
   messages: ChatMessage[];
   cards: Record<string, ProgressCard>;
   cardOrder: string[];
+  artifacts: NoteArtifact[];
   question: PendingQuestion | null;
   connected: boolean;
   thinking: boolean;
   /** 历史接口消息(user.message/agent.message)→ 消息流;不触发思考态。 */
   applyHistory: (events: ChatEvent[]) => void;
-  /** SSE 事件分发(agent.ask、task.* 、agent.message 等;纯状态迁移,可单测)。 */
+  /** SSE 事件分发(agent.ask、task.* 、agent.message、note.created 等;纯状态迁移,可单测)。 */
   dispatch: (ev: ChatEvent) => void;
   appendLocal: (msg: ChatMessage) => void;
   setConnected: (v: boolean) => void;
@@ -62,6 +70,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   cards: {},
   cardOrder: [],
+  artifacts: [],
   question: null,
   connected: false,
   thinking: false,
@@ -122,6 +131,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
               ts: ev.ts,
             },
           ],
+        });
+        break;
+      }
+      case 'note.created': {
+        // 笔记产物卡(用户或 agent 落库都会出现;点击跳笔记页)
+        set({
+          artifacts: [
+            ...get().artifacts,
+            {
+              seq: ev.seq,
+              noteId: String(p.note_id ?? ''),
+              title: String(p.title ?? '未命名笔记'),
+            },
+          ].filter((a) => a.noteId),
         });
         break;
       }

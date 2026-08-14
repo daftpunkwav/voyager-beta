@@ -80,6 +80,18 @@ describe('chatStore.dispatch', () => {
     expect(m.content).toContain('/settings');
   });
 
+  it('note.created 追加产物卡(note_id 与标题)', () => {
+    useChatStore
+      .getState()
+      .dispatch(ev('note.created', { note_id: 'n7', title: 'ReAct 要点' }, 9));
+    expect(useChatStore.getState().artifacts).toEqual([
+      { seq: 9, noteId: 'n7', title: 'ReAct 要点' },
+    ]);
+    // 无 note_id 的坏事件不入卡
+    useChatStore.getState().dispatch(ev('note.created', { title: '孤儿' }, 10));
+    expect(useChatStore.getState().artifacts).toHaveLength(1);
+  });
+
   it('历史重建:user/agent 双向且不触发思考态', () => {
     useChatStore.getState().applyHistory([
       { seq: 1, type: 'user.message', payload: { content: '在吗' } },
