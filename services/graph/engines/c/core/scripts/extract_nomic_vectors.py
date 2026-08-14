@@ -38,7 +38,7 @@ torch.set_num_interop_threads(max(NUM_THREADS // 2, 1))
 os.environ.setdefault("OMP_NUM_THREADS", str(NUM_THREADS))
 os.environ.setdefault("MKL_NUM_THREADS", str(NUM_THREADS))
 
-from transformers import AutoModel, AutoTokenizer  # noqa: E402  # 前置 os.environ 设置线程数
+from transformers import AutoModel, AutoTokenizer  # 前置 os.environ 设置线程数
 
 # ── Configuration ──────────────────────────────────────────────────────
 
@@ -269,8 +269,7 @@ def write_bin(path: str, vectors: np.ndarray, dim: int):
 def write_tokens_txt(path: str, tokens: list):
     """Write plain text token list."""
     with open(path, "w") as f:
-        for t in tokens:
-            f.write(t + "\n")
+        f.writelines(t + "\n" for t in tokens)
     print(f"  {path}: {len(tokens)} tokens")
 
 

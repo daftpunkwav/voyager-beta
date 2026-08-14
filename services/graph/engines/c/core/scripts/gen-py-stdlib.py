@@ -28,8 +28,8 @@ import argparse
 import ast
 import dataclasses
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 # v1 module allowlist — the plan's "top usage" set. Skip large / low-value
 # modules (tkinter, turtle, curses, xml.*, email.*) to keep generated

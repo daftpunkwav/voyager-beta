@@ -17,7 +17,7 @@ import subprocess
 import sys
 import threading
 import time
-from typing import Any, BinaryIO, Optional
+from typing import Any, BinaryIO
 
 INITIALIZE_PARAMS = {
     "protocolVersion": "2024-11-05",
@@ -49,7 +49,7 @@ def mcp_command(binary: str) -> list[str]:
 
 def read_json_lines(
     stream: BinaryIO,
-    responses: "queue.Queue[dict[str, Any]]",
+    responses: queue.Queue[dict[str, Any]],
     transcript: list[dict[str, Any]],
 ) -> None:
     for raw_line in iter(stream.readline, b""):
@@ -95,7 +95,7 @@ def send(process: subprocess.Popen[bytes], message: dict[str, Any]) -> None:
 
 def wait_response(
     process: subprocess.Popen[bytes],
-    responses: "queue.Queue[dict[str, Any]]",
+    responses: queue.Queue[dict[str, Any]],
     request_id: int,
     timeout: float,
     accept_tool_error: bool = False,
@@ -138,7 +138,7 @@ def wait_response(
 
 def request(
     process: subprocess.Popen[bytes],
-    responses: "queue.Queue[dict[str, Any]]",
+    responses: queue.Queue[dict[str, Any]],
     request_id: int,
     method: str,
     params: dict[str, Any],
@@ -159,7 +159,7 @@ def request(
 
 def grouped_search_qualified_name(
     structured: Any, expected_name: str
-) -> Optional[str]:
+) -> str | None:
     """Extract a qualified name from search_graph's grouped JSON tree."""
     if not isinstance(structured, dict):
         return None
@@ -192,7 +192,7 @@ def grouped_search_qualified_name(
 
 def run_scenario(
     process: subprocess.Popen[bytes],
-    responses: "queue.Queue[dict[str, Any]]",
+    responses: queue.Queue[dict[str, Any]],
     scenario: str,
     repo_path: str,
     timeout: float,
@@ -346,7 +346,7 @@ def main() -> int:
         return 1
     assert process.stdout is not None
     assert process.stderr is not None
-    responses: "queue.Queue[dict[str, Any]]" = queue.Queue()
+    responses: queue.Queue[dict[str, Any]] = queue.Queue()
     transcript: list[dict[str, Any]] = []
     stderr_chunks: list[bytes] = []
     stdout_thread = threading.Thread(

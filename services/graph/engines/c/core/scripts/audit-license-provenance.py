@@ -94,7 +94,7 @@ def local_license(dirpath):
     if not os.path.isdir(dirpath):
         return None, None
     for f in sorted(os.listdir(dirpath)):
-        if re.match(r"^(LICENSE|LICENCE|COPYING|UNLICENSE)", f, re.I):
+        if re.match(r"^(LICENSE|LICENCE|COPYING|UNLICENSE)", f, re.IGNORECASE):
             p = os.path.join(dirpath, f)
             with open(p, encoding="utf-8", errors="replace") as fh:
                 return f, fh.read()

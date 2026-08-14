@@ -34,7 +34,7 @@ sbom = {
     "name": f"graph-engine-{version}",
     "documentNamespace": f"https://github.com/DeusData/graph-engine/releases/{version}",
     "creationInfo": {
-        "created": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "created": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "creators": ["Tool: graph-engine-release-pipeline"],
     },
     "packages": [

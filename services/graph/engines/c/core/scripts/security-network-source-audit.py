@@ -14,7 +14,7 @@ import dataclasses
 import pathlib
 import re
 import sys
-from typing import Sequence
+from collections.abc import Sequence
 
 RAW_FUNCTIONS = ("socket", "connect", "sendto")
 CALL_RE = re.compile(

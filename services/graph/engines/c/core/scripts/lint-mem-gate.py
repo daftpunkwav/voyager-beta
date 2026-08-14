@@ -126,8 +126,7 @@ def function_spans(path):
                         yield (name_match.group(1), body_start + 1, end + 1,
                                "\n".join(line.rstrip() for line in lines[body_start:end + 1]))
         depth += opened - closed
-        if depth < 0:
-            depth = 0
+        depth = max(depth, 0)
 
 
 def enclosing(path, line):
