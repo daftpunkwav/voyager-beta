@@ -13,4 +13,6 @@
   `agent.proactive.*`(预算/安静时段)、`agent.style`、权限四维、工作目录……(§8.8)
 - **数据**:runtime-data/memory、checkpoints;workspace/ 为默认工作目录
 - **依赖**:platform + 各服务 MCP/REST(经 clients/ 服务发现)
-- **状态**:骨架(§14 第 2 步)
+- **状态**:已实现(§14 第 2、3 步):runtime 底座、master 统筹/仲裁/触达、
+  subagent 七模式、四维权限、四类记忆、上下文装配、skills/hooks、8 个 parity 能力;
+  170 测试全绿。clients/ 服务发现与各服务迁移属后续步骤
