@@ -158,7 +158,7 @@ describe('手建节点/边', () => {
   it('createNode 写入 Map 并选中;createEdge 返回边 id', async () => {
     const created = node({ id: 'n9', label: 'Concept', name: 'ReAct 模式',
                            qualified_name: 'ReAct 模式', source: 'manual', actor: '' });
-    callMock.mockImplementation((_d: string, name: string, args: Record<string, unknown>) => {
+    callMock.mockImplementation((_d: string, name: string, _args: Record<string, unknown>) => {
       if (name === 'set_node') return Promise.resolve(created);
       if (name === 'set_relationship') return Promise.resolve(edge({ id: 'e9', src: 'n1', dst: 'n9' }));
       if (name === 'get_subgraph') return Promise.resolve({ nodes: [created], edges: [] });

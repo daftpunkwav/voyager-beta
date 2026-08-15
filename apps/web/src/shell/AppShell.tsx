@@ -21,6 +21,7 @@ const NAV_GROUPS: { label: string; items: { to: string; label: string }[] }[] = 
     label: '系统',
     items: [
       { to: '/system/health', label: '服务状态' },
+      { to: '/activity', label: '活动' },
       { to: '/usage', label: '用量' },
       { to: '/settings', label: '设置' },
     ],

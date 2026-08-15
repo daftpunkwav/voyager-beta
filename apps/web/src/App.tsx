@@ -1,4 +1,4 @@
-/** 路由表:Agent Chat 为主页;系统/笔记/资源库/图谱/用量已点亮,其余随后续阶段开放。 */
+/** 路由表:Agent Chat 为主页;系统/笔记/资源库/图谱/用量/活动已点亮,其余随后续阶段开放。 */
 
 import { Route, Routes } from 'react-router-dom';
 import { AppShell } from '@/shell/AppShell';
@@ -9,6 +9,7 @@ import { NotesPage } from '@/pages/notes/NotesPage';
 import { SourcesPage } from '@/pages/sources/SourcesPage';
 import { GraphPage } from '@/pages/graph/GraphPage';
 import { UsagePage } from '@/pages/usage/UsagePage';
+import { ActivityPage } from '@/pages/activity/ActivityPage';
 
 export function App() {
   return (
@@ -21,6 +22,7 @@ export function App() {
         <Route path="sources" element={<SourcesPage />} />
         <Route path="graph" element={<GraphPage />} />
         <Route path="usage" element={<UsagePage />} />
+        <Route path="activity" element={<ActivityPage />} />
       </Route>
     </Routes>
   );

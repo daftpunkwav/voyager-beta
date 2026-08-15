@@ -950,3 +950,75 @@
   margin-right: 8px;
   vertical-align: middle;
 }
+
+/* ---------- 活动页 ---------- */
+.activity-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  flex: 1;
+}
+.event-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--bg-200);
+  background: var(--bg-50);
+  /* 长列表渲染优化:屏外行跳过渲染(虚拟滚动的 CSS 近似) */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 44px;
+}
+.event-row--error { border-color: var(--error); background: var(--error-surface); }
+.event-row__actor {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+  margin-top: 1px;
+}
+.event-row__actor--user { background: var(--brand-50); color: var(--brand-700); }
+.event-row__actor--agent { background: #f3e8ff; color: #7c3aed; }
+.event-row__actor--system { background: var(--bg-200); color: var(--text-500); }
+.event-row__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  min-width: 0;
+}
+.event-row__text {
+  font-size: 13px;
+  color: var(--text-800);
+  overflow-wrap: anywhere;
+}
+.event-row--muted .event-row__text { color: var(--text-500); }
+.event-row--error .event-row__text { color: var(--error); }
+.event-row__time { font-size: 11px; color: var(--text-400); }
+.event-row__detail {
+  font-size: 11.5px;
+  background: var(--bg-100);
+  border-radius: var(--radius);
+  padding: 8px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  color: var(--text-600);
+  max-height: 220px;
+  overflow-y: auto;
+}
+.event-row__confirm { display: flex; gap: 6px; flex-shrink: 0; }
+.event-row__unsupported { flex-shrink: 0; margin-top: 2px; }
