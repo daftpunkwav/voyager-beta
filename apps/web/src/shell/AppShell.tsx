@@ -1,7 +1,10 @@
-/** 应用壳:左侧分组导航(仅渲染已开放页面)+ 服务徽章条 + <Outlet/>。 */
+/** 应用壳:左侧分组导航(仅渲染已开放页面)+ 服务徽章条 + <Outlet/>
+ * + 常驻悬浮窗与页面感知(chat 路由时悬浮窗隐藏,§10.12)。 */
 
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { ServiceBadges } from './ServiceBadge';
+import { FloatingChat } from '@/widgets/FloatingChat';
+import { PageProbe } from '@/widgets/PageProbe';
 
 /** 导航分组:阶段推进中逐组点亮;组内无可渲染项时整组不出现(未做的不上导航)。 */
 const NAV_GROUPS: { label: string; items: { to: string; label: string }[] }[] = [
@@ -33,6 +36,8 @@ const NAV_GROUPS: { label: string; items: { to: string; label: string }[] }[] = 
 ];
 
 export function AppShell() {
+  const location = useLocation();
+  const onChat = location.pathname === '/';
   return (
     <div className="app">
       <aside className="sidebar">
@@ -66,6 +71,8 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+      <PageProbe />
+      {onChat ? null : <FloatingChat />}
     </div>
   );
 }
