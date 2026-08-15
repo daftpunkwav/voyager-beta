@@ -1,4 +1,4 @@
-/** 路由表:Agent Chat 为主页;系统/笔记/资源库已点亮,其余领域页随后续阶段开放。 */
+/** 路由表:Agent Chat 为主页;系统/笔记/资源库/图谱已点亮,其余领域页随后续阶段开放。 */
 
 import { Route, Routes } from 'react-router-dom';
 import { AppShell } from '@/shell/AppShell';
@@ -7,6 +7,7 @@ import { HealthPage } from '@/pages/HealthPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { NotesPage } from '@/pages/notes/NotesPage';
 import { SourcesPage } from '@/pages/sources/SourcesPage';
+import { GraphPage } from '@/pages/graph/GraphPage';
 
 export function App() {
   return (
@@ -17,6 +18,7 @@ export function App() {
         <Route path="settings" element={<SettingsPage />} />
         <Route path="notes" element={<NotesPage />} />
         <Route path="sources" element={<SourcesPage />} />
+        <Route path="graph" element={<GraphPage />} />
       </Route>
     </Routes>
   );

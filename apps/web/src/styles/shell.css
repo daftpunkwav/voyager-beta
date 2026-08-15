@@ -712,3 +712,177 @@
   max-height: 320px;
   white-space: pre-wrap;
 }
+
+/* ---------- 图谱页 ---------- */
+.main:has(.graph-page) { height: 100vh; min-height: 0; }
+.content:has(.graph-page) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.graph-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.graph-layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 12px;
+  min-height: 0;
+}
+.graph-layout:has(.node-editor),
+.graph-layout:has(.index-panel) {
+  grid-template-columns: 1fr 300px 280px;
+}
+.graph-main {
+  position: relative;
+  border: 1px solid var(--bg-300);
+  border-radius: var(--radius);
+  background: var(--bg-50);
+  min-height: 320px;
+  overflow: hidden;
+}
+.graph-canvas-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+.graph-canvas { width: 100%; height: 100%; display: block; }
+.graph-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+.graph-warn {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--warning-surface);
+  color: var(--warning);
+  max-width: 86%;
+}
+.graph-search { width: 200px; }
+.node-detail {
+  border: 1px solid var(--bg-300);
+  border-radius: var(--radius);
+  background: var(--bg-50);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+.node-detail--empty { justify-content: center; align-items: center; }
+.node-detail__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.node-detail__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg-400);
+}
+.node-detail__dot[data-label='Project'] { background: #0064d6; }
+.node-detail__dot[data-label='Module'] { background: #5e5ce6; }
+.node-detail__dot[data-label='Class'] { background: #bf5af2; }
+.node-detail__dot[data-label='Function'] { background: #30d158; }
+.node-detail__dot[data-label='Method'] { background: #2e8dff; }
+.node-detail__dot[data-label='Concept'],
+.node-detail__dot[data-label='Term'] { background: #ff9f0a; }
+.node-detail__name { font-weight: 700; font-size: 14px; color: var(--text-800); }
+.node-detail__qn {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-500);
+}
+.node-detail__attrs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--bg-100);
+}
+.node-detail__edges {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.node-detail__edge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--bg-300);
+  background: var(--bg-50);
+  font: inherit;
+  text-align: left;
+}
+.node-editor,
+.index-panel {
+  border: 1px solid var(--bg-300);
+  border-radius: var(--radius);
+  background: var(--bg-50);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+.node-editor__tabs,
+.index-panel .node-editor__tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.node-editor__msg { color: var(--text-600); }
+.index-panel__form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.index-job {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--bg-300);
+  background: var(--bg-100);
+  font-size: 12.5px;
+}
+.index-job--failed { border-color: var(--error); }
+.index-job__project {
+  font-weight: 600;
+  color: var(--text-800);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.index-job__actions {
+  display: flex;
+  gap: 6px;
+}
+.index-panel__history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}

@@ -14,6 +14,7 @@ const NAV_GROUPS: { label: string; items: { to: string; label: string }[] }[] = 
     items: [
       { to: '/notes', label: '笔记' },
       { to: '/sources', label: '资源库' },
+      { to: '/graph', label: '图谱' },
     ],
   },
   {
