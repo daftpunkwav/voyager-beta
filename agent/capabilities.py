@@ -29,6 +29,7 @@ class CapabilityDeps:
     subagents: SubagentRegistry
     pages: PageContextRegistry
     asker: AskUser
+    toolbelt: Any  # Toolbelt(list_tools 数据源,§9.4)
 
 
 def build_agent_registry(deps: CapabilityDeps) -> Registry:
@@ -55,14 +56,54 @@ def build_agent_registry(deps: CapabilityDeps) -> Registry:
     def list_subagents() -> dict:
         return {
             "definitions": [
-                {"name": d.name, "mode": d.mode, "description": d.description}
+                {"name": d.name, "mode": d.mode, "description": d.description,
+                 "persona": d.persona, "allowed_tools": list(d.allowed_tools)
+                 if d.allowed_tools else None}
                 for d in deps.subagents.list()
             ],
             "running": [
-                {"id": i.id, "name": i.name, "status": i.status.value, "goal": i.task.goal}
+                {"id": i.id, "name": i.name, "status": i.status.value,
+                 "goal": i.task.goal, "started_ts": i.state.started_ts}
                 for i in deps.spawner.instances.values()
             ],
         }
+
+    @capability(reg, name="list_personas", description="人格预设清单(团队页数据源)")
+    def list_personas() -> list[dict]:
+        from agent.personas import PERSONAS
+
+        return [
+            {"key": p.key, "display_name": p.display_name, "style": p.style,
+             "default_mode": p.default_mode,
+             "tool_allow": list(p.tool_allow) if p.tool_allow else None,
+             "system_prompt": p.system_prompt}
+            for p in PERSONAS.values()
+        ]
+
+    @capability(reg, name="register_subagent", description="注册自建 subagent 定义",
+                cost=2)
+    def register_subagent(name: str, description: str, mode: str = "react",
+                          allowed_tools: list[str] | None = None,
+                          persona: str = "") -> dict:
+        """写入 SubagentRegistry;mode 取七种模式枚举(非法值 AGENT.INVALID_INPUT)。
+
+        allowed_tools 是能力面白名单裁剪(Toolbelt.trimmed,§9.4.1):
+        不给 write_file 就是真的不能写,不是提示词约束;None = 不裁剪。
+        """
+        from agent.subagent.registry import SubagentDef
+
+        d = SubagentDef(
+            name=name, description=description, mode=mode, persona=persona,
+            allowed_tools=tuple(allowed_tools) if allowed_tools else None,
+        )
+        deps.subagents.save(d)
+        return {"name": d.name, "mode": d.mode, "allowed_tools": allowed_tools}
+
+    @capability(reg, name="list_tools", description="当前工具面名册(自建 subagent 白名单候选项)")
+    def list_tools() -> list[dict]:
+        # 名册与 LLM 看到的 ToolSpec 一致(内部工具 + 领域桥 notes__* 等)
+        return [{"name": s.name, "description": s.description}
+                for s in deps.toolbelt.specs()]
 
     @capability(reg, name="recall_memory", description="检索 agent 记忆(画像/情节/语义)")
     def recall_memory(query: str, limit: int = 8) -> list[dict]:

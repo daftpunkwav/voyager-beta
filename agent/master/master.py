@@ -45,6 +45,7 @@ class Master:
         proactive=None,
         hooks=None,
         memory=None,
+        subagents=None,  # SubagentRegistry:自建定义按名派遣(§9.4.4)
     ) -> None:
         self._llm = llm
         self._bus = bus
@@ -55,6 +56,7 @@ class Master:
         self._proactive = proactive
         self._hooks = hooks
         self._memory = memory
+        self._subagents = subagents
         self._chat: SubagentInstance | None = None
         self._inbox: deque[str] = deque()
         self._lock = asyncio.Lock()
@@ -118,9 +120,20 @@ class Master:
         name: str = "",
         constraints: str = "",
     ) -> SubagentInstance:
-        """派单(§9.4):任务型 subagent 后台执行,完成/失败主动通报。"""
+        """派单(§9.4):任务型 subagent 后台执行,完成/失败主动通报。
+
+        persona 先查内置预设;查不到再查自建 subagent 注册表(§9.4.4,
+        对 master 与预设同构:套用其 mode 与 allowed_tools 白名单)。
+        """
         preset = PERSONAS.get(persona) if persona else None
-        if preset is not None and preset.key == "lucien":
+        custom = self._load_custom(persona) if persona and preset is None else None
+        if custom is not None:
+            if mode is None:
+                mode = custom.mode
+            if allowed_tools is None:
+                allowed_tools = custom.allowed_tools
+            constraints = f"{constraints}\n{custom.description}".strip()
+        elif preset is not None and preset.key == "lucien":
             mode = Mode.REACT.value  # Lucien 强制 ReAct(决策 §15)
         if allowed_tools is None and preset is not None:
             allowed_tools = preset.tool_allow
@@ -156,6 +169,17 @@ class Master:
 
         asyncio.create_task(_run())
         return inst
+
+    def _load_custom(self, name: str):
+        """按名取自建 subagent 定义;未注册返回 None(按普通无名任务处理)。"""
+        from platform_contracts import ServiceError
+
+        if self._subagents is None:
+            return None
+        try:
+            return self._subagents.load(name)
+        except ServiceError:
+            return None
 
     async def consider(self, suggestion: str, *, source_event: str = "") -> None:
         """observe 的"考虑事项"入口:默认只留痕;开启 observe.auto_index 才自动行动。"""

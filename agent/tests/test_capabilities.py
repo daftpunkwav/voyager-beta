@@ -86,3 +86,69 @@ class TestSurface:
         out = await execute(app.registry, "list_subagents", USER_CTX, {})
         assert set(out) == {"definitions", "running"}
         assert isinstance(out["definitions"], list)
+
+
+class TestTeamSurface:
+    """团队页数据源(阶段 09):人格清单、自建 subagent、工具面名册。"""
+
+    async def test_list_personas_builtin_five(self, app) -> None:
+        personas = await execute(app.registry, "list_personas", USER_CTX, {})
+        keys = {p["key"] for p in personas}
+        assert keys == {"lucien", "iris", "elio", "miyai", "atlas"}
+        lucien = next(p for p in personas if p["key"] == "lucien")
+        assert lucien["tool_allow"] is None  # 统筹者不裁剪
+        atlas = next(p for p in personas if p["key"] == "atlas")
+        assert "graph__query_graph" in atlas["tool_allow"]
+        assert all(p["system_prompt"] for p in personas)
+
+    async def test_register_subagent_persisted_and_listed(self, app) -> None:
+        out = await execute(app.registry, "register_subagent", USER_CTX, {
+            "name": "scout", "description": "只读侦察员",
+            "mode": "direct", "allowed_tools": ["web_search", "web_fetch"],
+        })
+        assert out == {"name": "scout", "mode": "direct",
+                       "allowed_tools": ["web_search", "web_fetch"]}
+        defs = (await execute(app.registry, "list_subagents", USER_CTX, {}))["definitions"]
+        mine = next(d for d in defs if d["name"] == "scout")
+        assert mine["mode"] == "direct"
+        assert mine["allowed_tools"] == ["web_search", "web_fetch"]
+
+    async def test_register_subagent_invalid_mode(self, app) -> None:
+        with pytest.raises(ServiceError) as exc:
+            await execute(app.registry, "register_subagent", USER_CTX, {
+                "name": "bad", "description": "x", "mode": "流模式",
+            })
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+
+    async def test_list_tools_includes_internal_and_bridge(self, tmp_path) -> None:
+        """名册 = LLM 看到的 ToolSpec:内部工具 + 领域桥注入工具。"""
+        from agent.tools.base import AgentTool
+
+        async def noop(**kw):
+            return {}
+
+        bridge = {"notes__create_note": AgentTool(
+            name="notes__create_note", description="[notes] 新建笔记",
+            handler=noop)}
+        app = build_agent(data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws",
+                          llm=FakeLLM(), extra_tools=bridge)
+        try:
+            tools = await execute(app.registry, "list_tools", USER_CTX, {})
+            names = {t["name"] for t in tools}
+            assert "notes__create_note" in names  # 桥工具
+            assert "spawn_subagent" in names  # 内部工具
+            assert "read_file" in names
+            bridge_tool = next(t for t in tools if t["name"] == "notes__create_note")
+            assert bridge_tool["description"] == "[notes] 新建笔记"  # 原样透传
+        finally:
+            app.memory.close()
+
+    async def test_dispatch_custom_applies_allowlist(self, app) -> None:
+        """自建 subagent 按名派遣:白名单裁剪真实生效(§9.4.1,不是提示词约束)。"""
+        await execute(app.registry, "register_subagent", USER_CTX, {
+            "name": "scout2", "description": "只读侦察员",
+            "mode": "direct", "allowed_tools": ["web_search"],
+        })
+        inst = await app.master.dispatch_task("查资料", persona="scout2")
+        names = inst.toolbelt.names()
+        assert names == ["web_search"]  # write_file 等真的不在工具面里

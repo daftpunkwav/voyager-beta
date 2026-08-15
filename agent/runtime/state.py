@@ -45,6 +45,7 @@ class RunState:
     tool_calls: int = 0
     result: str | None = None
     error: str = ""
+    started_ts: float = field(default_factory=time.time)  # 实例耗时展示用
 
     def add_step(self, kind: str, name: str, summary: str) -> Step:
         step = Step(n=len(self.steps) + 1, kind=kind, name=name, summary=summary)
@@ -61,6 +62,7 @@ class RunState:
         data = dict(data)
         data["status"] = RunStatus(data["status"])
         data["steps"] = [Step(**s) for s in data.get("steps", [])]
+        data.setdefault("started_ts", 0.0)  # 旧 checkpoint 兼容
         return cls(**data)
 
 

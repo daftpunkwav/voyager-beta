@@ -188,6 +188,7 @@ def build_agent(
     proactive = ProactiveEngine(
         bus=bus, llm=llm, memory=memory, scheduler=scheduler, budget=budget
     )
+    subagent_registry = SubagentRegistry(data_dir / "subagents")
     master = Master(
         llm=llm,
         bus=bus,
@@ -198,6 +199,7 @@ def build_agent(
         proactive=proactive,
         hooks=hooks,
         memory=memory,
+        subagents=subagent_registry,
     )
     _master["master"] = master
     observer = Observer(master.consider)
@@ -207,9 +209,10 @@ def build_agent(
             memory=memory,
             skills=skills,
             spawner=spawner,
-            subagents=SubagentRegistry(data_dir / "subagents"),
+            subagents=subagent_registry,
             pages=pages,
             asker=asker,
+            toolbelt=toolbelt,
         )
     )
     loop = EventLoop(
