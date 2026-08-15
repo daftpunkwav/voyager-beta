@@ -23,11 +23,7 @@ def wire(
 ) -> Wiring:
     owns = store is None
     store = store or SettingsStore(Path(data_dir) / "settings.db", bus)
-    # register 对重复键抛 CONFLICT:共享 store 场景下只注册尚未注册的键
-    existing = {d["key"] for d in store.list_schema()}
-    fresh = [d for d in DEFS if d.key not in existing]
-    if fresh:
-        store.register(fresh)
+    store.register_fresh(DEFS)  # 幂等:共享 store 场景下只补尚未注册的键
     init_deps(Deps(store=store))
     return Wiring(
         registry=registry,
