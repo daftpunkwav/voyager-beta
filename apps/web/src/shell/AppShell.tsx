@@ -7,7 +7,10 @@ import { ServiceBadges } from './ServiceBadge';
 const NAV_GROUPS: { label: string; items: { to: string; label: string }[] }[] = [
   {
     label: 'Agent',
-    items: [{ to: '/', label: '对话' }],
+    items: [
+      { to: '/', label: '对话' },
+      { to: '/team', label: '团队' },
+    ],
   },
   {
     label: '领域',

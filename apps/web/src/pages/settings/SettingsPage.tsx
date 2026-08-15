@@ -1,6 +1,8 @@
-/** 设置页:schema 驱动动态渲染(零硬编码设置项),左侧分组右侧字段。 */
+/** 设置页:schema 驱动动态渲染(零硬编码设置项),左侧分组右侧字段。
+ * ?module=<name> 深链直开对应分组(团队页权限矩阵等处跳转入口)。 */
 
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Degraded } from '@/shell/Degraded';
 import { SettingField } from './SettingField';
 import { moduleLabel, useSettingsStore } from './settingsStore';
@@ -8,6 +10,7 @@ import { ProviderSection } from './ProviderSection';
 
 export function SettingsPage() {
   const { items, loading, error, load } = useSettingsStore();
+  const [params] = useSearchParams();
   const modules = useMemo(
     () => [...new Set(items.map((i) => i.module))].sort((a, b) => a.localeCompare(b)),
     [items],
@@ -19,9 +22,15 @@ export function SettingsPage() {
   }, [load]);
 
   useEffect(() => {
+    if (active !== null) return;
+    const target = params.get('module');
+    if (target && modules.includes(target)) {
+      setActive(target); // 深链优先于默认首组
+      return;
+    }
     const first = modules[0];
-    if (active === null && first !== undefined) setActive(first);
-  }, [modules, active]);
+    if (first !== undefined) setActive(first);
+  }, [modules, active, params]);
 
   const visible = items.filter((i) => i.module === active);
 
