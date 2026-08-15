@@ -1,7 +1,8 @@
 """sources 装配:独立运行(rest.py)与聚合运行(deploy/)的唯一接线来源。
 
 聚合服务内部子模块(repo/books/news)各自脱耦:独立 store、独立 wiring 入口;
-本文件只做组合。聚合运行时装配根可传入共享 SecretStore。
+本文件只做组合。聚合运行时装配根可传入共享 SecretStore 与共享 SettingsStore
+(设置项注册进同一 store,§8.8)。
 """
 
 from __future__ import annotations
@@ -12,12 +13,14 @@ from pathlib import Path
 from platform_capability import Wiring
 from platform_eventbus import EventBus
 from platform_secrets import SecretStore
+from platform_settings import SettingsStore
 
 from .capabilities import SourcesDeps, init_all, registry
 from .modules.books.store import BookStore
 from .modules.news.store import NewsStore
 from .modules.repo.store import RepoStore
 from .modules.repo.worker import RepoWorker
+from .settings import DEFS
 
 
 def wire(
@@ -27,8 +30,11 @@ def wire(
     bus: EventBus | None = None,
     secrets: SecretStore | None = None,
     clone_fn=None,
+    settings_store: SettingsStore | None = None,
 ) -> Wiring:
     data_dir = Path(data_dir)
+    if settings_store is not None:
+        settings_store.register_fresh(DEFS)
     repo_store = RepoStore(data_dir / "repo.db")
     book_store = BookStore(data_dir / "books.db")
     news_store = NewsStore(data_dir / "news.db")

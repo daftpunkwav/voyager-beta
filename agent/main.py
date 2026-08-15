@@ -95,11 +95,7 @@ def build_agent(
 
     owns_settings = settings_store is None
     settings = settings_store or SettingsStore(data_dir / "settings.db", bus=bus)
-    # register 对重复键抛 CONFLICT:共享 store 上只注册尚未注册的键(agent.* 前缀)
-    existing = {d["key"] for d in settings.list_schema()}
-    fresh = [d for d in AGENT_SETTING_DEFS if d.key not in existing]
-    if fresh:
-        settings.register(fresh)
+    settings.register_fresh(AGENT_SETTING_DEFS)  # 幂等:只补尚未注册的 agent.* 键
 
     workspace = ensure_workdir(workspace_dir or settings.get("agent.workspace.dir"))
     memory = Memory(data_dir / "memory")

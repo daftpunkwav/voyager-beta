@@ -52,6 +52,13 @@ class SettingsStore:
                 )
             self._defs[d.key] = d
 
+    def register_fresh(self, defs: Iterable[SettingDef]) -> int:
+        """幂等注册:跳过已注册键(各服务 wiring 向共享 store 注册时的约定)。"""
+        fresh = [d for d in defs if d.key not in self._defs]
+        for d in fresh:
+            self._defs[d.key] = d
+        return len(fresh)
+
     def _def(self, key: str) -> SettingDef:
         try:
             return self._defs[key]

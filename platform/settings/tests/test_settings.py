@@ -53,6 +53,15 @@ class TestBasics:
         with pytest.raises(ServiceError, match="重复注册"):
             st.register(DEFS)
 
+    def test_register_fresh_idempotent(self, store) -> None:
+        """共享 store 场景:重复注册只补新键,已存在键不动。"""
+        st, _ = store
+        assert st.register_fresh(DEFS) == 0  # 全部已注册:幂等跳过
+        extra = SettingDef(key="notes.sort.default", module="notes",
+                           type=SettingType.STR, default="updated")
+        assert st.register_fresh([*DEFS, extra]) == 1
+        assert st.get("notes.sort.default") == "updated"
+
 
 class TestValidation:
     async def test_type_check(self, store) -> None:

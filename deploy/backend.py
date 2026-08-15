@@ -54,6 +54,7 @@ def build(
     """
     from services.gateway.mounts import MountSpec
     from services.gateway.rest import create_app as gateway_create
+    from services.gateway.settings import DEFS as GATEWAY_SETTING_DEFS
     from services.graph.wiring import wire as wire_graph
     from services.llm.wiring import wire as wire_llm
     from services.notes.wiring import wire as wire_notes
@@ -69,14 +70,20 @@ def build(
     bus = EventBus(log)
     secrets = SecretStore(data_root / "secrets.db")
     settings_store = SettingsStore(data_root / "settings.db", bus)
+    # gateway 自身设置项由部署入口注册(其模块注释约定,无 wiring 装配)
+    settings_store.register_fresh(GATEWAY_SETTING_DEFS)
 
     wirings: dict[str, Wiring] = {
         "settings": wire_settings(data_root / "settings", bus=bus, store=settings_store),
-        "llm": wire_llm(data_root / "llm", secrets=secrets),
+        "llm": wire_llm(data_root / "llm", secrets=secrets,
+                        settings_store=settings_store),
         "sources": wire_sources(data_root / "sources", workspace=workspace,
-                                bus=bus, secrets=secrets, clone_fn=clone_fn),
-        "notes": wire_notes(data_root / "notes", bus=bus),
-        "graph": wire_graph(data_root / "graph", bus=bus),
+                                bus=bus, secrets=secrets, clone_fn=clone_fn,
+                                settings_store=settings_store),
+        "notes": wire_notes(data_root / "notes", bus=bus,
+                            settings_store=settings_store),
+        "graph": wire_graph(data_root / "graph", bus=bus,
+                            settings_store=settings_store),
     }
     mounts = [MountSpec(domain=name, registry=w.registry, probe=w.probe)
               for name, w in wirings.items()]
