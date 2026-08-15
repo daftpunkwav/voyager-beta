@@ -187,6 +187,15 @@ class GraphStore:
                 "total_nodes": sum(r[1] for r in nodes),
                 "total_edges": sum(r[1] for r in edges)}
 
+    def list_projects(self) -> list[str]:
+        return [r[0] for r in self._conn.execute(
+            "SELECT DISTINCT project FROM nodes ORDER BY project")]
+
+    def list_code_projects(self) -> list[str]:
+        """已有程序化管线产出的项目(跨仓关联的候选集)。"""
+        return [r[0] for r in self._conn.execute(
+            "SELECT DISTINCT project FROM nodes WHERE source = 'code'")]
+
     def drop_project(self, project: str) -> dict[str, int]:
         with self._lock:
             n = self._conn.execute(

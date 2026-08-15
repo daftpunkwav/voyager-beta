@@ -163,6 +163,32 @@ class GraphEngine:
             self._cross_edges = edges
         return {"mode": "cross-repo-intelligence", "edge_count": len(edges), "edges": edges}
 
+    def export_graph(self, project: str) -> dict[str, Any]:
+        """全图导出(节点 + 边),供规范存储同步;不受 search limit 封顶。"""
+        store = self._store(project)
+        with self._lock:
+            nodes = [
+                {
+                    "id": n.id,
+                    "name": n.name,
+                    "label": n.label,
+                    "qualified_name": n.qualified_name,
+                    "file_path": n.file_path,
+                    "attrs": dict(n.attrs),
+                }
+                for n in store.nodes.values()
+            ]
+            edges = [
+                {
+                    "src": e.source,
+                    "dst": e.target,
+                    "type": e.type,
+                    "attrs": dict(e.attrs),
+                }
+                for e in store.edges
+            ]
+        return {"nodes": nodes, "edges": edges}
+
     def fetch_layout(
         self, project: str, *, max_nodes: int = 5000, graph: str = "code"
     ) -> dict[str, Any]:
@@ -662,6 +688,8 @@ class GraphEngine:
                 args.get("query") or "",
                 limit=int(args.get("limit") or 100_000),
             )
+        if name == "export_graph":
+            return self.export_graph(args["project"])
         if name == "get_graph_schema":
             return self.get_graph_schema(args["project"])
         if name == "get_architecture":

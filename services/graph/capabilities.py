@@ -136,6 +136,11 @@ def graph_stats(project: str) -> dict:
     return _require_deps().store.stats(project)
 
 
+@capability(registry, name="list_projects", description="已有图数据的项目清单")
+def list_projects() -> list[str]:
+    return _require_deps().store.list_projects()
+
+
 @capability(registry, name="engine_info", description="当前引擎与降级状态(引擎徽章数据源)")
 async def engine_info() -> dict:
     deps = _require_deps()
