@@ -45,9 +45,21 @@ def build_chat_router(bus: EventBus, limiter: RateLimiter,
     def _actor(request: Request) -> ActorRef:
         return getattr(request.state, "actor", None) or LOCAL_USER
 
+    async def _json_body(request: Request) -> dict:
+        """解析并校验请求体:非法 JSON / 非 JSON 对象统一 400,而非 500。"""
+        try:
+            body = await request.json()
+        except Exception as exc:
+            raise ServiceError(
+                _DOMAIN, ErrorSuffix.INVALID_INPUT, "请求体必须是合法 JSON"
+            ) from exc
+        if not isinstance(body, dict):
+            raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, "请求体必须是 JSON 对象")
+        return body
+
     @router.post("/api/chat/messages")
     async def post_message(request: Request) -> dict:
-        body = await request.json()
+        body = await _json_body(request)
         content = str(body.get("content") or "").strip()
         if not content:
             raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, "消息内容不能为空")
@@ -76,7 +88,7 @@ def build_chat_router(bus: EventBus, limiter: RateLimiter,
         limiter.check(actor.id)
         limiter.acquire_sse()
         # 未显式给 after_seq → 从当前末尾开始(不补历史,历史走 GET messages)
-        start_seq = _latest_seq(log) if after_seq < 0 else after_seq
+        start_seq = log.latest_seq() if after_seq < 0 else after_seq
 
         async def gen() -> AsyncIterator[str]:
             cursor = start_seq
@@ -109,11 +121,6 @@ def build_chat_router(bus: EventBus, limiter: RateLimiter,
         return StreamingResponse(gen(), media_type="text/event-stream")
 
     return router
-
-
-def _latest_seq(log: EventLog) -> int:
-    row = log.conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()
-    return int(row[0])
 
 
 def _frame(event: Event, seq: int) -> str:

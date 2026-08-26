@@ -118,3 +118,33 @@ class TestHealth:
     def test_actor_middleware_defaults_local(self, client) -> None:
         """无令牌按本地单用户(§7.4)。"""
         assert LOCAL_USER.id == "local"
+
+
+class TestBearerIdentity:
+    def test_bearer_token_resolves_actor(self, bus, tmp_path) -> None:
+        """带 issuer 时,Bearer 令牌解析为对应 actor;非法令牌 401。"""
+        from platform_actor import LocalTokenIssuer
+        from platform_contracts import ActorKind, ActorRef
+
+        issuer = LocalTokenIssuer(tmp_path / "machine.token")
+        app = create_app(bus=bus, db_path=tmp_path / "gw.db", issuer=issuer)
+        agent = ActorRef(kind=ActorKind.AGENT, id="agent.x", scopes=())
+        good = issuer.issue(agent)
+        with TestClient(app) as c:
+            ok = c.post("/api/chat/messages", json={"content": "hi"},
+                        headers={"Authorization": f"Bearer {good}"})
+            assert ok.status_code == 200 and ok.json()["seq"] > 0
+            bad = c.post("/api/chat/messages", json={"content": "hi"},
+                         headers={"Authorization": "Bearer not-a-token"})
+            assert bad.status_code == 401
+
+    def test_bad_json_body_is_400(self, client) -> None:
+        """非法 JSON / 非 JSON 对象统一 400,而非 500。"""
+        import json as _json
+
+        r = client.post("/api/chat/messages", content=b"not json",
+                        headers={"Content-Type": "application/json"})
+        assert r.status_code == 400
+        r = client.post("/api/activity", content=_json.dumps([1, 2]).encode(),
+                        headers={"Content-Type": "application/json"})
+        assert r.status_code == 400

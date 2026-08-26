@@ -25,9 +25,21 @@ def build_activity_router(bus: EventBus, limiter: RateLimiter) -> APIRouter:
     def _actor(request: Request) -> ActorRef:
         return getattr(request.state, "actor", None) or LOCAL_USER
 
+    async def _json_body(request: Request) -> dict:
+        """解析并校验请求体:非法 JSON / 非 JSON 对象统一 400,而非 500。"""
+        try:
+            body = await request.json()
+        except Exception as exc:
+            raise ServiceError(
+                _DOMAIN, ErrorSuffix.INVALID_INPUT, "请求体必须是合法 JSON"
+            ) from exc
+        if not isinstance(body, dict):
+            raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, "请求体必须是 JSON 对象")
+        return body
+
     @router.post("/api/activity")
     async def report_activity(request: Request) -> dict:
-        body = await request.json()
+        body = await _json_body(request)
         kind = str(body.get("kind") or "")
         if kind not in _ACTIVITY_KINDS:
             raise ServiceError(

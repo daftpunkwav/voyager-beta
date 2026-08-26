@@ -37,8 +37,13 @@ class EventLog:
 
     @property
     def conn(self) -> sqlite3.Connection:
-        """供 CursorStore 等共用同一连接。"""
+        """供 CursorStore 等共用同一连接(框架内约定;外部读请用公开查询方法)。"""
         return self._conn
+
+    def latest_seq(self) -> int:
+        """当前最大 seq(空表为 0)。SSE 续传等场景的公开读口,替代直连 conn。"""
+        row = self._conn.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()
+        return int(row[0])
 
     def append(self, event: Event) -> int:
         """追加事件,返回全序 seq。"""

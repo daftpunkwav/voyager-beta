@@ -16,6 +16,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from platform_actor import LocalTokenIssuer
 from platform_contracts import (
     LOCAL_USER,
     HealthReport,
@@ -66,9 +67,17 @@ def create_app(
 
     @app.middleware("http")
     async def _actor_middleware(request: Request, call_next):
-        # 本机令牌 → actor;无令牌按本地单用户(§7.4)。鉴权失败语义由
-        # capability 框架的 LocalAuth 保证(AUTH_REQUIRED),此处只解析身份。
-        request.state.actor = LOCAL_USER
+        # 身份解析与 gen_rest._resolve_context 同语义(§7.4):携带本机令牌且配置了
+        # issuer → verify 出对应 actor(失败 401,不静默降权);无令牌按本地单用户
+        header = request.headers.get("authorization", "")
+        if issuer is not None and header.startswith("Bearer "):
+            try:
+                actor = issuer.verify(header.removeprefix("Bearer ").strip())
+            except ServiceError as exc:
+                return JSONResponse(status_code=401, content=exc.to_envelope())
+            request.state.actor = actor
+        else:
+            request.state.actor = LOCAL_USER
         return await call_next(request)
 
     mount_services(app, mounts or [], probe,
