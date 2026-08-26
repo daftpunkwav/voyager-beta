@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { getApi } from '@/api/client';
 import { useAgentStore } from '@/stores/agentStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useUIStore } from '@/stores/uiStore';
 import { useSettings } from '@/hooks/useSettings';
 import { ensureAgentQuestion } from '@/utils/agentQuestion';
 import { AgentSelector } from './AgentSelector';
@@ -63,8 +64,96 @@ export function ChatPanel({
   const skipQuestion = useAgentStore((s) => s.skipQuestion);
   const { settings } = useSettings();
   const user = useAuthStore((s) => s.user);
+  const addToast = useUIStore((s) => s.addToast);
   const [input, setInput] = useState('');
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // 修复:三个点的"更多"按钮之前是死按钮;现在弹 popover,提供导出/复制/清空 3 个 action。
+  // 点击 popover 外部或 Esc 键关闭(§a11y)。
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onDocDown = (e: globalThis.MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
+      }
+    };
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') setMoreOpen(false);
+    };
+    document.addEventListener('mousedown', onDocDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [moreOpen]);
+
+  /** 把当前 messages 序列化为 markdown 文本。 */
+  const exportMarkdown = (): string => {
+    const lines: string[] = [];
+    if (currentSession) {
+      lines.push(`# ${currentSession.title || '对话'}`, '');
+    }
+    for (const m of messages) {
+      const role = m.role === 'user' ? '我' : m.role === 'assistant' ? m.agent : 'system';
+      lines.push(`## ${role}`, m.content || '', '');
+    }
+    return lines.join('\n');
+  };
+
+  /** 触发 markdown 文件下载(本地保存)。 */
+  const handleExport = () => {
+    if (messages.length === 0) {
+      addToast({ type: 'warning', message: '当前会话无消息可导出' });
+      return;
+    }
+    const md = exportMarkdown();
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    a.download = `voyager-chat-${currentSession?.id ?? 'untitled'}-${ts}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    addToast({ type: 'success', message: '对话已导出为 Markdown' });
+    setMoreOpen(false);
+  };
+
+  /** 复制 markdown 到剪贴板。 */
+  const handleCopy = async () => {
+    if (messages.length === 0) {
+      addToast({ type: 'warning', message: '当前会话无消息可复制' });
+      return;
+    }
+    const md = exportMarkdown();
+    try {
+      await navigator.clipboard.writeText(md);
+      addToast({ type: 'success', message: '对话已复制到剪贴板' });
+    } catch {
+      addToast({ type: 'error', message: '复制失败:浏览器不支持或权限不足' });
+    }
+    setMoreOpen(false);
+  };
+
+  /** 清空当前会话消息(本地状态)。 */
+  const handleClear = () => {
+    if (messages.length === 0) {
+      addToast({ type: 'info', message: '当前会话已为空' });
+      setMoreOpen(false);
+      return;
+    }
+    if (!window.confirm(`确定清空当前会话(${messages.length} 条消息)?此操作不可撤销。`)) {
+      return;
+    }
+    useAgentStore.setState({ messages: [], streamingContent: '', thinkingBuffer: '' });
+    addToast({ type: 'success', message: '当前会话已清空' });
+    setMoreOpen(false);
+  };
 
   const pendingQuestion = useMemo(
     () => (pendingQuestionRaw ? ensureAgentQuestion(pendingQuestionRaw) : null),
@@ -157,7 +246,7 @@ export function ChatPanel({
               <PanelRightIcon />
             </button>
           )}
-          <button type="button" className="chat-icon-btn" title="导出对话">
+          <button type="button" className="chat-icon-btn" title="导出对话" onClick={handleExport}>
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -170,13 +259,33 @@ export function ChatPanel({
               <path d="M7 10l5 5 5-5M12 15V3" />
             </svg>
           </button>
-          <button type="button" className="chat-icon-btn" title="更多">
-            <svg viewBox="0 0 24 24" fill="currentColor" width={16} height={16}>
-              <circle cx="5" cy="12" r="1.5" />
-              <circle cx="12" cy="12" r="1.5" />
-              <circle cx="19" cy="12" r="1.5" />
-            </svg>
-          </button>
+          <div className="chat-more-wrap" ref={moreRef}>
+            <button
+              type="button"
+              className="chat-icon-btn"
+              title="更多"
+              aria-label="更多操作"
+              aria-haspopup="menu"
+              aria-expanded={moreOpen}
+              onClick={() => setMoreOpen((v) => !v)}
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" width={16} height={16}>
+                <circle cx="5" cy="12" r="1.5" />
+                <circle cx="12" cy="12" r="1.5" />
+                <circle cx="19" cy="12" r="1.5" />
+              </svg>
+            </button>
+            {moreOpen && (
+              <div className="chat-more-pop" role="menu">
+                <button type="button" role="menuitem" onClick={handleCopy}>
+                  复制为 Markdown
+                </button>
+                <button type="button" role="menuitem" onClick={handleClear}>
+                  清空当前会话
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
