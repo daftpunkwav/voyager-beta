@@ -37,6 +37,8 @@ class LocalTokenIssuer:
             return bytes.fromhex(self._path.read_text(encoding="utf-8").strip())
         self._path.parent.mkdir(parents=True, exist_ok=True)
         secret = secrets.token_hex(32)
+        # 0o600 仅 Unix 生效;Windows 忽略该模式(已知平台限制,依赖 NTFS
+        # 用户Profile 目录自身私有性;如需硬保证可后续加 Windows ACL)
         fd = os.open(self._path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(secret)

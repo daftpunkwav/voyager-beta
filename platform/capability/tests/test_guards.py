@@ -97,6 +97,11 @@ class TestAudit:
         assert "***" in summary
         assert "hello" in summary
 
+    def test_args_summary_redacts_credential_variants(self) -> None:
+        """credential / api-key 等变体同样脱敏(子串匹配)。"""
+        summary = summarize_args({"user_credential": "c1", "api-key": "k2"})
+        assert "c1" not in summary and "k2" not in summary
+
 
 class TestLongRunning:
     async def test_job_ref_passes(self) -> None:

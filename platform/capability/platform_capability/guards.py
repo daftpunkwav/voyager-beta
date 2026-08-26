@@ -6,15 +6,19 @@ import inspect
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from platform_actor import ActorContext
 from platform_contracts import ActorKind, ErrorSuffix, JobRef, ServiceError
 
+if TYPE_CHECKING:  # 运行时循环导入规避;仅静态检查需要具体类型
+    from platform_capability.registry import Registry
+
 _DOMAIN = "capability"
 
 #: 审计摘要中必须脱敏的入参键(子串匹配,不区分大小写)
-SENSITIVE_KEYS = ("api_key", "apikey", "token", "secret", "password", "authorization")
+SENSITIVE_KEYS = ("api_key", "api-key", "apikey", "token", "secret",
+                  "password", "authorization", "credential")
 
 
 @dataclass(frozen=True)
@@ -120,7 +124,7 @@ def _record(sinks: list[AuditSink | Callable[[AuditEntry], None]], entry: AuditE
 
 
 async def execute(
-    registry,
+    registry: Registry,
     name: str,
     actor: ActorContext | None,
     args: dict[str, Any] | None = None,
