@@ -36,6 +36,21 @@ _GUIDE = """# AI 建图约定(§8.4)
 """
 
 
+def validate_nodes_batch(project: str, nodes: list[dict]) -> None:
+    if not project.strip():
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, "project 不能为空")
+    for i, n in enumerate(nodes):
+        validate_node(project, n.get("label", ""), n.get("name", ""))
+
+
+def validate_relations_batch(project: str, relations: list[dict]) -> None:
+    if not project.strip():
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, "project 不能为空")
+    for i, r in enumerate(relations):
+        validate_relation(project, r.get("src", ""), r.get("dst", ""), r.get("type", ""))
+
+
+
 def guide_text() -> str:
     return _GUIDE
 

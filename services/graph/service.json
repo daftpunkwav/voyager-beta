@@ -7,7 +7,9 @@
     "enqueue_index", "cancel_index", "reorder_queue", "list_index_jobs",
     "set_node", "set_relationship", "graph_guide",
     "query_graph", "get_subgraph", "graph_stats", "list_projects", "engine_info",
-    "drop_project_graph"
+    "drop_project_graph",
+    "expand_neighbors", "find_path", "set_nodes", "set_relationships",
+    "merge_nodes", "export_subgraph"
   ],
   "subscribes": [],
   "publishes": ["task.progress", "task.completed", "task.failed",

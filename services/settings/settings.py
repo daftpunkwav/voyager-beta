@@ -1,7 +1,8 @@
 """settings 服务自有设置项(§8.8):外观 / 交互 / 隐私三组。
 
-模块名即设置页分组名;其余服务(notes/graph/llm/agent…)的 defs 由各自
-settings.py 声明、注册进同一 platform SettingsStore,本服务按 module 聚合输出。
+每项的 module 字段即设置页分组名;其余服务(notes/graph/llm/agent…)的
+SettingDef 由各自 settings.py 声明、注册进同一 platform SettingsStore,
+本服务按 module 聚合输出。
 """
 
 from platform_settings import SettingDef, SettingType

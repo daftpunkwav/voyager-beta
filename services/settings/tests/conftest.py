@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # 仓库根
 
 from services.settings import capabilities
 from services.settings.capabilities import Deps
-from services.settings.defs import DEFS
+from services.settings.settings import DEFS
 
 USER_CTX = ActorContext(actor=ActorRef(kind=ActorKind.USER, id="user.local"))
 AGENT_CTX = ActorContext(actor=ActorRef(kind=ActorKind.AGENT, id="agent.main", scopes=()))

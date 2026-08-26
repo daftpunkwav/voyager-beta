@@ -196,6 +196,153 @@ class GraphStore:
         return [r[0] for r in self._conn.execute(
             "SELECT DISTINCT project FROM nodes WHERE source = 'code'")]
 
+    def neighbors(self, project: str, node_id: str, *, depth: int = 1,
+                  edge_filter: str = "") -> dict[str, Any]:
+        """邻居展开:从 node_id 出发按深度扩边,可选边类型过滤。"""
+        seen_nodes: dict[str, dict] = {}
+        seen_edges: dict[str, dict] = {}
+        frontier = {node_id}
+        all_edges = [
+            _row(_EDGE_COLS, r)
+            for r in self._conn.execute(
+                f"SELECT {','.join(_EDGE_COLS)} FROM edges WHERE project = ?", (project,)
+            )
+            if not edge_filter or r[4] == edge_filter
+        ]
+        for _ in range(max(depth, 0)):
+            if not frontier:
+                break
+            qmarks = ",".join("?" for _ in frontier)
+            for r in self._conn.execute(
+                f"SELECT {','.join(_NODE_COLS)} FROM nodes"
+                f" WHERE project = ? AND id IN ({qmarks})", (project, *frontier),
+            ):
+                n = _row(_NODE_COLS, r)
+                seen_nodes[n["id"]] = n
+            nxt = set()
+            for e in all_edges:
+                if e["src"] in frontier or e["dst"] in frontier:
+                    seen_edges[e["id"]] = e
+                    for end in (e["src"], e["dst"]):
+                        if end not in seen_nodes:
+                            nxt.add(end)
+            frontier = nxt
+        # 最后一轮也要把 frontier 中的节点加载进来
+        if frontier:
+            qmarks = ",".join("?" for _ in frontier)
+            for r in self._conn.execute(
+                f"SELECT {','.join(_NODE_COLS)} FROM nodes"
+                f" WHERE project = ? AND id IN ({qmarks})", (project, *frontier),
+            ):
+                n = _row(_NODE_COLS, r)
+                seen_nodes[n["id"]] = n
+        return {"project": project, "nodes": list(seen_nodes.values()),
+                "edges": list(seen_edges.values())}
+
+    def find_path(self, project: str, a: str, b: str, *, max_hops: int = 4,
+                  edge_filter: str = "") -> dict[str, Any]:
+        """双向 BFS 找 a→b 的短路径。"""
+        from collections import deque
+
+        edges = [
+            _row(_EDGE_COLS, r)
+            for r in self._conn.execute(
+                f"SELECT {','.join(_EDGE_COLS)} FROM edges WHERE project = ?", (project,)
+            )
+            if not edge_filter or r[4] == edge_filter
+        ]
+        adj: dict[str, list[tuple[str, str, str]]] = {}
+        for e in edges:
+            adj.setdefault(e["src"], []).append((e["dst"], e["type"], e["id"]))
+            adj.setdefault(e["dst"], []).append((e["src"], e["type"], e["id"]))
+
+        if a == b:
+            node = self._node_by_id(project, a)
+            return {"project": project, "path": [node] if node else [],
+                    "edges": [], "found": node is not None}
+
+        # BFS
+        queue: deque[tuple[str, list[str], list[str]]] = deque([(a, [a], [])])
+        visited: set[str] = {a}
+        while queue:
+            cur, path, path_edges = queue.popleft()
+            if len(path) > max_hops + 1:
+                continue
+            for nxt, type_, eid in adj.get(cur, []):
+                if nxt in visited:
+                    continue
+                new_path = path + [nxt]
+                new_edges = path_edges + [eid]
+                if nxt == b:
+                    nodes = [self._node_by_id(project, nid) for nid in new_path]
+                    edge_rows = [self._edge_by_id(project, eid) for eid in new_edges]
+                    return {"project": project, "path": [n for n in nodes if n],
+                            "edges": [e for e in edge_rows if e], "found": True}
+                visited.add(nxt)
+                queue.append((nxt, new_path, new_edges))
+        return {"project": project, "path": [], "edges": [], "found": False}
+
+    def merge_nodes(self, project: str, keep: str, drop: str) -> dict[str, Any]:
+        """合并两个节点:保留 keep,把指向 drop 的边迁到 keep,然后删除 drop。"""
+        with self._lock:
+            self._conn.execute(
+                "UPDATE OR IGNORE edges SET src=?, updated_ts=?"
+                " WHERE project=? AND src=? AND src!=?",
+                (keep, time.time(), project, drop, keep),
+            )
+            self._conn.execute(
+                "UPDATE OR IGNORE edges SET dst=?, updated_ts=?"
+                " WHERE project=? AND dst=? AND dst!=?",
+                (keep, time.time(), project, drop, keep),
+            )
+            self._conn.execute(
+                "DELETE FROM edges WHERE project=? AND (src=? OR dst=?)",
+                (project, drop, drop),
+            )
+            self._conn.execute(
+                "DELETE FROM nodes WHERE project=? AND id=?",
+                (project, drop),
+            )
+            self._conn.commit()
+        return {"project": project, "kept": keep, "dropped": drop,
+                "node": self._node_by_id(project, keep)}
+
+    def export_subgraph(self, project: str, node_id: str, *, depth: int = 2,
+                        fmt: str = "json") -> dict[str, Any]:
+        """导出子图为 JSON/CYPHER。"""
+        sub = self.subgraph(project, node_id, depth)
+        if fmt == "cypher":
+            lines = []
+            for n in sub["nodes"]:
+                name = n["name"].replace("'", "\\'")
+                qn = n["qualified_name"].replace("'", "\\'")
+                lines.append(
+                    f"CREATE (n:{n['label']} {{id: '{n['id']}',"
+                    f" name: '{name}',"
+                    f" qualified_name: '{qn}'}})",
+                )
+            for e in sub["edges"]:
+                lines.append(
+                    f"MATCH (a {{id: '{e['src']}'}}), (b {{id: '{e['dst']}'}})"
+                    f" CREATE (a)-[:{e['type']}]->(b)",
+                )
+            sub["cypher"] = "\n".join(lines)
+        return {"project": project, "format": fmt, **sub}
+
+    def _node_by_id(self, project: str, node_id: str) -> dict | None:
+        row = self._conn.execute(
+            f"SELECT {','.join(_NODE_COLS)} FROM nodes"
+            " WHERE project=? AND id=?", (project, node_id)
+        ).fetchone()
+        return _row(_NODE_COLS, row) if row else None
+
+    def _edge_by_id(self, project: str, edge_id: str) -> dict | None:
+        row = self._conn.execute(
+            f"SELECT {','.join(_EDGE_COLS)} FROM edges"
+            " WHERE project=? AND id=?", (project, edge_id)
+        ).fetchone()
+        return _row(_EDGE_COLS, row) if row else None
+
     def drop_project(self, project: str) -> dict[str, int]:
         with self._lock:
             n = self._conn.execute(

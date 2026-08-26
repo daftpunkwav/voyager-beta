@@ -152,3 +152,73 @@ async def engine_info() -> dict:
             reversible=False)
 def drop_project_graph(project: str) -> dict:
     return _require_deps().store.drop_project(project)
+
+
+# ---------- 规划工具(按 docs/modules/graph.md 演进) ----------
+
+@capability(registry, name="expand_neighbors",
+            description="邻居展开:从节点出发按深度扩边,可选边类型过滤")
+def expand_neighbors(project: str, node_id: str, depth: int = 1,
+                     edge_filter: str = "") -> dict:
+    return _require_deps().store.neighbors(
+        project, node_id, depth=depth, edge_filter=edge_filter)
+
+
+@capability(registry, name="find_path",
+            description="在图中找 a→b 的短路径(双向 BFS)")
+def find_path(project: str, a: str, b: str, max_hops: int = 4,
+              edge_filter: str = "") -> dict:
+    return _require_deps().store.find_path(
+        project, a, b, max_hops=max_hops, edge_filter=edge_filter)
+
+
+@capability(registry, name="set_nodes",
+            description="批量写入/更新节点(减少 AI 管线往返)")
+def set_nodes(project: str, nodes: list[dict]) -> dict:
+    ai_guide.validate_nodes_batch(project, nodes)
+    deps = _require_deps()
+    out = []
+    for n in nodes:
+        out.append(deps.store.upsert_node(
+            project, n["label"], n["name"], n.get("qualified_name", ""),
+            n.get("attrs"), source="ai", actor="agent.batch"))
+    return {"project": project, "count": len(out), "nodes": out}
+
+
+@capability(registry, name="set_relationships",
+            description="批量写入/更新关系(自动补占位节点)")
+def set_relationships(project: str, relations: list[dict]) -> dict:
+    ai_guide.validate_relations_batch(project, relations)
+    deps = _require_deps()
+    out = []
+    for r in relations:
+        src = r["src"]
+        dst = r["dst"]
+
+        def _ensure(qn: str) -> str:
+            for row in deps.store.query(project, keyword=qn, limit=5)["nodes"]:
+                if row["qualified_name"] == qn:
+                    return row["id"]
+            node = deps.store.upsert_node(project, "Term", qn, qn,
+                                          {"placeholder": True},
+                                          source="ai", actor="agent.batch")
+            return node["id"]
+
+        out.append(deps.store.upsert_edge(
+            project, _ensure(src), _ensure(dst), r["type"],
+            r.get("attrs"), source="ai", actor="agent.batch"))
+    return {"project": project, "count": len(out), "edges": out}
+
+
+@capability(registry, name="merge_nodes",
+            description="合并两个节点:保留 keep,把 drop 的边迁到 keep")
+def merge_nodes(project: str, keep: str, drop: str) -> dict:
+    return _require_deps().store.merge_nodes(project, keep, drop)
+
+
+@capability(registry, name="export_subgraph",
+            description="导出子图(JSON/CYPHER)")
+def export_subgraph(project: str, node_id: str, depth: int = 2,
+                    format: str = "json") -> dict:
+    return _require_deps().store.export_subgraph(
+        project, node_id, depth=depth, fmt=format)

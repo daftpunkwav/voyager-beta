@@ -1,3 +1,13 @@
-{"name": "office", "version": "0.1.0", "protocol": "0.1.0", "port": 8040,
- "capabilities": [], "subscribes": [],
- "publishes": ["doc.created", "doc.edited"], "status": "skeleton"}
+{
+  "name": "office",
+  "version": "0.1.0",
+  "protocol": "0.1.0",
+  "port": 8040,
+  "capabilities": [
+    "create_doc", "get_doc", "update_doc", "insert_block", "delete_doc",
+    "create_deck", "get_deck", "update_deck", "add_slide", "delete_deck"
+  ],
+  "subscribes": [],
+  "publishes": ["doc.created", "doc.edited"],
+  "status": "implemented"
+}
