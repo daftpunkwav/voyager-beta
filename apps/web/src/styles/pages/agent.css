@@ -345,22 +345,30 @@
   .chat-icon-btn {
     width: 32px; height: 32px;
     border-radius: 9px;
-    background: rgba(255, 255, 255, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.72);          /* idle 状态略可见(让用户知道是按钮) */
+    border: 1px solid rgba(0, 0, 0, 0.06);
     color: var(--text-500);
     display: grid; place-items: center;
     cursor: pointer;
     transition: all var(--dur-fast, 150ms) var(--ease-apple, cubic-bezier(0.32,0.72,0,1));
     position: relative;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   }
   .chat-icon-btn:hover {
-    background: rgba(255, 255, 255, 0.92);
+    background: rgba(255, 255, 255, 0.96);
     color: var(--brand-600);
     border-color: rgba(0, 122, 255, 0.32);
-    box-shadow: 0 2px 8px rgba(0, 122, 255, 0.12);
+    box-shadow: 0 2px 8px rgba(0, 122, 255, 0.16);
     transform: translateY(-1px);
   }
   .chat-icon-btn:active { transform: translateY(0); }
+  /* popover 打开时按钮永久 active 态 — 让用户知道"我现在能点" */
+  .chat-icon-btn[aria-expanded="true"] {
+    background: rgba(0, 122, 255, 0.12);
+    color: var(--brand-700);
+    border-color: rgba(0, 122, 255, 0.4);
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.14), 0 2px 8px rgba(0, 122, 255, 0.16);
+  }
   [data-theme='dark'] .chat-icon-btn {
     background: rgba(255, 255, 255, 0.06);
     border-color: rgba(255, 255, 255, 0.1);
