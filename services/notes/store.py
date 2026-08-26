@@ -58,7 +58,8 @@ CREATE TABLE IF NOT EXISTS note_links (
 CREATE INDEX IF NOT EXISTS idx_links_dst ON note_links(dst);
 """
 
-_WIKI_LINK_RE = re.compile(r"\[\[([^\[\]|#]+)")
+# 内链目标不允许跨行(排除换行)与 | 别名、# 锚点段
+_WIKI_LINK_RE = re.compile(r"\[\[([^\[\]|#\n]+)")
 _SUMMARY_COLS = ("id", "title", "tags", "source_id", "node_id",
                  "archived", "pinned", "trashed_ts",
                  "created_ts", "updated_ts", "excerpt")
@@ -71,6 +72,12 @@ _STATE_CONDS = {
     "all": ("1=1", []),
 }
 _EXCERPT_LEN = 120
+
+
+def _normalize(text: str) -> str:
+    """统一换行为 LF:Windows 剪贴板/编辑器带入的 CRLF 会让正文偏移量、
+    行号语义与搜索窗口产生漂移,入库一律规范化。"""
+    return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 class NoteStore:
@@ -107,7 +114,7 @@ class NoteStore:
                 "INSERT INTO notes (id, title, content, tags, source_id, node_id,"
                 " archived, pinned, trashed_ts, created_ts, updated_ts)"
                 " VALUES (?, ?, ?, ?, ?, ?, 0, 0, NULL, ?, ?)",
-                (nid, note["title"], note.get("content", ""),
+                (nid, note["title"], _normalize(note.get("content", "")),
                  json.dumps(note.get("tags", []), ensure_ascii=False),
                  note.get("source_id", ""), note.get("node_id", ""), now, now),
             )
@@ -139,6 +146,8 @@ class NoteStore:
         updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
         if not updates:
             return False
+        if "content" in updates:
+            updates["content"] = _normalize(updates["content"])
         sets, params = [], []
         new_content = None
         for k, v in updates.items():
@@ -212,24 +221,40 @@ class NoteStore:
     def list(self, *, source_id: str | None = None, tag: str = "",
              query: str = "", state: str = "active", sort: str = "updated_ts",
              limit: int = 100) -> list[dict[str, Any]]:
-        """摘要列表(state 过滤 + 关键词检索;正文只回 excerpt,§9.20)。"""
+        """摘要列表(state 过滤 + 关键词检索,§9.20)。
+
+        query 命中正文时 excerpt 不再取固定开头,而是返回命中处前后的
+        上下文窗口(对齐 GitHub/Obsidian 搜索结果);仅标题命中的笔记回退
+        到前 120 字。
+        """
         col = sort if sort in _SORTABLE else "updated_ts"
         direction = "ASC" if col == "title" else "DESC"
-        cond, cond_params = _STATE_CONDS.get(state, _STATE_CONDS["active"])
-        sql = ("SELECT id, title, tags, source_id, node_id, archived, pinned,"
-               " trashed_ts, created_ts, updated_ts, substr(content, 1, ?) AS excerpt"
-               f" FROM notes WHERE {cond}")
-        params: list[Any] = [_EXCERPT_LEN]
+        state_sql, state_params = _STATE_CONDS.get(state, _STATE_CONDS["active"])
+        conds = [state_sql]
+        params: list[Any] = list(state_params)
         if source_id is not None:
-            sql += " AND source_id = ?"
+            conds.append("source_id = ?")
             params.append(source_id)
         if tag:
-            sql += " AND tags LIKE ? ESCAPE '\\'"
+            conds.append("tags LIKE ? ESCAPE '\\'")
             params.append(f'%{_like_escape(json.dumps(tag, ensure_ascii=False))}%')
+        excerpt_sql = f"substr(content, 1, {_EXCERPT_LEN})"
         if query:
+            # 注意绑定顺序:SELECT 头的 CASE 占位先于 WHERE 的 LIKE 占位
+            needle = query.lower()
+            excerpt_sql = (
+                "CASE WHEN instr(lower(content), lower(?)) > 0 THEN"
+                " substr(content, MAX(1, instr(lower(content), lower(?)) - 60), 180)"
+                f" ELSE substr(content, 1, {_EXCERPT_LEN}) END"
+            )
+            params.extend([needle, needle])
             pattern = f"%{_like_escape(query)}%"
-            sql += " AND (title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\')"
+            conds.append("(title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\')")
             params.extend([pattern, pattern])
+        sql = ("SELECT id, title, tags, source_id, node_id, archived, pinned,"
+               " trashed_ts, created_ts, updated_ts,"
+               f" {excerpt_sql} AS excerpt"
+               f" FROM notes WHERE {' AND '.join(conds)}")
         sql += f" ORDER BY pinned DESC, {col} {direction} LIMIT ?"
         params.append(limit)
         return [_summary_row(r) for r in self._conn.execute(sql, params)]
@@ -313,26 +338,51 @@ class NoteStore:
 
     # ---------- 双向链接 ----------
 
+    def resolve_link_targets(self, content: str) -> list[dict[str, Any]]:
+        """解析 [[目标]] → 候选明细(raw/target_id/title),供渲染与建表共用。
+
+        target_id 为 None 表示悬空链接(目标不存在);title 回填候选的
+        现有笔记标题(id 形态命中时也回读),前端可直接展示与跳转。
+        """
+        raws: list[str] = []
+        seen_raw: set[str] = set()
+        for m in _WIKI_LINK_RE.finditer(content):
+            raw = m.group(1).strip()
+            if raw and raw not in seen_raw:
+                seen_raw.add(raw)
+                raws.append(raw)
+        out: list[dict[str, Any]] = []
+        by_title_cache: dict[str, str | None] = {}
+        for raw in raws:
+            dst_id: str | None = None
+            row = self._conn.execute(
+                "SELECT id, title FROM notes WHERE id = ?", (raw,)
+            ).fetchone()
+            if row is not None:
+                dst_id, title = str(row[0]), str(row[1])
+            else:
+                if raw not in by_title_cache:
+                    by_title_cache[raw] = self.exists_by_title(raw)
+                hit = by_title_cache[raw]
+                if hit:
+                    dst_id = hit
+                    row = self._conn.execute(
+                        "SELECT id, title FROM notes WHERE id = ?", (hit,)
+                    ).fetchone()
+                    title = str(row[1]) if row else raw
+                else:
+                    title = raw
+            out.append({"raw": raw, "target_id": dst_id,
+                        "title": title if dst_id else None})
+        return out
+
     def sync_links(self, src_id: str, content: str) -> None:
         """"[[目标]] 解析入库:先删旧再插新;悬空目标不落表。"""
-        targets = [t.strip() for m in _WIKI_LINK_RE.finditer(content)
-                   if (t := m.group(1).strip())]
-        resolved: set[str] = set()
-        by_title_cache: dict[str, str | None] = {}
-        for target in targets:
-            if target in resolved:
-                continue
-            # 精确 id 形态(uuid 十六进制段)直接当 id 试探
-            if not self._conn.execute(
-                "SELECT 1 FROM notes WHERE id = ?", (target,)
-            ).fetchone():
-                if target not in by_title_cache:
-                    by_title_cache[target] = self.exists_by_title(target)
-                dst = by_title_cache[target]
-            else:
-                dst = target
-            if dst:
-                resolved.add(dst)
+        resolved = {
+            item["target_id"]
+            for item in self.resolve_link_targets(content)
+            if item["target_id"]
+        }
         with self._lock:
             self._conn.execute("DELETE FROM note_links WHERE src = ?", (src_id,))
             self._conn.executemany(
@@ -366,6 +416,32 @@ class NoteStore:
 
 def _like_escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def extract_toc(content: str) -> list[dict[str, Any]]:
+    """提取 Markdown 标题大纲(1-6 级 ATX):level/text/line(1 基,LF 文本)。
+
+    供前端大纲面板与滚动定位;代码块内的 `#` 注释不是标题——跳过围栏段。
+    """
+    toc: list[dict[str, Any]] = []
+    in_fence = False
+    fence_marker = ""
+    for line_no, line in enumerate(content.split("\n"), start=1):
+        stripped = line.lstrip()
+        if stripped[:3] in ("```", "~~~"):
+            marker = stripped[:3]
+            if not in_fence:
+                in_fence, fence_marker = True, marker
+            elif marker == fence_marker:
+                in_fence = False
+            continue
+        if in_fence or not stripped.startswith("#"):
+            continue
+        m = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", stripped)
+        if m:
+            toc.append({"level": len(m.group(1)), "text": m.group(2).strip(),
+                        "line": line_no})
+    return toc
 
 
 def _summary_row(r: tuple) -> dict[str, Any]:

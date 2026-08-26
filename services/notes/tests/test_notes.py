@@ -273,3 +273,97 @@ class TestRetention:
         assert store.purge_expired(0) == 0          # 0 = 永久保留
         assert store.purge_expired(30) == 1         # 只清超期的 a
         assert store.get(a) is None and store.get(b) is not None
+
+
+class TestRenderAndEditSupport:
+    async def test_toc_extracts_headings_skip_fence(self, deps) -> None:
+        note = await execute(registry, "create_note", USER_CTX, {
+            "title": "大纲",
+            "content": "# 一级\n正文\n## 二级\n```py\n# 不是标题\n```\n### 三级",
+        })
+        toc = (await execute(registry, "get_note_toc", USER_CTX,
+                             {"note_id": note["id"]}))["toc"]
+        assert [(t["level"], t["text"]) for t in toc] == [
+            (1, "一级"), (2, "二级"), (3, "三级")]
+        assert toc[0]["line"] == 1 and toc[1]["line"] == 3
+
+    async def test_resolve_links_detail_with_dangling(self, deps) -> None:
+        target = await execute(registry, "create_note", USER_CTX,
+                               {"title": "存在页", "content": ""})
+        src = await execute(registry, "create_note", USER_CTX, {
+            "title": "源", "content": "[[存在页]] 与 [[幽灵页]]"})
+        out = await execute(registry, "resolve_links", USER_CTX,
+                            {"note_id": src["id"]})
+        by_raw = {i["raw"]: i for i in out["links"]}
+        assert by_raw["存在页"]["target_id"] == target["id"]
+        assert by_raw["幽灵页"]["target_id"] is None
+        assert out["resolved"] == 1 and out["unresolved"] == 1
+
+    async def test_wiki_link_no_crossline_capture(self, deps) -> None:
+        """[[ 不跨行:[[跨\n行]] 不得把两行拼成一个链接目标。"""
+        src = await execute(registry, "create_note", USER_CTX, {
+            "title": "跨行源", "content": "[[跨\n行]]"})
+        out = await execute(registry, "resolve_links", USER_CTX,
+                            {"note_id": src["id"]})
+        assert all(i["raw"] != "跨\n行" for i in out["links"])
+
+    async def test_edit_note_range_bold_selection(self, deps) -> None:
+        """选区原子编辑:选中文字加粗场景——前端工具栏的底层动作。"""
+        note = await execute(registry, "create_note", USER_CTX,
+                             {"title": "选区", "content": "这是要加粗的文字结尾"})
+        start = note["content"].index("要加粗")
+        end = start + len("要加粗")
+        updated = await execute(registry, "edit_note_range", USER_CTX,
+                                {"note_id": note["id"], "start": start,
+                                 "end": end, "new_text": "**要加粗**"})
+        assert updated["content"] == "这是**要加粗**的文字结尾"
+        versions = (await execute(registry, "list_versions", USER_CTX,
+                                  {"note_id": note["id"]}))["versions"]
+        assert len(versions) == 1  # 区段编辑同样进入版本历史
+
+    async def test_edit_note_range_out_of_bounds(self, deps) -> None:
+        note = await execute(registry, "create_note", USER_CTX, {"title": "边界", "content": "abc"})
+        with pytest.raises(ServiceError) as exc:
+            await execute(registry, "edit_note_range", USER_CTX,
+                          {"note_id": note["id"], "start": 0, "end": 99,
+                           "new_text": "x"})
+        assert exc.value.body.code == "NOTES.INVALID_INPUT"
+
+    async def test_import_note_front_matter(self, deps, tmp_path) -> None:
+        f = tmp_path / "in.md"
+        f.write_text("---\ntitle: 导入题\ntags: [a, b]\n---\n# 正文\n表格\n",
+                     encoding="utf-8")
+        imported = await execute(registry, "import_note", USER_CTX,
+                                 {"file_path": str(f)})
+        assert imported["title"] == "导入题"
+        assert imported["tags"] == ["a", "b"]
+        assert imported["content"].startswith("# 正文")
+        # 显式参数覆盖 front-matter 标题
+        retitled = await execute(registry, "import_note", USER_CTX,
+                                 {"file_path": str(f), "title": "覆盖题"})
+        assert retitled["title"] == "覆盖题"
+
+    async def test_crlf_normalized_on_write(self, deps) -> None:
+        note = await execute(registry, "create_note", USER_CTX,
+                             {"title": "换行", "content": "行一\r\n行二\r\n行三"})
+        assert "\r" not in note["content"]
+        await execute(registry, "update_note", USER_CTX,
+                      {"note_id": note["id"], "content": "x\r\ny"})
+        got = await execute(registry, "get_note", USER_CTX, {"note_id": note["id"]})
+        assert got["content"] == "x\ny"
+
+    async def test_query_excerpt_shows_hit_window(self, deps) -> None:
+        filler = "前置文字" * 30  # 让命中点远超前 120 字
+        await execute(registry, "create_note", USER_CTX,
+                      {"title": "长文命中窗口", "content": filler + "命中词在这里附近"})
+        hits = await execute(registry, "list_notes", USER_CTX, {"query": "命中词"})
+        assert len(hits) == 1
+        excerpt = hits[0]["excerpt"]
+        assert excerpt.index("命中词") > 50  # 命中点在窗口中后段,而非固定开头
+
+    async def test_validation_title_and_tag(self, deps) -> None:
+        with pytest.raises(ServiceError):
+            await execute(registry, "create_note", USER_CTX, {"title": "   "})
+        with pytest.raises(ServiceError):
+            await execute(registry, "rename_tag", USER_CTX,
+                          {"old": 'a"b', "new": "c"})

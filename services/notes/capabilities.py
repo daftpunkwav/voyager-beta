@@ -22,7 +22,7 @@ from platform_contracts import ActorKind, ActorRef, ErrorSuffix, Event, ServiceE
 from platform_eventbus import EventBus
 from platform_settings import SettingsStore
 
-from .store import NoteStore
+from .store import NoteStore, extract_toc
 
 _DOMAIN = "notes"
 _ACTOR = ActorRef(kind=ActorKind.SYSTEM, id="notes.service")
@@ -33,6 +33,37 @@ _STATES = ("active", "archived", "trash", "all")
 
 # 导出文件名清洗(与 sources.books 同类防护;跨服务不共享代码,就近实现)
 _UNSAFE_FILENAME_RE = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+
+_MAX_TITLE = 200
+_MAX_CONTENT = 200_000
+# 标签名进入 JSON 文本做整词替换,这些字符会破坏数组结构或转义语义
+_TAG_FORBIDDEN = '"\\,[]'
+
+
+def _validate_title(title: str) -> str:
+    title = (title or "").strip()
+    if not title:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, "标题不能为空")
+    if len(title) > _MAX_TITLE:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           f"标题过长(≤{_MAX_TITLE} 字)")
+    return title
+
+
+def _validate_content(content: str | None) -> None:
+    if content is not None and len(content) > _MAX_CONTENT:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           f"正文过长(≤{_MAX_CONTENT} 字符)")
+
+
+def _validate_tag(tag: str) -> str:
+    tag = (tag or "").strip()
+    if not tag or any(ch in _TAG_FORBIDDEN for ch in tag):
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           f"标签为空或含非法字符({_TAG_FORBIDDEN}): {tag!r}")
+    if len(tag) > 32:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, "标签过长(≤32 字)")
+    return tag
 
 
 @dataclass
@@ -87,8 +118,11 @@ async def _emit(type_: str, note_id: str, **payload) -> None:
 async def create_note(title: str, content: str = "", tags: list[str] | None = None,
                       source_id: str = "", node_id: str = "") -> dict:
     deps = _require_deps()
+    title = _validate_title(title)
+    _validate_content(content)
+    clean_tags = [_validate_tag(t) for t in (tags or [])]
     nid = deps.store.create({"title": title, "content": content,
-                             "tags": tags or [], "source_id": source_id,
+                             "tags": clean_tags, "source_id": source_id,
                              "node_id": node_id})
     deps.store.sync_links(nid, content)
     await _emit("note.created", nid, title=title)
@@ -132,8 +166,15 @@ async def update_note(note_id: str, title: str | None = None,
                       archived: bool | None = None) -> dict:
     deps = _require_deps()
     _require_alive(note_id)
+    if title is not None:
+        title = _validate_title(title)
+    _validate_content(content)
+    clean_tags = [_validate_tag(t) for t in tags] if tags is not None else None
+    # 版本保留数允许运行中调整设置即时生效
+    deps.store.history_keep = int(deps.settings.get("notes.history.per_note") or 0) \
+        if deps.settings else deps.store.history_keep
     changed = deps.store.update(
-        note_id, title=title, content=content, tags=tags,
+        note_id, title=title, content=content, tags=clean_tags,
         pinned=pinned, archived=archived,
     )
     if not changed:
@@ -223,6 +264,11 @@ def list_tags() -> list[dict]:
 
 @capability(registry, name="rename_tag", description="全局重命名标签(所有笔记生效)", cost=2)
 async def rename_tag(old: str, new: str) -> dict:
+    old = _validate_tag(old)
+    new = _validate_tag(new)
+    if old == new:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           "新旧标签相同")
     count = _require_deps().store.rename_tag(old, new)
     return {"renamed_from": old, "to": new, "affected": count}
 
@@ -276,13 +322,115 @@ async def restore_version(note_id: str, version: int) -> dict:
     return deps.store.get(note_id)
 
 
+# ---------- 渲染与编辑支撑(参考主流 Markdown 工具:大纲/内链/选区编辑/导入) ----------
+
+@capability(registry, name="get_note_toc",
+            description="笔记标题大纲(level/text/line),供大纲面板与滚动定位")
+def get_note_toc(note_id: str) -> dict:
+    note = _require_alive(note_id)
+    return {"note_id": note_id, "toc": extract_toc(note["content"])}
+
+
+@capability(registry, name="resolve_links",
+            description="解析正文 [[内链]] 为 {raw,target_id,title} 明细;悬空链接 target_id 为空")
+def resolve_links(note_id: str) -> dict:
+    note = _require_alive(note_id)
+    links = _require_deps().store.resolve_link_targets(note["content"])
+    return {"note_id": note_id,
+            "links": links,
+            "resolved": sum(1 for i in links if i["target_id"]),
+            "unresolved": sum(1 for i in links if not i["target_id"])}
+
+
+@capability(registry, name="edit_note_range",
+            description="按字符偏移原子替换正文区段([start,end);配合前端选中文字加粗/做内链等工具栏)",
+            cost=2)
+async def edit_note_range(note_id: str, start: int, end: int, new_text: str) -> dict:
+    deps = _require_deps()
+    note = _require_alive(note_id)
+    content = note["content"]  # 存储层已统一 LF,偏移量以此为基准
+    if not (0 <= start <= end <= len(content)):
+        raise ServiceError(
+            _DOMAIN, ErrorSuffix.INVALID_INPUT,
+            f"区间 [{start},{end}) 超出正文范围(长度 {len(content)})",
+        )
+    new_content = content[:start] + (new_text or "") + content[end:]
+    deps.store.update(note_id, content=new_content)  # 自动快照旧文
+    deps.store.sync_links(note_id, new_content)
+    await _emit("note.edited", note_id,
+                range_edit=True, start=start, end=end)
+    return deps.store.get(note_id)
+
+
+@capability(registry, name="import_note",
+            description="导入外部 .md 文件(YAML front-matter 的 title/tags 可选生效)", cost=2)
+async def import_note(file_path: str, title: str = "", tags: list[str] | None = None) -> dict:
+    deps = _require_deps()
+    src = Path(file_path)
+    if not src.is_file():
+        raise ServiceError(_DOMAIN, ErrorSuffix.NOT_FOUND, f"文件不存在: {file_path}")
+    raw = src.read_text(encoding="utf-8", errors="replace")
+    meta_title, meta_tags, body = _split_front_matter(raw)
+    clean_tags = [_validate_tag(t) for t in (tags or [])] or \
+        [_validate_tag(t) for t in meta_tags]
+    final_title = _validate_title(title or meta_title or src.stem)
+    nid = deps.store.create({"title": final_title, "content": body,
+                             "tags": clean_tags})
+    deps.store.sync_links(nid, body)
+    await _emit("note.created", nid, title=final_title, imported=True)
+    return deps.store.get(nid)
+
+
+def _split_front_matter(text: str) -> tuple[str, list[str], str]:
+    """轻量 YAML front-matter:支持 title 与 tags([a,b] 或逐行 '- a')。
+
+    只认文档开头第一个 '---' 块;其余字段一律忽略,块后内容原样保留。
+    """
+    text = text.replace("\r\n", "\n")
+    lines = text.split("\n")
+    if not lines or lines[0].strip() != "---":
+        return "", [], text
+    try:
+        end = next(i for i in range(1, len(lines)) if lines[i].strip() == "---")
+    except StopIteration:
+        return "", [], text
+    title = ""
+    tags: list[str] = []
+    in_tags_list = False
+    for line in lines[1:end]:
+        stripped = line.strip()
+        if stripped.startswith("- ") and in_tags_list:
+            tags.append(stripped[2:].strip().strip("'\""))
+            continue
+        in_tags_list = False
+        key, _, value = stripped.partition(":")
+        key = key.strip()
+        value = value.strip()
+        if key == "title":
+            title = value.strip("'\"")
+        elif key == "tags":
+            in_tags_list = True
+            if value.startswith("[") and value.endswith("]"):
+                tags = [t.strip().strip("'\"") for t in value[1:-1].split(",")
+                        if t.strip()]
+                in_tags_list = False
+            elif not value:
+                continue
+    body = "\n".join(lines[end + 1:])
+    return title, [t for t in tags if t], body
+
+
 # ---------- 导出 ----------
 
 @capability(registry, name="export_note", description="导出为 Markdown 文件(front-matter+正文),返回落盘路径",
             cost=1)
 async def export_note(note_id: str) -> dict:
     note = _require_alive(note_id)
-    export_dir = Path("workspace") / "notes-export"
+    deps = _require_deps()
+    export_dir_setting = ""
+    if deps.settings is not None:
+        export_dir_setting = str(deps.settings.get("notes.export.dir") or "")
+    export_dir = Path(export_dir_setting or "workspace/notes-export")
     export_dir.mkdir(parents=True, exist_ok=True)
     safe_title = _UNSAFE_FILENAME_RE.sub("_", note["title"]).strip(" .")[:80] or "untitled"
     dest = export_dir / f"{safe_title}_{note['id']}.md"
