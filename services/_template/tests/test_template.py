@@ -14,9 +14,9 @@ from services._template.capabilities import registry
 from services._template.store import JobStore
 
 fastapi = pytest.importorskip("fastapi")
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient  # noqa: E402
 
-from services._template.rest import create_app
+from services._template.rest import create_app  # noqa: E402
 
 USER_CTX = ActorContext(actor=LOCAL_USER)
 SERVICE_DIR = Path(__file__).parent.parent

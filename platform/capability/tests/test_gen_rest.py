@@ -8,8 +8,8 @@ from platform_capability import Registry, build_router, capability
 from platform_contracts import ActorKind, ActorRef, JobRef
 
 fastapi = pytest.importorskip("fastapi")
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from fastapi import FastAPI  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 
 
 @dataclass
