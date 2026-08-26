@@ -130,5 +130,11 @@ class SettingsStore:
     def close(self) -> None:
         self._conn.close()
 
+    def __enter__(self) -> "SettingsStore":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
 
 __all__ = ["SettingDef", "SettingType", "SettingsStore", "validate"]

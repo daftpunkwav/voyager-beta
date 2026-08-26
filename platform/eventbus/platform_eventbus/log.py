@@ -84,6 +84,12 @@ class EventLog:
     def close(self) -> None:
         self._conn.close()
 
+    def __enter__(self) -> "EventLog":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
 
 def _row_to_event(row: tuple) -> Event:
     from platform_contracts import ActorRef

@@ -136,15 +136,13 @@ async def execute(
     """统一执行入口:查表 → 鉴权 → 配额 → 校验入参 → 调用 → 审计。
 
     顺序即语义:先过守卫再执行业务;无论成败都落审计(带 trace_id)。
+    内部分为 _run_guards(纯守卫)/ _invoke(校验+调用)两段,可独立测试;
+    本函数只负责编排与审计收口。
     """
-    from platform_capability.define import coerce_input
-
     args = dict(args or {})
     cap = registry.get(name)
     req = CallRequest(capability=cap, actor=actor, args=args)
-    auth_hooks = [LocalAuth()] if auth is None else auth
     sinks = list(audit or [])
-    trace_id = actor.trace_id if actor else ""
 
     def entry(ok: bool, error_code: str) -> AuditEntry:
         return AuditEntry(
@@ -154,37 +152,63 @@ async def execute(
             args_summary=summarize_args(args),
             ok=ok,
             error_code=error_code,
-            trace_id=trace_id,
+            trace_id=actor.trace_id if actor else "",
         )
 
     try:
-        for hook in auth_hooks:
-            hook(req)
-        for hook in quota or ():
-            hook(req)
-        input_obj = coerce_input(cap.input_model, args, domain=registry.domain)
-        # 约定:handler 声明 _actor 参数时注入调用者 ActorRef(parity:写 secret 等
-        # 操作需要知道"是谁在调",§8.8;handler 不声明则不可见)
-        params = inspect.signature(cap.handler).parameters
-        inject = {"_actor": actor.actor} if (actor is not None and "_actor" in params) else {}
-        result = (
-            cap.handler(input_obj, **inject)
-            if cap.input_model is not None
-            else cap.handler(**args, **inject)
-        )
-        if inspect.isawaitable(result):
-            result = await result
-        if cap.long_running and not isinstance(result, JobRef):
-            raise ServiceError(
-                registry.domain,
-                ErrorSuffix.INTERNAL,
-                f"长任务能力 {name} 必须返回 JobRef(同步长任务视为缺陷,§7.3)",
-            )
+        _run_guards(req, auth=auth, quota=quota)
+        result = await _invoke(registry, cap, actor, args, name=name)
     except ServiceError as exc:
         _record(sinks, entry(False, exc.body.code))
         raise
     except Exception:  # 非预期异常也落审计(INTERNAL),再原样上抛
-        _record(sinks, entry(False, "INTERNAL"))
+        _record(sinks, entry(False, "CAPABILITY.INTERNAL"))
         raise
     _record(sinks, entry(True, ""))
+    return result
+
+
+def _run_guards(
+    req: CallRequest,
+    *,
+    auth: list[Callable[[CallRequest], None]] | None,
+    quota: list[Callable[[CallRequest], None]] | None,
+) -> None:
+    """守卫段:鉴权(auth 缺省挂 LocalAuth)→ 配额;失败以 ServiceError 拒绝。"""
+    auth_hooks = [LocalAuth()] if auth is None else auth
+    for hook in auth_hooks:
+        hook(req)
+    for hook in quota or ():
+        hook(req)
+
+
+async def _invoke(
+    registry: Registry,
+    cap,
+    actor: ActorContext | None,
+    args: dict[str, Any],
+    *,
+    name: str,
+) -> Any:
+    """调用段:入参校验(coerce)→ _actor 注入 → handler → 长任务返回约定。"""
+    from platform_capability.define import coerce_input
+
+    input_obj = coerce_input(cap.input_model, args, domain=registry.domain)
+    # 约定:handler 声明 _actor 参数时注入调用者 ActorRef(parity:写 secret 等
+    # 操作需要知道"是谁在调",§8.8;handler 不声明则不可见)
+    params = inspect.signature(cap.handler).parameters
+    inject = {"_actor": actor.actor} if (actor is not None and "_actor" in params) else {}
+    result = (
+        cap.handler(input_obj, **inject)
+        if cap.input_model is not None
+        else cap.handler(**args, **inject)
+    )
+    if inspect.isawaitable(result):
+        result = await result
+    if cap.long_running and not isinstance(result, JobRef):
+        raise ServiceError(
+            registry.domain,
+            ErrorSuffix.INTERNAL,
+            f"长任务能力 {name} 必须返回 JobRef(同步长任务视为缺陷,§7.3)",
+        )
     return result
