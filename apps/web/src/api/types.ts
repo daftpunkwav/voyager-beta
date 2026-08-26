@@ -149,7 +149,7 @@ export interface CreateProjectInput {
   category_id?: string;
   progress?: Project['progress'];
   note?: string;
-  /** 旧 RepoPilot 字段 */
+  /** 旧字段(项目 → 资源源过渡期保留) */
   full_name?: string;
   description?: string;
   language?: string | null;
@@ -770,6 +770,7 @@ export interface ApiError {
 // ---------- 兼容层对外类型 ----------
 // 完整 84 方法由 bridge/legacyApi.ts 的 LegacyApiClient 实现,
 // 此处声明为结构兼容,具体方法签名以 LegacyApiClient 为准。
+// 兼容层:放宽 any(见文件顶部注释;旧 store 直接 .data 访问,需 any 推断)
 export type IApiClient = {
   [k: string]: (...args: any[]) => Promise<_ApiResponse<any>> | AsyncGenerator<any> | any;
 };

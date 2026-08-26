@@ -42,6 +42,22 @@ export default [
       'react-refresh/only-export-components': 'off',
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-non-null-assertion': 'error',
+      // 兼容层桥接(legacyApi / types.IApiClient)需 any 推断:旧 store 直接 .data 访问;
+      // 旧 async generator 在新事件流下不再 yield,需 require-yield 关闭。
+      'no-constant-condition': 'error',
+      'require-yield': 'error',
+      // 迁移期:上游迁入的 page / component / util / store 暂以 @ts-nocheck 标注,
+      // 全部带说明(上游迁移代码,字段重命名由 legacyApi 边界归一化);
+      // 新 page / hook / store 仍按 strict 写(见各文件顶部注释)。
+      '@typescript-eslint/ban-ts-comment': [
+        'error',
+        {
+          'ts-nocheck': 'allow-with-description',
+          'ts-ignore': true,
+          'ts-expect-error': 'allow-with-description',
+          'ts-check': false,
+        },
+      ],
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
@@ -57,15 +73,23 @@ export default [
       ],
     },
   },
-  // R3F / Three 场景会就地改 uniforms、并用 @ts-nocheck；布局算法大量使用非空断言
+  // 兼容层 + R3F / Three 场景豁免区:
+  //  - bridge/legacyApi.ts 与 api/types.ts 需 any(legacyApi 边界归一化);
+  //  - 旧 async generator 在新事件流下不 yield,允许 require-yield 关闭;
+  //  - code-graph / graph 子目录就地改 uniforms、用 @ts-nocheck;布局算法用非空断言。
   {
     files: [
+      'src/bridge/legacyApi.ts',
+      'src/api/types.ts',
       'src/components/code-graph/**/*.{ts,tsx}',
       'src/components/graph/**/*.{ts,tsx}',
     ],
     rules: {
       '@typescript-eslint/ban-ts-comment': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
+      'no-constant-condition': 'off',
+      'require-yield': 'off',
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },

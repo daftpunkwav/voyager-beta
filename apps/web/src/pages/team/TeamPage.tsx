@@ -9,8 +9,6 @@ import { callCapability } from '@/bridge/client';
 import { GlassCard } from '@/widgets/GlassCard';
 import { LoadingSpinner } from '@/widgets/LoadingSpinner';
 import { EmptyState } from '@/widgets/EmptyState';
-import type { AgentProfile } from '@/api/types';
-import type { ChatEvent } from '@/bridge/chatStore';
 import { useAgentStore } from '@/stores/agentStore';
 
 interface RunningSubagent {
@@ -61,7 +59,7 @@ export function TeamPage() {
 
   // 运行中实例从 chatStore 事件流的 subagent 字段聚合(简化版:读取当前活跃子任务)
   useEffect(() => {
-    const unsub = useAgentStore.subscribe((state) => {
+    const unsub = useAgentStore.subscribe((_state) => {
       // 这里简化:仅展示空数组,真实 subagent 跟踪由 agentStore 内部维护
       setRunning([]);
     });

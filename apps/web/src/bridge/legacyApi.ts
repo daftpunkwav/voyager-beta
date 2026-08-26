@@ -342,7 +342,7 @@ export class LegacyApiClient {
   traceCodeGraph = this.graph.traceCodeGraph.bind(this.graph);
   searchCodeGraph = this.graph.searchCodeGraph.bind(this.graph);
   batchIndexCodeGraph = this.graph.batchIndexCodeGraph.bind(this.graph);
-  getLlmUsage = (...a: unknown[]) => (SettingsApi.prototype as never); // 移到 llm 域
+  getLlmUsage = (..._a: unknown[]) => (SettingsApi.prototype as never); // 移到 llm 域
   // ↑ 注:旧 IApiClient.getLlmUsage 实际写在 graph.ts,这里补完
   getSettings = this.settings.getSettings.bind(this.settings);
   updateSettings = this.settings.updateSettings.bind(this.settings);

@@ -29,7 +29,7 @@ export type { IApiClient } from '@/api/types';
 export function clearLegacyTokenStorage(): void {
   try {
     if (typeof localStorage === 'undefined') return;
-    for (const k of ['rp_token', 'rp_session', 'token', 'session']) {
+    for (const k of ['voyager_token', 'voyager_session', 'token', 'session']) {
       localStorage.removeItem(k);
     }
   } catch {

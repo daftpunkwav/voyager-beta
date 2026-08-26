@@ -30,7 +30,7 @@ export function HealthPage() {
     let alive = true;
     const fetchHealth = async () => {
       try {
-        const resp = await fetch('/api/activity/feed?kind=service.health.changed');
+        await fetch('/api/activity/feed?kind=service.health.changed');
         // 真实端点是 /api/activity/feed 的事件流;聚合状态在 /health
         // 这里直接调 gateway /health(由 servicebadge 转发)
         const healthResp = await fetch('/health');

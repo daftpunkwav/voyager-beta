@@ -1,4 +1,4 @@
-// @ts-nocheck — 迁移期:RepoPilot 风格代码,新 page / hook 仍按 strict 写(见各文件顶部注释)。
+// @ts-nocheck — 迁移期:上游迁入的代码,字段重命名由 legacyApi 边界归一化,新 page / hook 仍按 strict 写(见各文件顶部注释)。
 /**
  * 可复用的 Agent SSE 流消费器。
  * 主聊天、导入助手、图谱向导、详情分析等均可共用。

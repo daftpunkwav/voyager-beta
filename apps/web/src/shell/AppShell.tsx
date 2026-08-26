@@ -1,4 +1,4 @@
-/** Voyager 应用壳:RepoPilot 风格液态玻璃导航(Sidebar + Topbar)
+/** Voyager 应用壳:液态玻璃导航(Sidebar + Topbar)
  * + 路由感知 activePage + Agent Chat 路由附加 agent-shell 类
  * + 常驻 ServiceBadges 条 + PageProbe + FloatingChat(chat 路由时 FloatingChat 隐藏)。 */
 
