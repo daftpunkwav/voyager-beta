@@ -4,6 +4,9 @@
 - AI 管线 agent 经 set_node/set_relationship 直接写(source="ai");
 - 用户手动建的节点 source="manual"。
 自然键 (project, label, qualified_name) 保证 upsert 语义幂等。
+
+大粒度操作(neighbors/find_path/merge_nodes/export_subgraph)在本模块以
+一行方法委托到 operations.py(H4 拆分),对外 API 不变。
 """
 
 from __future__ import annotations
@@ -15,6 +18,9 @@ import threading
 import time
 from pathlib import Path
 from typing import Any
+
+from . import operations
+from .columns import _EDGE_COLS, _NODE_COLS, _row
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS nodes (
@@ -44,20 +50,6 @@ CREATE TABLE IF NOT EXISTS edges (
 );
 CREATE INDEX IF NOT EXISTS idx_edges_project ON edges(project, type);
 """
-
-_NODE_COLS = ("id", "project", "label", "name", "qualified_name",
-              "attrs", "source", "actor", "updated_ts")
-_EDGE_COLS = ("id", "project", "src", "dst", "type", "attrs",
-              "source", "actor", "updated_ts")
-
-
-def _cypher_ident(name: str) -> str:
-    """Cypher 标识符转义:反引号包裹,内部反引号加倍(官方转义规则)。
-
-    label/type 是开放词表(AI 建图允许新类型),导出时必须转义,
-    防止节点标签或关系类型逃逸出语句结构。
-    """
-    return "`" + name.replace("`", "``") + "`"
 
 
 def _node_id(project: str, label: str, qualified_name: str) -> str:
@@ -207,142 +199,25 @@ class GraphStore:
 
     def neighbors(self, project: str, node_id: str, *, depth: int = 1,
                   edge_filter: str = "") -> dict[str, Any]:
-        """邻居展开:从 node_id 出发按深度扩边,可选边类型过滤。"""
-        seen_nodes: dict[str, dict] = {}
-        seen_edges: dict[str, dict] = {}
-        frontier = {node_id}
-        all_edges = [
-            _row(_EDGE_COLS, r)
-            for r in self._conn.execute(
-                f"SELECT {','.join(_EDGE_COLS)} FROM edges WHERE project = ?", (project,)
-            )
-            if not edge_filter or r[4] == edge_filter
-        ]
-        for _ in range(max(depth, 0)):
-            if not frontier:
-                break
-            qmarks = ",".join("?" for _ in frontier)
-            for r in self._conn.execute(
-                f"SELECT {','.join(_NODE_COLS)} FROM nodes"
-                f" WHERE project = ? AND id IN ({qmarks})", (project, *frontier),
-            ):
-                n = _row(_NODE_COLS, r)
-                seen_nodes[n["id"]] = n
-            nxt = set()
-            for e in all_edges:
-                if e["src"] in frontier or e["dst"] in frontier:
-                    seen_edges[e["id"]] = e
-                    for end in (e["src"], e["dst"]):
-                        if end not in seen_nodes:
-                            nxt.add(end)
-            frontier = nxt
-        # 最后一轮也要把 frontier 中的节点加载进来
-        if frontier:
-            qmarks = ",".join("?" for _ in frontier)
-            for r in self._conn.execute(
-                f"SELECT {','.join(_NODE_COLS)} FROM nodes"
-                f" WHERE project = ? AND id IN ({qmarks})", (project, *frontier),
-            ):
-                n = _row(_NODE_COLS, r)
-                seen_nodes[n["id"]] = n
-        return {"project": project, "nodes": list(seen_nodes.values()),
-                "edges": list(seen_edges.values())}
+        """邻居展开:从 node_id 出发按深度扩边,可选边类型过滤(实现在 operations)。"""
+        return operations.neighbors(
+            self, project, node_id, depth=depth, edge_filter=edge_filter)
 
     def find_path(self, project: str, a: str, b: str, *, max_hops: int = 4,
                   edge_filter: str = "") -> dict[str, Any]:
-        """双向 BFS 找 a→b 的短路径。"""
-        from collections import deque
-
-        edges = [
-            _row(_EDGE_COLS, r)
-            for r in self._conn.execute(
-                f"SELECT {','.join(_EDGE_COLS)} FROM edges WHERE project = ?", (project,)
-            )
-            if not edge_filter or r[4] == edge_filter
-        ]
-        adj: dict[str, list[tuple[str, str, str]]] = {}
-        for e in edges:
-            adj.setdefault(e["src"], []).append((e["dst"], e["type"], e["id"]))
-            adj.setdefault(e["dst"], []).append((e["src"], e["type"], e["id"]))
-
-        if a == b:
-            node = self._node_by_id(project, a)
-            return {"project": project, "path": [node] if node else [],
-                    "edges": [], "found": node is not None}
-
-        # BFS
-        queue: deque[tuple[str, list[str], list[str]]] = deque([(a, [a], [])])
-        visited: set[str] = {a}
-        while queue:
-            cur, path, path_edges = queue.popleft()
-            if len(path) > max_hops + 1:
-                continue
-            for nxt, type_, eid in adj.get(cur, []):
-                if nxt in visited:
-                    continue
-                new_path = path + [nxt]
-                new_edges = path_edges + [eid]
-                if nxt == b:
-                    nodes = [self._node_by_id(project, nid) for nid in new_path]
-                    edge_rows = [self._edge_by_id(project, eid) for eid in new_edges]
-                    return {"project": project, "path": [n for n in nodes if n],
-                            "edges": [e for e in edge_rows if e], "found": True}
-                visited.add(nxt)
-                queue.append((nxt, new_path, new_edges))
-        return {"project": project, "path": [], "edges": [], "found": False}
+        """BFS 找 a→b 的短路径(实现在 operations)。"""
+        return operations.find_path(
+            self, project, a, b, max_hops=max_hops, edge_filter=edge_filter)
 
     def merge_nodes(self, project: str, keep: str, drop: str) -> dict[str, Any]:
-        """合并两个节点:保留 keep,把指向 drop 的边迁到 keep,然后删除 drop。"""
-        with self._lock:
-            self._conn.execute(
-                "UPDATE OR IGNORE edges SET src=?, updated_ts=?"
-                " WHERE project=? AND src=? AND src!=?",
-                (keep, time.time(), project, drop, keep),
-            )
-            self._conn.execute(
-                "UPDATE OR IGNORE edges SET dst=?, updated_ts=?"
-                " WHERE project=? AND dst=? AND dst!=?",
-                (keep, time.time(), project, drop, keep),
-            )
-            self._conn.execute(
-                "DELETE FROM edges WHERE project=? AND (src=? OR dst=?)",
-                (project, drop, drop),
-            )
-            self._conn.execute(
-                "DELETE FROM nodes WHERE project=? AND id=?",
-                (project, drop),
-            )
-            self._conn.commit()
-        return {"project": project, "kept": keep, "dropped": drop,
-                "node": self._node_by_id(project, keep)}
+        """合并两个节点(实现在 operations)。"""
+        return operations.merge_nodes(self, project, keep, drop)
 
     def export_subgraph(self, project: str, node_id: str, *, depth: int = 2,
                         fmt: str = "json") -> dict[str, Any]:
-        """导出子图为 JSON/CYPHER。
-
-        Cypher 侧:标识符经 _cypher_ident 转义,字符串值用 json.dumps
-        (双引号字面量,反斜杠/引号/换行均被正确转义),不做手工拼接转义。
-        """
-        sub = self.subgraph(project, node_id, depth)
-        if fmt == "cypher":
-            lines = []
-            for n in sub["nodes"]:
-                props = ", ".join(
-                    f"{k}: {json.dumps(v, ensure_ascii=False)}"
-                    for k, v in (("id", n["id"]), ("name", n["name"]),
-                                 ("qualified_name", n["qualified_name"]))
-                )
-                lines.append(
-                    f"CREATE (n:{_cypher_ident(n['label'])} {{{props}}})"
-                )
-            for e in sub["edges"]:
-                lines.append(
-                    f"MATCH (a {{id: {json.dumps(e['src'])}}}),"
-                    f" (b {{id: {json.dumps(e['dst'])}}})"
-                    f" CREATE (a)-[:{_cypher_ident(e['type'])}]->(b)"
-                )
-            sub["cypher"] = "\n".join(lines)
-        return {"project": project, "format": fmt, **sub}
+        """导出子图为 JSON/CYPHER(实现在 operations)。"""
+        return operations.export_subgraph(
+            self, project, node_id, depth=depth, fmt=fmt)
 
     def _node_by_id(self, project: str, node_id: str) -> dict | None:
         row = self._conn.execute(
@@ -369,9 +244,3 @@ class GraphStore:
 
     def close(self) -> None:
         self._conn.close()
-
-
-def _row(cols: tuple[str, ...], r: tuple) -> dict[str, Any]:
-    d = dict(zip(cols, r))
-    d["attrs"] = json.loads(d.get("attrs") or "{}")
-    return d
