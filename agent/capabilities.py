@@ -68,6 +68,21 @@ def build_agent_registry(deps: CapabilityDeps) -> Registry:
             ],
         }
 
+    @capability(reg, name="cancel_run", description="急停运行中的 subagent(按 id 或 name;'chat'=对话主实例)",
+                cost=1)
+    async def cancel_run(id_or_name: str) -> dict:
+        """用户与 agent 都可急停(修复 Parity:原来双方都缺 kill switch)。"""
+        cancelled = await deps.spawner.cancel(id_or_name)
+        if not cancelled:
+            from platform_contracts import ErrorSuffix, ServiceError
+
+            raise ServiceError(
+                "agent", ErrorSuffix.NOT_FOUND,
+                f"没有匹配的运行中实例: {id_or_name}",
+                hint="list_subagents 查看运行中实例",
+            )
+        return {"cancelled": cancelled}
+
     @capability(reg, name="list_personas", description="人格预设清单(团队页数据源)")
     def list_personas() -> list[dict]:
         from agent.personas import PERSONAS

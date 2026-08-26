@@ -70,5 +70,25 @@ class Spawner:
     def alive(self) -> list[SubagentInstance]:
         return [i for i in self.instances.values() if i.status.alive]
 
+    async def cancel(self, id_or_name: str) -> list[str]:
+        """急停(§9.2):按 id 或 name 取消存活实例(含对话型 chat)。
+
+        先置 CANCELLED 状态再打断底层任务——run_turn 中 CancelledError
+        属 BaseException,不会被 except Exception 吞掉改写状态;返回被
+        停实例 id 列表,未命中返回空列表。
+        """
+        hits = [
+            i for i in self.instances.values()
+            if i.status.alive and id_or_name in (i.id, i.name)
+        ]
+        for inst in hits:
+            inst.cancel()
+            await self._events.emit("AgentCancelled",
+                                    run_id=inst.state.run_id, subagent=inst.id,
+                                    name=inst.name)
+        for inst in hits:
+            await self._scheduler.cancel(inst.id)
+        return [i.id for i in hits]
+
 
 __all__ = ["Mode", "Spawner", "SubagentInstance", "TaskBook"]
