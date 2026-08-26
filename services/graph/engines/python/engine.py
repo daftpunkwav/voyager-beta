@@ -701,12 +701,18 @@ class GraphEngine:
         raise ValueError(f"unknown tool: {name}")
 
 
+#: WHERE n.x = '...' 允许直读的节点字段;其余属性名一律落到 attrs(不 getattr 动态求值)
+_NODE_WHERE_FIELDS = frozenset({"id", "name", "label", "qualified_name", "file_path"})
+
+
 def _eval_where_node(n, where: str) -> bool:
     w = where.strip()
     m = re.match(r"n\.(\w+)\s*=\s*['\"](.+)['\"]", w, re.IGNORECASE)
     if m:
         attr, val = m.group(1), m.group(2)
-        return str(getattr(n, attr, n.attrs.get(attr, ""))) == val
+        if attr in _NODE_WHERE_FIELDS:
+            return str(getattr(n, attr, "")) == val
+        return str((n.attrs or {}).get(attr, "")) == val
     if "cyclomatic_complexity" in w:
         m2 = re.search(r">\s*(\d+)", w)
         if m2:
