@@ -29,10 +29,11 @@ export const NavIcons = {
   ),
   team: (props: IconProps) => (
     <IconBase {...props}>
-      <circle cx="9" cy="8" r="3" />
-      <circle cx="17" cy="9" r="2.5" />
-      <path d="M3 20c0-3 3-5 6-5s6 2 6 5" />
-      <path d="M14 20c0-2 2-3.5 4-3.5s4 1.5 4 3.5" />
+      {/* 两个人形(更清晰的"团队"语义,不再像 3 个点) */}
+      <path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+      <path d="M16 11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" />
+      <path d="M2 20c0-3 2.5-5 6-5s6 2 6 5" />
+      <path d="M14 20c0-2 1.8-3.5 4-3.5s4 1.5 4 3.5" />
     </IconBase>
   ),
   sources: (props: IconProps) => (

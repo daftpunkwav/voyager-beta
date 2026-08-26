@@ -344,15 +344,33 @@
   .chat-actions { display: flex; gap: 4px; }
   .chat-icon-btn {
     width: 32px; height: 32px;
-    border-radius: var(--radius-pill);
-    background: transparent;
-    border: 0;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.5);
     color: var(--text-500);
     display: grid; place-items: center;
     cursor: pointer;
-    transition: background .15s var(--ease), color .15s var(--ease);
+    transition: all var(--dur-fast, 150ms) var(--ease-apple, cubic-bezier(0.32,0.72,0,1));
+    position: relative;
   }
-  .chat-icon-btn:hover { background: var(--bg-300); color: var(--text-800); }
+  .chat-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--brand-600);
+    border-color: rgba(0, 122, 255, 0.32);
+    box-shadow: 0 2px 8px rgba(0, 122, 255, 0.12);
+    transform: translateY(-1px);
+  }
+  .chat-icon-btn:active { transform: translateY(0); }
+  [data-theme='dark'] .chat-icon-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: var(--text-400);
+  }
+  [data-theme='dark'] .chat-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+    color: var(--brand-400);
+    border-color: rgba(0, 122, 255, 0.36);
+  }
   .chat-panel-toggle.is-on {
     color: var(--brand-600);
     background: var(--brand-50);
@@ -3051,4 +3069,95 @@
 /* 测验票卡即气泡本体，无需再套一层 msg-content */
 .msg-body:has(.qa-card) > .qa-card {
   margin-top: 0;
+}
+
+/* ---------- 欢迎空状态(后端 500 / 无消息时显示) ---------- */
+.chat-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 24px;
+  margin: auto;
+  max-width: 480px;
+  animation: welcomeFadeIn 0.5s var(--ease-apple) both;
+}
+@keyframes welcomeFadeIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.chat-welcome__orb {
+  width: 88px; height: 88px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, var(--brand-500) 0%, var(--brand-700) 50%, #5e5ce6 100%);
+  color: #fff;
+  box-shadow:
+    0 12px 32px rgba(0, 122, 255, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  animation: welcomeOrb 6s var(--ease-apple) infinite;
+}
+@keyframes welcomeOrb {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(-4px) scale(1.04); }
+}
+.chat-welcome__title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text-800);
+  margin: 0 0 10px;
+}
+.chat-welcome__desc {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-500);
+  margin: 0 0 24px;
+  max-width: 420px;
+}
+.chat-welcome__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+.chat-welcome__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-800);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-apple);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.chat-welcome__chip:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 122, 255, 0.32);
+  color: var(--brand-700);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.12);
+}
+.chat-welcome__chip-icon { font-size: 14px; }
+
+[data-theme='dark'] .chat-welcome__title { color: var(--text-100, var(--text-800)); }
+[data-theme='dark'] .chat-welcome__chip {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-100, var(--text-800));
+}
+[data-theme='dark'] .chat-welcome__chip:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(0, 122, 255, 0.36);
+  color: var(--brand-400, var(--brand-300));
 }

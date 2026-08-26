@@ -296,6 +296,38 @@ export function ChatPanel({
       )}
 
       <div className="chat-messages">
+        {messages.length === 0 && !streaming && (
+          <div className="chat-welcome" role="status">
+            <div className="chat-welcome__orb" aria-hidden>
+              <svg viewBox="0 0 64 64" width={56} height={56} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="32" cy="32" r="22" />
+                <path d="M22 26h20M22 32h14M22 38h18" />
+              </svg>
+            </div>
+            <h3 className="chat-welcome__title">{agentDown ? 'Agent 服务暂时不可用' : '开始一次新的对话'}</h3>
+            <p className="chat-welcome__desc">
+              {agentDown
+                ? '后端服务暂时不可达,稍后再试或前往 设置 检查 gateway 状态。'
+                : '在下方的输入框中描述你想了解的开源项目、技术问题或想完成的任务;Agent 会自动调度合适的 subagent 协作完成。'}
+            </p>
+            {!agentDown && (
+              <div className="chat-welcome__chips">
+                <button type="button" className="chat-welcome__chip" onClick={() => { setInput('帮我找一个学习 WebGPU 的开源项目'); }}>
+                  <span className="chat-welcome__chip-icon">🔍</span>推荐开源项目
+                </button>
+                <button type="button" className="chat-welcome__chip" onClick={() => { setInput('解释一下 React 19 的 useEffect 清理机制'); }}>
+                  <span className="chat-welcome__chip-icon">💡</span>解释技术概念
+                </button>
+                <button type="button" className="chat-welcome__chip" onClick={() => { setInput('帮我分析 owner/repo 项目的架构'); }}>
+                  <span className="chat-welcome__chip-icon">🧬</span>分析项目结构
+                </button>
+                <button type="button" className="chat-welcome__chip" onClick={() => { setInput('总结 owner/repo 最近 5 个 commit'); }}>
+                  <span className="chat-welcome__chip-icon">📝</span>总结最近变更
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         {messages.map((m) => (
           <MessageBubble
             key={m.id}
