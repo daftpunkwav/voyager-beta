@@ -73,6 +73,8 @@ tmp/
 
 # Mimosa 安全扫描产物（本地 finding ledger / hook state，含会话级缓存）
 .mimosa/
+# Mimo 工具会话状态（含 cron-lock 与 plans，会话级，禁止入库）
+.mimocode/
 # 临时参考仓（图谱开发用，审查后删除）
 vendor/
 

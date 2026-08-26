@@ -1,0 +1,2392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Voyager 后端深度审查报告 · 含 Parity 原则</title>
+<style>
+  :root {
+    --bg-0: #0b1020; --bg-1: #111933; --bg-2: #1a2342;
+    --bg-card: #ffffff; --bg-card-soft: #f5f8ff;
+    --text-0: #0e1a3a; --text-1: #2c3a5e; --text-2: #6c7a9c; --text-inv: #e6ecff;
+    --brand: #2563eb; --brand-2: #4f7cff; --brand-soft: #e8efff;
+    --cyan: #06b6d4; --cyan-soft: #cffafe;
+    --teal: #14b8a6; --green: #10b981; --green-soft: #d1fae5;
+    --amber: #f59e0b; --amber-soft: #fef3c7;
+    --rose: #f43f5e; --rose-soft: #ffe4e6;
+    --violet: #8b5cf6; --violet-soft: #ede9fe;
+    --slate: #64748b; --slate-soft: #f1f5f9;
+    --line: #e2e8f0;
+    --shadow: 0 1px 2px rgba(15,23,42,.04), 0 4px 12px rgba(15,23,42,.05);
+    --shadow-lg: 0 4px 24px rgba(15,23,42,.08);
+    --radius: 14px; --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: linear-gradient(180deg, #f3f6ff 0%, #eaf0fb 100%);
+    color: var(--text-0);
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1280px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  /* HERO */
+  .hero {
+    background: linear-gradient(135deg, #0b1020 0%, #1a2342 60%, #1e3a8a 100%);
+    color: var(--text-inv);
+    border-radius: 24px;
+    padding: 56px 48px;
+    box-shadow: var(--shadow-lg);
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 80% 0%, rgba(79,124,255,.35), transparent 50%),
+      radial-gradient(circle at 0% 100%, rgba(6,182,212,.25), transparent 50%);
+    pointer-events: none;
+  }
+  .hero-eyebrow {
+    display: inline-block; font-size: 12px; letter-spacing: .2em;
+    color: #93c5fd; border: 1px solid rgba(147,197,253,.3);
+    padding: 4px 12px; border-radius: 999px;
+    text-transform: uppercase; margin-bottom: 18px;
+  }
+  .hero h1 {
+    font-size: 48px; margin: 0 0 12px; font-weight: 800; letter-spacing: -.02em;
+  }
+  .hero h1 .accent {
+    background: linear-gradient(90deg, #60a5fa, #22d3ee);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero p.lede { font-size: 16px; color: #cbd5e1; max-width: 780px; margin: 0 0 28px; }
+  .hero-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; position: relative; }
+  .meta-chip {
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.14);
+    color: #e2e8f0; padding: 6px 12px; border-radius: 999px;
+    font-size: 12px; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .meta-chip b { color: #fff; font-weight: 600; }
+
+  /* SECTION */
+  section { margin-top: 56px; scroll-margin-top: 80px; }
+  .section-title {
+    display: flex; align-items: baseline; gap: 12px; margin-bottom: 20px;
+  }
+  .section-title .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px;
+    border-radius: 8px; background: var(--brand); color: #fff;
+    font-weight: 700; font-size: 15px;
+  }
+  .section-title h2 { margin: 0; font-size: 26px; font-weight: 700; color: var(--text-0); }
+  .section-title .sub { color: var(--text-2); font-size: 13px; font-weight: 500; }
+  .section-subtitle {
+    color: var(--text-2); font-size: 14px; margin: 0 0 20px; max-width: 920px;
+  }
+
+  /* CARDS */
+  .card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    padding: 24px 28px; margin-bottom: 16px; position: relative;
+  }
+  .card::before {
+    content: ""; position: absolute;
+    left: 0; top: 18px; bottom: 18px;
+    width: 3px; border-radius: 2px; background: var(--brand);
+  }
+  .card.cyan::before { background: var(--cyan); }
+  .card.green::before { background: var(--green); }
+  .card.amber::before { background: var(--amber); }
+  .card.rose::before { background: var(--rose); }
+  .card.violet::before { background: var(--violet); }
+  .card.slate::before { background: var(--slate); }
+  .card h3 { margin: 0 0 8px; font-size: 18px; color: var(--text-0); }
+  .card .desc { color: var(--text-2); font-size: 13px; margin-bottom: 14px; }
+  .card p { font-size: 14px; color: var(--text-1); margin: 8px 0; }
+
+  /* STAT GRID */
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 14px; margin: 20px 0;
+  }
+  .stat {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 18px; box-shadow: var(--shadow);
+    position: relative; overflow: hidden;
+  }
+  .stat::after {
+    content: ""; position: absolute;
+    right: -20px; top: -20px; width: 80px; height: 80px;
+    border-radius: 50%; background: var(--brand-soft); opacity: .5;
+  }
+  .stat .label {
+    color: var(--text-2); font-size: 11px;
+    letter-spacing: .04em; text-transform: uppercase;
+  }
+  .stat .value { font-size: 28px; font-weight: 700; color: var(--text-0); margin: 4px 0 0; }
+  .stat .trend { font-size: 12px; color: var(--green); font-weight: 600; }
+  .stat .trend.bad { color: var(--rose); }
+  .stat .trend.amber { color: var(--amber); }
+  .stat .trend.muted { color: var(--text-2); }
+
+  /* CHIPS / TAGS */
+  .chip { display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; margin: 0 4px 4px 0; }
+  .chip.brand { background: var(--brand-soft); color: var(--brand); }
+  .chip.cyan { background: var(--cyan-soft); color: var(--cyan); }
+  .chip.green { background: var(--green-soft); color: var(--green); }
+  .chip.amber { background: var(--amber-soft); color: #b45309; }
+  .chip.rose { background: var(--rose-soft); color: #b91c1c; }
+  .chip.violet { background: var(--violet-soft); color: var(--violet); }
+  .chip.gray { background: #eef2f7; color: var(--text-1); }
+  .chip.dark { background: #1e293b; color: #e2e8f0; }
+
+  /* TABLES */
+  table {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    font-size: 13px; background: var(--bg-card);
+    border-radius: var(--radius); overflow: hidden;
+    box-shadow: var(--shadow); margin: 8px 0;
+  }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--bg-card-soft); font-weight: 600; color: var(--text-1); font-size: 12px; letter-spacing: .02em; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #f8fafc; }
+  td code, .code { background: #f1f5f9; padding: 1px 6px; border-radius: 4px; font-size: 12px; color: #475569; }
+  td.num { font-variant-numeric: tabular-nums; }
+
+  /* GRID */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 900px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+
+  /* MODULE TILES */
+  .modules {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+  }
+  .mod {
+    background: var(--bg-card); border: 1px solid var(--line);
+    border-left: 4px solid var(--brand); border-radius: var(--radius-sm);
+    padding: 14px 16px; box-shadow: var(--shadow);
+  }
+  .mod.cyan { border-left-color: var(--cyan); }
+  .mod.green { border-left-color: var(--green); }
+  .mod.amber { border-left-color: var(--amber); }
+  .mod.violet { border-left-color: var(--violet); }
+  .mod.rose { border-left-color: var(--rose); }
+  .mod.slate { border-left-color: var(--slate); }
+  .mod h4 {
+    margin: 0 0 6px; font-size: 14px; color: var(--text-0);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .mod .cap { font-size: 11px; color: var(--text-2); font-weight: 500; }
+  .mod p { margin: 4px 0 0; font-size: 12px; color: var(--text-1); }
+
+  /* ARCH DIAGRAM */
+  .arch-wrap {
+    background: var(--bg-card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 16px;
+    box-shadow: var(--shadow); overflow-x: auto;
+  }
+  .arch-wrap svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+
+  /* SEVERITY */
+  .sev { display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+  .sev.critical { background: #fecaca; color: #7f1d1d; }
+  .sev.high { background: var(--rose-soft); color: #b91c1c; }
+  .sev.medium { background: var(--amber-soft); color: #b45309; }
+  .sev.low { background: var(--cyan-soft); color: #0e7490; }
+
+  /* CALLOUTS */
+  .callout {
+    background: var(--bg-card-soft); border-radius: var(--radius-sm);
+    padding: 14px 18px; border-left: 3px solid var(--brand);
+    margin: 12px 0; font-size: 13px; color: var(--text-1);
+  }
+  .callout.tip { border-left-color: var(--green); background: #f0fdf4; }
+  .callout.warn { border-left-color: var(--amber); background: #fffbeb; }
+  .callout.danger { border-left-color: var(--rose); background: #fef2f2; }
+  .callout b { color: var(--text-0); }
+  .callout p { margin: 6px 0; }
+
+  /* CODE */
+  pre, code { font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
+  pre {
+    background: #0f172a; color: #e2e8f0;
+    padding: 14px 18px; border-radius: var(--radius-sm);
+    overflow-x: auto; line-height: 1.5; margin: 10px 0;
+  }
+  pre .c { color: #94a3b8; }
+  pre .k { color: #93c5fd; }
+  pre .s { color: #86efac; }
+  pre .v { color: #fcd34d; }
+  pre .n { color: #f0abfc; }
+
+  /* TOC */
+  .toc {
+    background: var(--bg-card); border-radius: var(--radius);
+    border: 1px solid var(--line); padding: 18px 22px;
+    box-shadow: var(--shadow); margin-top: 28px;
+    display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px;
+  }
+  .toc a { color: var(--brand); text-decoration: none; font-weight: 500; }
+  .toc a:hover { text-decoration: underline; }
+  .toc b { color: var(--text-0); margin-right: 8px; }
+
+  /* SCORE BAR */
+  .score-bar {
+    display: inline-block; width: 80px; height: 6px;
+    background: #e5e7eb; border-radius: 3px;
+    overflow: hidden; margin-left: 8px; vertical-align: middle;
+  }
+  .score-bar .fill { display: block; height: 100%; }
+  .score-bar .fill.high { background: linear-gradient(90deg, var(--green), #34d399); }
+  .score-bar .fill.mid { background: linear-gradient(90deg, var(--amber), #fbbf24); }
+  .score-bar .fill.low { background: linear-gradient(90deg, var(--rose), #fb7185); }
+
+  /* FILE LIST */
+  .file-list { font-family: monospace; font-size: 12px; line-height: 1.7; }
+  .file-list .row {
+    display: grid; grid-template-columns: 1fr 50px 1.4fr;
+    gap: 12px; padding: 4px 8px; border-bottom: 1px dashed var(--line);
+  }
+  .file-list .row:hover { background: #f8fafc; }
+  .file-list .path { color: var(--text-0); }
+  .file-list .size { color: var(--text-2); text-align: right; font-variant-numeric: tabular-nums; }
+  .file-list .desc { color: var(--text-1); }
+
+  /* ENTRY */
+  .entry { padding: 12px 0; border-bottom: 1px dashed var(--line); }
+  .entry:last-child { border-bottom: none; }
+  .entry .meta { font-size: 12px; color: var(--text-2); margin-top: 4px; }
+  .entry .where { color: var(--brand); font-family: monospace; font-size: 12px; }
+
+  /* PARITY MATRIX */
+  .parity-cell {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 4px;
+    font-weight: 700; font-size: 13px;
+  }
+  .parity-cell.ok { background: var(--green-soft); color: var(--green); }
+  .parity-cell.fail { background: var(--rose-soft); color: var(--rose); }
+  .parity-cell.both-no { background: #e5e7eb; color: var(--slate); }
+  .parity-cell.half { background: var(--amber-soft); color: #b45309; }
+  .parity-cell.priv { background: var(--violet-soft); color: var(--violet); }
+  .parity-cell.na { background: transparent; color: var(--text-2); }
+
+  /* HEATMAP */
+  .heat-cell {
+    display: inline-block; width: 14px; height: 14px;
+    border-radius: 2px; margin-right: 1px; vertical-align: middle;
+  }
+  .heat-0 { background: #f1f5f9; }
+  .heat-1 { background: #dbeafe; }
+  .heat-2 { background: #93c5fd; }
+  .heat-3 { background: #3b82f6; }
+  .heat-4 { background: #1d4ed8; }
+  .heat-5 { background: #1e1b4b; }
+
+  /* FOOTER */
+  footer {
+    text-align: center; color: var(--text-2); font-size: 12px;
+    margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--line);
+  }
+
+  /* INFO BANNER */
+  .info-banner {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-radius: var(--radius); padding: 16px 20px; margin: 16px 0;
+    border-left: 4px solid var(--amber);
+    font-size: 13px; color: #78350f;
+  }
+  .info-banner b { color: #92400e; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ============== HERO ============== -->
+  <header class="hero">
+    <div class="hero-eyebrow">Backend Audit · Architecture · Parity Deep Dive</div>
+    <h1>Voyager <span class="accent">后端深度审查报告</span></h1>
+    <p class="lede">
+      本地优先、单用户的"agent 共生工作台"——Voyager。本报告基于 4 个并行只读 subagent 的全量证据汇总,
+      覆盖 <strong style="color:#fff">Parity 原则(用户最关心)</strong> · 12 个 agent 子模块 · 10 个 services · 7 个 platform 包的完整文件级审计。
+    </p>
+    <div class="hero-meta">
+      <span class="meta-chip">📦 Monorepo · <b>8 顶层</b></span>
+      <span class="meta-chip">🐍 Python <b>3.11+</b></span>
+      <span class="meta-chip">⚛️ React <b>19.2.7</b></span>
+      <span class="meta-chip">🚀 FastAPI + FastMCP</span>
+      <span class="meta-chip">🧠 Agent Runtime 12 子模块</span>
+      <span class="meta-chip">📊 <b>91</b> capability</span>
+      <span class="meta-chip">🧪 <b>46</b> 测试文件</span>
+      <span class="meta-chip">📅 2026.08 快照</span>
+    </div>
+  </header>
+
+  <!-- ============== TOC ============== -->
+  <nav class="toc">
+    <b>目录</b>
+    <a href="#summary">① 一句话总评</a>
+    <a href="#parity">② Parity 原则深度评估 ⭐</a>
+    <a href="#architecture">③ 总体架构</a>
+    <a href="#agent">④ Agent 12 子模块</a>
+    <a href="#services">⑤ 10 个 Services</a>
+    <a href="#platform">⑥ 7 个 Platform 包</a>
+    <a href="#dataflow">⑦ 端到端数据流</a>
+    <a href="#issues">⑧ 关键问题</a>
+    <a href="#scalability">⑨ 拓展性</a>
+    <a href="#summary-final">⑩ 总结</a>
+  </nav>
+
+  <!-- ============== 1. SUMMARY ============== -->
+  <section id="summary">
+    <div class="section-title">
+      <span class="num">1</span>
+      <h2>一句话总评</h2>
+      <span class="sub">基于 4 个并行 subagent 的 15,000+ 行证据汇总</span>
+    </div>
+
+    <div class="card cyan">
+      <h3>核心评价</h3>
+      <p>Voyager 后端是"<b>架构哲学已落地、机制选型正确、扩展性可证</b>"的高质量 monorepo。
+        <b>横向 import 矩阵(services × services / platform→上层 / agent→services.* / 聚合子模块)4 项全部为 0</b>;
+        "一份 Action 模型"严格落地(91 个 capability 经统一注册表生成 REST + MCP);
+        <b>Parity 原则在核心业务层(设置、笔记、图谱、资源、subagent)扎实</b>且有测试覆盖;
+        <b>Parity 在 chrome 体验层(弹窗关闭、清空草稿、急停、Electron 窗口)严重缺失</b>。
+      </p>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat">
+        <div class="label">服务总数</div>
+        <div class="value">10</div>
+        <div class="trend muted">含 _template / gateway</div>
+      </div>
+      <div class="stat">
+        <div class="label">平台包</div>
+        <div class="value">7</div>
+        <div class="trend muted">contracts/capability/eventbus/actor/settings/secrets/health</div>
+      </div>
+      <div class="stat">
+        <div class="label">Capability 总数</div>
+        <div class="value">91</div>
+        <div class="trend">长任务 5 · 受限 3</div>
+      </div>
+      <div class="stat">
+        <div class="label">Agent 子模块</div>
+        <div class="value">12</div>
+        <div class="trend muted">76 个 .py 文件</div>
+      </div>
+      <div class="stat">
+        <div class="label">横向 import 违规</div>
+        <div class="value">0</div>
+        <div class="trend">services × services / platform→上层 / agent→services</div>
+      </div>
+      <div class="stat">
+        <div class="label">聚合子模块互 import</div>
+        <div class="value">0</div>
+        <div class="trend muted">sources/office/graph 子模块边界</div>
+      </div>
+      <div class="stat">
+        <div class="label">Parity 完整闭环</div>
+        <div class="value">24/50</div>
+        <div class="trend">48% · 业务层扎实</div>
+      </div>
+      <div class="stat">
+        <div class="label">Parity 违反(▲)</div>
+        <div class="value">12/50</div>
+        <div class="trend bad">chrome 体验层缺失</div>
+      </div>
+      <div class="stat">
+        <div class="label">越权(▼)</div>
+        <div class="value">0/50</div>
+        <div class="trend">secret 边界守住</div>
+      </div>
+      <div class="stat">
+        <div class="label">测试文件</div>
+        <div class="value">46+</div>
+        <div class="trend muted">~200+ 用例</div>
+      </div>
+      <div class="stat">
+        <div class="label">大杂烩文件</div>
+        <div class="value">0</div>
+        <div class="trend">utils.py/helpers.py/misc.py 全部 0 命中</div>
+      </div>
+      <div class="stat">
+        <div class="label">品牌名硬违规</div>
+        <div class="value">1</div>
+        <div class="trend bad">graph/engines/python/engine.py:1 docstring</div>
+      </div>
+    </div>
+
+    <div class="info-banner">
+      <b>📌 用户核心质疑回应</b> —— "agent 和用户平级,但用户可以为 agent 设置权限"。
+      <b style="color:#b91c1c">Parity 原则的机制层(actor 不可变、secret 双层强制、subagent 工具面裁剪)全部到位;
+      但"前端 chrome 体验层"(关闭弹窗、清空草稿、折叠面板、急停运行中 agent 等)agent 完全无对应 capability,集中在用户能 / agent 不能的方向。
+      这是本次审查最严重的设计空白。</b>
+    </div>
+  </section>
+
+  <!-- ============== 2. PARITY 深度评估 ============== -->
+  <section id="parity">
+    <div class="section-title">
+      <span class="num">2</span>
+      <h2>Parity 原则深度评估 ⭐</h2>
+      <span class="sub">用户与 agent 平等 · 唯一例外是 secret</span>
+    </div>
+    <p class="section-subtitle">
+      §2.1 铁律 7:"Parity(对等),隐私除外:用户能在应用里做的,agent 经同一 capability 也能做——唯一例外是隐私项。Parity 成立的必要条件:状态落在共享基座 + 能力收进注册表;客户端外壳(chrome)的私有状态不参与 parity。"
+    </p>
+
+    <h3 style="font-size:18px;margin:8px 0 16px">2.1 Parity 总览</h3>
+    <div class="grid-3">
+      <div class="card green">
+        <h3>✅ 完整 Parity · 24 项(48%)</h3>
+        <p>主题/字号/设置/笔记 CRUD/图谱/资源/LLM/路由跳转/subagent 注册/活动页 undo。<br>
+          <b>核心业务层全部到位</b>,且有测试覆盖(<code>test_settings.py</code>、<code>test_capabilities.py</code>)。</p>
+      </div>
+      <div class="card rose">
+        <h3>▲ Parity 失败 · 12 项(24%)</h3>
+        <p>关闭 AskUser 弹窗、关闭 ImportDialog、关闭 SpawnForm、清空 chat 草稿、滚动定位、切换 graph 顶栏、急停运行中 agent、FloatingChat 展开/收起、collapse 侧边栏、Electron 窗口控制……<br>
+          <b>集中在用户能 / agent 不能</b>。</p>
+      </div>
+      <div class="card violet">
+        <h3>🔒 隐私例外 · 2 项(4%)</h3>
+        <p>LLM api key + GitHub token:服务侧显式拒绝 agent(<code>llm/capabilities.py:138-147</code> + <code>repo/capabilities.py:152-157</code>)。<br>
+          <b>双重门(平台层 + 服务层)强制</b>,符合铁律 7 隐私例外。</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">2.2 Parity 完整差异矩阵(50 条 UI 操作)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40px">#</th>
+          <th>UI 操作</th>
+          <th style="width:70px">用户能</th>
+          <th style="width:70px">agent 能</th>
+          <th style="width:90px">判定</th>
+          <th>说明</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>路由跳转</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td>用户点 NavLink,agent 发 <code>agent.navigate</code> 事件,两者都调 <code>useNavigate()</code></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>主题切换(light/dark/system)</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td>都经 <code>settings.set_theme</code>,<code>settings.changed</code> 事件驱动 <code>useTheme.ts</code> 热切换</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>字号缩放 / 代码字体</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td>同 <code>set_theme</code>;<b>⚠️ applyCodeFont 未实现</b>(隐藏 bug)</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>设置分项写入(非 secret)</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td>用户经 <code>set_setting</code>,agent 也经 <code>agent.set_setting</code>;</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><b style="color:var(--rose)">关闭 AskUser 弹窗(取消)</b></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell fail">✗</span></td>
+          <td><span class="chip rose">▲ 失败</span></td>
+          <td>用户点取消调 <code>chatStore.clearQuestion()</code>;agent 只能等 <code>asyncio.wait_for</code> 120s 超时</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td>打开/关闭 ImportDialog</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell fail">✗</span></td>
+          <td><span class="chip rose">▲ 失败</span></td>
+          <td><code>SourcesPage</code> 内部 React state,无 capability</td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td>打开/关闭 Settings 子页</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell fail">✗</span></td>
+          <td><span class="chip rose">▲ 失败</span></td>
+          <td><code>SettingsPage.tsx:18</code> useState</td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td>打开/关闭 SpawnForm</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell fail">✗</span></td>
+          <td><span class="chip rose">▲ 失败</span></td>
+          <td>TeamPage 内部 state</td>
+        </tr>
+        <tr>
+          <td>9</td>
+          <td>切换 Sources 排序</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip amber">半 parity</span></td>
+          <td>用户改本地 state,agent 改 server 默认;语义不完全等价</td>
+        </tr>
+        <tr>
+          <td>10</td>
+          <td>切换 Notes 排序/标签</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip amber">半 parity</span></td>
+          <td><code>notes.sort.default</code> 设置项可改</td>
+        </tr>
+        <tr>
+          <td>11</td>
+          <td>切换 Graph 项目/标签</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell fail">✗</span></td>
+          <td><span class="chip rose">▲ 失败</span></td>
+          <td>无 <code>set_project</code> 类 capability</td>
+        </tr>
+        <tr>
+          <td>12</td>
+          <td>笔记 CRUD</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td>同 <code>notes.*</code> capability</td>
+        </tr>
+        <tr>
+          <td>13</td>
+          <td>笔记 link</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td>同 <code>notes.link_note</code></td>
+        </tr>
+        <tr>
+          <td>14</td>
+          <td>Notes 自动保存间隔</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td>经 <code>set_setting</code></td>
+        </tr>
+        <tr>
+          <td>15</td>
+          <td>导入 GitHub 仓库</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td><code>sources.import_repo</code> 长任务</td>
+        </tr>
+        <tr>
+          <td>16</td>
+          <td>删除仓库</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td><code>remove_repo</code> reversible=False</td>
+        </tr>
+        <tr>
+          <td>17</td>
+          <td>仓库元数据</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td><code>set_repo_meta</code></td>
+        </tr>
+        <tr>
+          <td>18</td>
+          <td>GitHub token</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell fail">✗</span></td>
+          <td><span class="chip violet">🔒 隐私例外</span></td>
+          <td>服务侧二次强制仅 user</td>
+        </tr>
+        <tr>
+          <td>19</td>
+          <td>创建图节点/边</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td>区分 <code>source="ai"|"manual"</code></td>
+        </tr>
+        <tr>
+          <td>20</td>
+          <td>图索引队列</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td>用户和 agent 都能 enqueue/cancel/reorder</td>
+        </tr>
+        <tr>
+          <td>21</td>
+          <td>删除项目图</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td><code>drop_project_graph</code> reversible=False</td>
+        </tr>
+        <tr>
+          <td>22</td>
+          <td>展开子图</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td><code>get_subgraph/expand_neighbors</code></td>
+        </tr>
+        <tr>
+          <td>23</td>
+          <td>切图引擎</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td>读 + 写都经 <code>set_setting</code></td>
+        </tr>
+        <tr>
+          <td>24</td>
+          <td><b style="color:var(--rose)">FloatingChat 展开/收起</b></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell fail">✗</span></td>
+          <td><span class="chip rose">▲ 失败</span></td>
+          <td><code>FloatingChat.tsx:121-123</code> 纯 zustand</td>
+        </tr>
+        <tr>
+          <td>25</td>
+          <td>悬浮窗未读数</td>
+          <td><span class="parity-cell na">~</span></td>
+          <td><span class="parity-cell na">~</span></td>
+          <td><span class="chip gray">显示</span></td>
+          <td>纯客户端显示,双方都没主动控制</td>
+        </tr>
+        <tr>
+          <td>26</td>
+          <td>折叠左侧栏</td>
+          <td><span class="parity-cell both-no">−</span></td>
+          <td><span class="parity-cell both-no">−</span></td>
+          <td><span class="chip gray">● 双方都缺</span></td>
+          <td>CSS 类就绪但 React 状态未挂</td>
+        </tr>
+        <tr>
+          <td>27</td>
+          <td>切换 graph 顶栏(editor/index)</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell fail">✗</span></td>
+          <td><span class="chip rose">▲ 失败</span></td>
+          <td><code>GraphPage.tsx:28</code> useState</td>
+        </tr>
+        <tr>
+          <td>28</td>
+          <td>滚动 chat 列表</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell fail">✗</span></td>
+          <td><span class="chip rose">▲ 失败</span></td>
+          <td><code>FloatingChat.tsx:67-71</code> listRef</td>
+        </tr>
+        <tr>
+          <td>29</td>
+          <td>清空 chat 草稿</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell fail">✗</span></td>
+          <td><span class="chip rose">▲ 失败</span></td>
+          <td><code>ChatPage.tsx:29</code> setDraft('')</td>
+        </tr>
+        <tr>
+          <td>30</td>
+          <td>切思考态(显示用)</td>
+          <td><span class="parity-cell na">~</span></td>
+          <td><span class="parity-cell na">~</span></td>
+          <td><span class="chip gray">—</span></td>
+          <td>显示态,双方都不主动控制</td>
+        </tr>
+        <tr>
+          <td>31</td>
+          <td>直聊模式</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td>经 <code>set_setting</code> 改 <code>agent.direct_chat</code></td>
+        </tr>
+        <tr>
+          <td>32</td>
+          <td>仲裁模式(queue/auto/guide)</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td><code>agent.arbiter.mode</code></td>
+        </tr>
+        <tr>
+          <td>33</td>
+          <td>ReAct 轮数上限</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td><code>agent.rounds.max</code></td>
+        </tr>
+        <tr>
+          <td>34</td>
+          <td>触达预算/安静时段</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td><code>agent.proactive.*</code></td>
+        </tr>
+        <tr>
+          <td>35</td>
+          <td>网络白名单</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td><code>agent.network.domains</code></td>
+        </tr>
+        <tr>
+          <td>36</td>
+          <td>工作目录</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td><code>agent.workspace.dir</code></td>
+        </tr>
+        <tr>
+          <td>37</td>
+          <td>注册自建 subagent</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td><code>agent.register_subagent</code></td>
+        </tr>
+        <tr>
+          <td>38</td>
+          <td>派遣 subagent</td>
+          <td><span class="parity-cell fail">✗</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">设计内分工</span></td>
+          <td>派遣只能由 agent 触发,合理</td>
+        </tr>
+        <tr>
+          <td>39</td>
+          <td><b style="color:var(--rose)">终止 running subagent(急停)</b></td>
+          <td><span class="parity-cell both-no">−</span></td>
+          <td><span class="parity-cell both-no">−</span></td>
+          <td><span class="chip rose">● 严重设计空白</span></td>
+          <td>无 kill switch,无 abort capability</td>
+        </tr>
+        <tr>
+          <td>40</td>
+          <td>提交 AskUser 答题</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell fail">✗</span></td>
+          <td><span class="chip green">设计内分工</span></td>
+          <td>合理</td>
+        </tr>
+        <tr>
+          <td>41</td>
+          <td>添加 LLM 提供商</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td><code>llm.add_provider</code></td>
+        </tr>
+        <tr>
+          <td>42</td>
+          <td>设置/删除 LLM api key</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell fail">✗</span></td>
+          <td><span class="chip violet">🔒 隐私例外</span></td>
+          <td>服务侧二次强制仅 user</td>
+        </tr>
+        <tr>
+          <td>43</td>
+          <td>测试 LLM 连通</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td><code>llm.test_connection</code></td>
+        </tr>
+        <tr>
+          <td>44</td>
+          <td>看用量</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td><code>llm.get_usage_stats</code></td>
+        </tr>
+        <tr>
+          <td>45</td>
+          <td>上报页面上下文</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell fail">✗</span></td>
+          <td><span class="chip green">设计内分工</span></td>
+          <td>用户主动告知,agent 被动接受</td>
+        </tr>
+        <tr>
+          <td>46</td>
+          <td>活动页 undo</td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="parity-cell ok">✓</span></td>
+          <td><span class="chip green">parity</span></td>
+          <td><code>activityStore.ts:34-47</code> 补偿表</td>
+        </tr>
+        <tr>
+          <td>47</td>
+          <td>复制/粘贴/剪切</td>
+          <td><span class="parity-cell na">~</span></td>
+          <td><span class="parity-cell na">~</span></td>
+          <td><span class="chip gray">chrome 平等</span></td>
+          <td>双方都用浏览器 API</td>
+        </tr>
+        <tr>
+          <td>48</td>
+          <td>键盘快捷键(Enter/Shift+Enter)</td>
+          <td><span class="parity-cell na">~</span></td>
+          <td><span class="parity-cell na">~</span></td>
+          <td><span class="chip gray">chrome 平等</span></td>
+          <td>双方都用浏览器事件</td>
+        </tr>
+        <tr>
+          <td>49</td>
+          <td>浏览器 Notification / 打印 / 导出</td>
+          <td><span class="parity-cell both-no">−</span></td>
+          <td><span class="parity-cell both-no">−</span></td>
+          <td><span class="chip gray">● 未实现</span></td>
+          <td>未实现</td>
+        </tr>
+        <tr>
+          <td>50</td>
+          <td>Electron 窗口控制</td>
+          <td><span class="parity-cell both-no">−</span></td>
+          <td><span class="parity-cell both-no">−</span></td>
+          <td><span class="chip rose">● 整层缺失</span></td>
+          <td><code>apps/desktop/</code> 目录完全空白</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:32px 0 12px">2.3 5 个最严重的 Parity 违反</h3>
+
+    <div class="card rose">
+      <h3>🔴 #1 用户能关闭 AskUser 弹窗 / 清空草稿 / 折叠面板,agent 完全不能</h3>
+      <p>这些操作全部走前端 <code>useState</code> / <code>zustand</code> 局部状态:</p>
+      <ul style="font-size:13px;color:var(--text-1);margin:8px 0;padding-left:20px">
+        <li><code>FloatingChat.tsx:21-25</code> · <code>useFloatingStore</code> · 展开/收起</li>
+        <li><code>ChatPage.tsx:12</code> · <code>useState draft</code> · 草稿</li>
+        <li><code>chatStore.ts:200</code> · <code>clearQuestion</code> · AskUser 弹窗</li>
+        <li><code>SettingsPage.tsx:18</code> · <code>useState active</code> · 设置子页</li>
+        <li><code>GraphPage.tsx:28</code> · <code>useState</code> · 顶栏面板</li>
+      </ul>
+      <p>违反"<b>系统任何操作,人和 agent 都可执行</b>"。当用户关闭了 agent 刚弹的 AskUser 弹窗,agent 端只能 <code>asyncio.wait_for</code> 120s 超时,期间阻塞任务流,违反铁律 §2.1 第 7 条(Parity,隐私除外)。</p>
+    </div>
+
+    <div class="card rose">
+      <h3>🔴 #2 没有 kill switch / 急停运行中 agent 的 capability</h3>
+      <p>用户在前端无急停按钮:<code>grep -E "kill|abort|emergency|stopAgent"</code> 全部 0 命中。
+        <code>graph.cancel_index</code> 只允许取消排队的任务(<code>graph/capabilities.py:61-64</code>);运行中任务的协作式停止声明"在演进中"。
+        agent 同样不能终止已派出的 running subagent —— <b>双方都缺</b>。长任务无安全阀,违反用户对"急停"的基本预期。</p>
+    </div>
+
+    <div class="card rose">
+      <h3>🔴 #3 <code>apps/desktop/</code> 目录完全空白 —— Electron 端 Parity 无法验证</h3>
+      <p>架构文档中 <code>apps/desktop/{shell, file-bridge, browser-host}</code> 三个目录不存在(glob 返回空)。
+        Electron 端的窗口控制、关闭、最小化、托盘、自动更新、文件对话框/拖拽桥都未实现。
+        这意味着桌面 chrome 层的 Parity 在生产前完全无法验证。</p>
+    </div>
+
+    <div class="card rose">
+      <h3>🔴 #4 用户没有"为 agent 设置全局能力白名单"的 UI 入口</h3>
+      <p><code>AppPolicy(allowed=frozenset(...))</code> 机制在 <code>agent/policy/engine.py:28-33</code> 就位,测试 <code>test_policy.py:55-58</code> 覆盖;
+        但 <code>PermissionMatrix.tsx:7</code> 是只读跳转 <code>/settings?module=agent</code>,真正改白名单的 UI 路径缺失,只剩 subagent 级 <code>allowed_tools</code> 勾选(<code>SpawnForm.tsx:19-26</code>)。
+        <b>用户"为 agent 设置权限"实际只能到 subagent 工具面级,AppPolicy 级缺失</b>。</p>
+    </div>
+
+    <div class="card amber">
+      <h3>🟡 #5 跨进程边界 restrict() 未一致强制</h3>
+      <p><code>ActorContext.restrict()</code> 是收窄(<code>platform_actor/context.py:23-30</code>),<code>test_actor.py:50-59</code> 覆盖纯函数级;
+        但 <code>platform_capability/guards.py:122-182</code> 的 <code>execute()</code> 全文未出现 <code>restrict</code> 引用,handler 拿到 <code>_actor</code> 后自由使用,scopes 仅在 capability 声明上做匹配。
+        若下游服务信任上游传入的 actor,需要在每条边界显式 restrict,这点当前由 <code>capability.scopes</code> 声明间接保证,但<strong style="color:#b91c1c">无测试覆盖</strong>。</p>
+    </div>
+
+    <h3 style="font-size:18px;margin:32px 0 12px">2.4 隐藏 Bug:<code>applyCodeFont</code> 未实现</h3>
+    <div class="callout danger">
+      <b>设置项可改但效果不可见</b> —— <code>set_code_font</code> 是 settings 可改,<code>useTheme.ts:58-60</code> 收到 <code>settings.changed</code> 事件时<strong>只 applyTheme 和 applyFontScale,没有 applyCodeFont</strong>。
+      违反"用户能改的,效果可见"的隐含 Parity 原则。需在 <code>useTheme.ts</code> 增加 <code>applyCodeFont(font)</code> 实现。
+    </div>
+
+    <h3 style="font-size:18px;margin:32px 0 12px">2.5 用户为 agent 设置权限</h3>
+    <table>
+      <thead>
+        <tr><th>层级</th><th>机制</th><th>实现位置</th><th>状态</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>网络/文件全局</td>
+          <td><code>NetworkPolicy</code> / <code>FsPolicy</code> 经设置项</td>
+          <td><code>agent/main.py:109-115</code></td>
+          <td><span class="chip green">✓</span></td>
+        </tr>
+        <tr>
+          <td>全局 AppPolicy 白名单</td>
+          <td><code>AppPolicy(allowed=frozenset(...), denied=frozenset(...))</code></td>
+          <td><code>agent/policy/engine.py:28-33</code></td>
+          <td><span class="chip green">机制就绪</span></td>
+        </tr>
+        <tr>
+          <td>全局 AppPolicy UI 入口</td>
+          <td>用户在设置页改 → 写入 <code>agent.app.allowed</code></td>
+          <td>—</td>
+          <td><span class="chip rose">✗ 缺失</span></td>
+        </tr>
+        <tr>
+          <td>subagent 工具面</td>
+          <td><code>allowed_tools</code> 存 <code>SubagentDef</code></td>
+          <td><code>agent/capabilities.py:83-100</code> + <code>SpawnForm.tsx:19-26</code></td>
+          <td><span class="chip green">✓ + UI</span></td>
+        </tr>
+        <tr>
+          <td>Persona 模板</td>
+          <td><code>tool_allow</code> tuple</td>
+          <td><code>agent/personas/*.py</code></td>
+          <td><span class="chip green">✓</span></td>
+        </tr>
+        <tr>
+          <td>资源维(轮数)</td>
+          <td><code>agent.rounds.max</code> / <code>agent.rounds.tool_max</code></td>
+          <td><code>agent/settings.py:10-13</code></td>
+          <td><span class="chip green">✓</span></td>
+        </tr>
+        <tr>
+          <td>细化到 capability 级</td>
+          <td><code>AppPolicy.allowed={"set_theme"}</code></td>
+          <td><code>test_policy.py:55-58</code></td>
+          <td><span class="chip rose">✗ UI 暴露缺失</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:32px 0 12px">2.6 agent 自身 chrome 状态泄漏</h3>
+    <table>
+      <thead>
+        <tr><th>chrome 状态</th><th>当前分类</th><th>应分类</th><th>问题</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>AskUser 弹窗</td>
+          <td>前端 store + agent 进程 dict(分裂)</td>
+          <td><span class="chip rose">共享基座</span></td>
+          <td>用户取消无 <code>dismiss_question</code> 事件回投;agent 端 <code>AskUser.answer</code> 只能 <code>set_result</code>,无 <code>dismiss</code></td>
+        </tr>
+        <tr>
+          <td>FloatingChat open/unread</td>
+          <td>chrome 私有</td>
+          <td><span class="chip amber">半</span></td>
+          <td>状态合理,但 <code>unread</code> 状态没上报,agent 不知道用户是否已收起</td>
+        </tr>
+        <tr>
+          <td>Graph 顶栏面板</td>
+          <td>纯 chrome 私有</td>
+          <td><span class="chip green">合理</span></td>
+          <td>不影响其他端,纯本地展示</td>
+        </tr>
+        <tr>
+          <td>Sources 排序(sort/desc)</td>
+          <td>纯 chrome 私有</td>
+          <td><span class="chip amber">应是 parity</span></td>
+          <td><code>sort_repos</code> capability 已存在,前端 <code>setView</code> 应改用它</td>
+        </tr>
+        <tr>
+          <td>Notes 排序/标签</td>
+          <td>纯 chrome 私有</td>
+          <td><span class="chip green">合理</span></td>
+          <td>本地排序无业务影响</td>
+        </tr>
+        <tr>
+          <td>侧边栏折叠态</td>
+          <td>双方都缺</td>
+          <td><span class="chip rose">双方都缺</span></td>
+          <td>CSS 类就绪但 React 状态未挂</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:32px 0 12px">2.7 Parity 必要条件验证</h3>
+    <div class="grid-2">
+      <div class="card green">
+        <h3>✅ 必要条件 #1:状态共享</h3>
+        <p><code>settings.changed</code> 事件 → <code>useTheme.ts</code> 热切换主题/字号;这是 Parity 落地的样板。
+          <br><code>note.*</code> / <code>task.*</code> / <code>service.health.changed</code> / <code>graph.engine.fallback</code> 事件均正确发布与订阅。
+          <br>问题:AskUser 弹窗、悬浮窗开/关、chat 草稿、滚动位置、侧边栏折叠态<strong>未共享</strong>。</p>
+      </div>
+      <div class="card green">
+        <h3>✅ 必要条件 #2:能力注册表</h3>
+        <p>所有领域数据操作 + 设置 + 主题 + 路由跳转都过 capability。
+          <br>问题:弹窗/面板/抽屉的"开/关"未注册成 capability,全部走前端本地 state。</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:32px 0 12px">2.8 Parity 落地总评</h3>
+    <div class="grid-3">
+      <div class="card green">
+        <h3>✅ 机制层(优)</h3>
+        <p>actor 不可变、secret 双层强制、subagent 工具面真裁剪、不可变 dataclass 全覆盖。
+          <div class="score-bar"><span class="fill high" style="width:92%"></span></div>
+        </p>
+      </div>
+      <div class="card amber">
+        <h3>🟡 业务层(良)</h3>
+        <p>设置/笔记/图谱/资源/LLM/subagent 全部 parity,有测试覆盖。
+          <div class="score-bar"><span class="fill high" style="width:88%"></span></div>
+        </p>
+      </div>
+      <div class="card rose">
+        <h3>🔴 Chrome 体验层(差)</h3>
+        <p>弹窗关闭/草稿清空/急停/折叠/Electron 大量缺失,集中在用户能 / agent 不能。
+          <div class="score-bar"><span class="fill low" style="width:35%"></span></div>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== 3. ARCHITECTURE ============== -->
+  <section id="architecture">
+    <div class="section-title">
+      <span class="num">3</span>
+      <h2>总体架构</h2>
+      <span class="sub">8 顶层 · 4 层脱耦 · 进程边界即服务边界</span>
+    </div>
+
+    <div class="arch-wrap">
+      <svg viewBox="0 0 1240 580" xmlns="http://www.w3.org/2000/svg" style="font-family:inherit">
+        <defs>
+          <linearGradient id="appG" x1="0" x2="1"><stop offset="0" stop-color="#dbeafe"/><stop offset="1" stop-color="#bfdbfe"/></linearGradient>
+          <linearGradient id="gwG" x1="0" x2="1"><stop offset="0" stop-color="#0ea5e9"/><stop offset="1" stop-color="#1e40af"/></linearGradient>
+          <linearGradient id="agentG" x1="0" x2="1"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#6d28d9"/></linearGradient>
+          <linearGradient id="platG" x1="0" x2="1"><stop offset="0" stop-color="#fef3c7"/><stop offset="1" stop-color="#fde68a"/></linearGradient>
+          <linearGradient id="svcG" x1="0" x2="1"><stop offset="0" stop-color="#d1fae5"/><stop offset="1" stop-color="#a7f3d0"/></linearGradient>
+          <marker id="arr" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="#64748b"/>
+          </marker>
+          <marker id="arrBlue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="#1e40af"/>
+          </marker>
+          <marker id="arrPurple" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="#6d28d9"/>
+          </marker>
+        </defs>
+
+        <!-- apps -->
+        <rect x="40" y="20" rx="14" ry="14" width="240" height="80" fill="url(#appG)" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="160" y="50" text-anchor="middle" font-weight="700" font-size="14" fill="#1e3a8a">人类入口(apps)</text>
+        <text x="160" y="72" text-anchor="middle" font-size="12" fill="#1e40af">apps/web · apps/desktop</text>
+        <text x="160" y="90" text-anchor="middle" font-size="11" fill="#475569">React 19 / Electron · 零业务</text>
+
+        <!-- gateway -->
+        <rect x="320" y="20" rx="14" ry="14" width="200" height="80" fill="url(#gwG)" stroke="#1e40af" stroke-width="1.5"/>
+        <text x="420" y="50" text-anchor="middle" font-weight="700" font-size="14" fill="#fff">gateway</text>
+        <text x="420" y="70" text-anchor="middle" font-size="11" fill="#bfdbfe">唯一对人类入口</text>
+        <text x="420" y="88" text-anchor="middle" font-size="10" fill="#bfdbfe">鉴权·限流·审计·chat 通道·SSE</text>
+
+        <!-- services cluster -->
+        <rect x="560" y="20" rx="14" ry="14" width="320" height="290" fill="url(#svcG)" stroke="#059669" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="720" y="44" text-anchor="middle" font-weight="700" font-size="14" fill="#065f46">services/(领域服务集群 · 独立进程)</text>
+
+        <g font-size="11" fill="#064e3b">
+          <rect x="580" y="60" width="120" height="40" rx="6" fill="#fff" stroke="#10b981"/>
+          <text x="640" y="76" text-anchor="middle" font-weight="600">sources</text>
+          <text x="640" y="92" text-anchor="middle" font-size="10" fill="#475569">repo·books·news</text>
+
+          <rect x="710" y="60" width="120" height="40" rx="6" fill="#fff" stroke="#10b981"/>
+          <text x="770" y="76" text-anchor="middle" font-weight="600">notes</text>
+          <text x="770" y="92" text-anchor="middle" font-size="10" fill="#475569">Markdown</text>
+
+          <rect x="840" y="60" width="120" height="40" rx="6" fill="#fff" stroke="#10b981"/>
+          <text x="900" y="76" text-anchor="middle" font-weight="600">graph</text>
+          <text x="900" y="92" text-anchor="middle" font-size="10" fill="#475569">双管线 + C 引擎</text>
+
+          <rect x="580" y="110" width="120" height="40" rx="6" fill="#fff" stroke="#10b981"/>
+          <text x="640" y="126" text-anchor="middle" font-weight="600">office</text>
+          <text x="640" y="142" text-anchor="middle" font-size="10" fill="#475569">doc·slides</text>
+
+          <rect x="710" y="110" width="120" height="40" rx="6" fill="#fff" stroke="#10b981"/>
+          <text x="770" y="126" text-anchor="middle" font-weight="600">code-exec</text>
+          <text x="770" y="142" text-anchor="middle" font-size="10" fill="#475569">沙箱</text>
+
+          <rect x="840" y="110" width="120" height="40" rx="6" fill="#fff" stroke="#10b981"/>
+          <text x="900" y="126" text-anchor="middle" font-weight="600">browser</text>
+          <text x="900" y="142" text-anchor="middle" font-size="10" fill="#475569">Playwright</text>
+
+          <rect x="580" y="160" width="120" height="40" rx="6" fill="#fff" stroke="#10b981"/>
+          <text x="640" y="176" text-anchor="middle" font-weight="600">llm</text>
+          <text x="640" y="192" text-anchor="middle" font-size="10" fill="#475569">BYOK 目录</text>
+
+          <rect x="710" y="160" width="120" height="40" rx="6" fill="#fff" stroke="#10b981"/>
+          <text x="770" y="176" text-anchor="middle" font-weight="600">settings</text>
+          <text x="770" y="192" text-anchor="middle" font-size="10" fill="#475569">设置聚合</text>
+
+          <rect x="840" y="160" width="120" height="40" rx="6" fill="#fff" stroke="#10b981"/>
+          <text x="900" y="176" text-anchor="middle" font-weight="600">_template</text>
+          <text x="900" y="192" text-anchor="middle" font-size="10" fill="#475569">新服务脚手架</text>
+        </g>
+
+        <!-- agent -->
+        <rect x="920" y="20" rx="14" ry="14" width="240" height="80" fill="url(#agentG)" stroke="#6d28d9" stroke-width="1.5"/>
+        <text x="1040" y="50" text-anchor="middle" font-weight="700" font-size="14" fill="#fff">agent runtime</text>
+        <text x="1040" y="70" text-anchor="middle" font-size="11" fill="#e9d5ff">系统唯一决策者</text>
+        <text x="1040" y="88" text-anchor="middle" font-size="10" fill="#e9d5ff">master·subagent·policy·memory</text>
+
+        <!-- platform -->
+        <rect x="40" y="340" rx="14" ry="14" width="1120" height="100" fill="url(#platG)" stroke="#d97706" stroke-width="1"/>
+        <text x="60" y="364" font-weight="700" font-size="14" fill="#92400e">platform/(横切设施 · 唯一被允许的"被依赖")</text>
+
+        <g font-size="11" fill="#78350f">
+          <rect x="60" y="378" width="130" height="42" rx="6" fill="#fff" stroke="#f59e0b"/>
+          <text x="125" y="398" text-anchor="middle" font-weight="600">contracts</text>
+          <text x="125" y="412" text-anchor="middle" font-size="10" fill="#475569">纯类型/零逻辑</text>
+
+          <rect x="200" y="378" width="130" height="42" rx="6" fill="#fff" stroke="#f59e0b"/>
+          <text x="265" y="398" text-anchor="middle" font-weight="600">capability</text>
+          <text x="265" y="412" text-anchor="middle" font-size="10" fill="#475569">能力框架</text>
+
+          <rect x="340" y="378" width="130" height="42" rx="6" fill="#fff" stroke="#f59e0b"/>
+          <text x="405" y="398" text-anchor="middle" font-weight="600">eventbus</text>
+          <text x="405" y="412" text-anchor="middle" font-size="10" fill="#475569">持久事件流</text>
+
+          <rect x="480" y="378" width="130" height="42" rx="6" fill="#fff" stroke="#f59e0b"/>
+          <text x="545" y="398" text-anchor="middle" font-weight="600">actor</text>
+          <text x="545" y="412" text-anchor="middle" font-size="10" fill="#475569">鉴权凭证</text>
+
+          <rect x="620" y="378" width="130" height="42" rx="6" fill="#fff" stroke="#f59e0b"/>
+          <text x="685" y="398" text-anchor="middle" font-weight="600">settings</text>
+          <text x="685" y="412" text-anchor="middle" font-size="10" fill="#475569">设置项框架</text>
+
+          <rect x="760" y="378" width="130" height="42" rx="6" fill="#fff" stroke="#f59e0b"/>
+          <text x="825" y="398" text-anchor="middle" font-weight="600">secrets</text>
+          <text x="825" y="412" text-anchor="middle" font-size="10" fill="#475569">密钥保管</text>
+
+          <rect x="900" y="378" width="130" height="42" rx="6" fill="#fff" stroke="#f59e0b"/>
+          <text x="965" y="398" text-anchor="middle" font-weight="600">health</text>
+          <text x="965" y="412" text-anchor="middle" font-size="10" fill="#475569">健康探测</text>
+
+          <rect x="1040" y="378" width="100" height="42" rx="6" fill="#fff" stroke="#f59e0b" stroke-dasharray="3,2"/>
+          <text x="1090" y="398" text-anchor="middle" font-weight="600" fill="#475569">配置/限流/审计</text>
+          <text x="1090" y="412" text-anchor="middle" font-size="9" fill="#64748b">规划中</text>
+        </g>
+
+        <!-- event bus -->
+        <rect x="320" y="470" rx="14" ry="14" width="900" height="60" fill="#ecfeff" stroke="#0891b2" stroke-width="1"/>
+        <text x="770" y="495" text-anchor="middle" font-weight="700" font-size="14" fill="#155e75">事件流(持久化事件日志 + 游标订阅)</text>
+        <text x="770" y="515" text-anchor="middle" font-size="11" fill="#0e7490">user.message · task.* · agent.message · settings.changed · service.health.changed …</text>
+
+        <!-- ARROWS -->
+        <line x1="280" y1="60" x2="320" y2="60" stroke="#1e40af" stroke-width="2" marker-end="url(#arrBlue)"/>
+        <line x1="520" y1="60" x2="560" y2="100" stroke="#1e40af" stroke-width="2" marker-end="url(#arrBlue)"/>
+        <line x1="880" y1="100" x2="920" y2="60" stroke="#6d28d9" stroke-width="2" marker-end="url(#arrPurple)"/>
+        <line x1="520" y1="100" x2="320" y2="470" stroke="#0891b2" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#arr)"/>
+        <line x1="880" y1="200" x2="770" y2="470" stroke="#0891b2" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#arr)"/>
+        <line x1="1040" y1="100" x2="900" y2="470" stroke="#0891b2" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#arr)"/>
+
+        <!-- legend -->
+        <g font-size="11" fill="#475569">
+          <line x1="60" y1="558" x2="100" y2="558" stroke="#1e40af" stroke-width="2"/>
+          <text x="106" y="562">capability 调用</text>
+          <line x1="200" y1="558" x2="240" y2="558" stroke="#0891b2" stroke-width="1.5" stroke-dasharray="3,3"/>
+          <text x="246" y="562">事件流</text>
+          <line x1="320" y1="558" x2="360" y2="558" stroke="#6d28d9" stroke-width="2"/>
+          <text x="366" y="562">MCP / capability</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="callout">
+      <b>8 条铁律(§2.1)</b>:
+      ① 全层级脱耦(服务间/服务内/前端/文件级) · ② 一份 Action 模型 · ③ 一切皆事件 ·
+      ④ 数据库即协调层 · ⑤ 服务即 runtime(故障隔离) · ⑥ 权限即工具面 · ⑦ Parity(隐私除外) · ⑧ 命名中性
+    </div>
+
+    <h3 style="font-size:16px;margin:24px 0 8px;color:var(--text-1)">横向 import 矩阵(实测)</h3>
+    <table>
+      <thead><tr><th>起点</th><th>终点</th><th>违规?</th><th>证据</th></tr></thead>
+      <tbody>
+        <tr><td>任何 <code>services.X</code></td><td>任何 <code>services.Y</code>(X≠Y)</td><td><span class="chip green">✓ 0 命中</span></td><td>grep 整个 services/ 业务代码,0 横向 import</td></tr>
+        <tr><td>任何 <code>platform/*</code></td><td>任何 <code>services/agent/apps</code></td><td><span class="chip green">✓ 0 命中</span></td><td>7 个平台包全部 0 反向 import</td></tr>
+        <tr><td>任何 <code>agent/*</code></td><td>任何 <code>services.*.store/capabilities/worker</code></td><td><span class="chip green">✓ 0 命中</span></td><td>76 个 .py 文件全部走 capability 桥</td></tr>
+        <tr><td><code>sources/modules/{repo,books,news}</code></td><td>彼此</td><td><span class="chip green">✓ 0 命中</span></td><td>子模块 <code>__init__.py</code> 全空,语言层阻断偶发耦合</td></tr>
+        <tr><td><code>office/modules/{doc,slides}</code></td><td>彼此</td><td><span class="chip green">✓ 0 命中</span></td><td>同 sources 模式</td></tr>
+        <tr><td><code>graph/pipelines/{code,ai}</code></td><td>彼此</td><td><span class="chip green">✓ 0 命中</span></td><td>两条管线互不 import,共享 store</td></tr>
+        <tr><td><code>deploy/backend.py</code></td><td>8 个服务 wiring</td><td><span class="chip amber">⚠ 边界争议</span></td><td>单体模式 import 8 服务,§3.3 与 §13.1 规则冲突</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============== 4. AGENT 12 子模块 ============== -->
+  <section id="agent">
+    <div class="section-title">
+      <span class="num">4</span>
+      <h2>Agent Runtime · 12 子模块</h2>
+      <span class="sub">系统唯一决策者 · 76 个 .py 文件 · ~4000 行实现 + 1150 行测试</span>
+    </div>
+    <p class="section-subtitle">
+      agent/ 是 Voyager 的"大脑"——唯一常驻 master(Lucien)+ 12 个子模块协同,共同实现"agent 拥有自己的生命"。
+      所有领域交互经 capability,自身工具经 policy 四维判定。
+    </p>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">4.1 agent 顶层文件清单</h3>
+    <div class="file-list">
+      <div class="row"><div class="path">agent/main.py</div><div class="size">262</div><div class="desc">进程入口:build_agent() 装配 + _serve 事件循环</div></div>
+      <div class="row"><div class="path">agent/capabilities.py</div><div class="size">123</div><div class="desc">11 个 parity capability(get/set_setting/list_skills/list_subagents/list_personas/register_subagent/list_tools/recall_memory/report_page_context/answer_question)</div></div>
+      <div class="row"><div class="path">agent/settings.py</div><div class="size">46</div><div class="desc">16 个 agent.* 设置项 schema(轮数/仲裁/触达/网络/工作目录/记忆保留/观察开关)</div></div>
+      <div class="row"><div class="path">agent/observe.py</div><div class="size">47</div><div class="desc">行为观察:只读探查 → consider(默认留痕不行动)</div></div>
+      <div class="row"><div class="path">agent/llm.py</div><div class="size">88</div><div class="desc">LLMClient Protocol + LLMReply/ToolSpec/ToolCall/Usage + FakeLLM 测试桩</div></div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">4.2 12 个子模块详解</h3>
+
+    <div class="card violet">
+      <h3>① runtime/ · 运行时底座(7 文件,§9.1 十二职责)</h3>
+      <div class="file-list">
+        <div class="row"><div class="path">runtime/loop.py</div><div class="size">58</div><div class="desc">EventLoop(bus, handlers, cursors).run() 阻塞;handler 异常隔离;fnmatch 通配事件类型</div></div>
+        <div class="row"><div class="path">runtime/scheduler.py</div><div class="size">70</div><div class="desc">Semaphore 并发上限 + 一次性定时器(§9.8 追问);call_later / cancel</div></div>
+        <div class="row"><div class="path">runtime/state.py</div><div class="size">95</div><div class="desc">RunState 状态机 + Step + CheckpointStore 落盘(每轮结束存)</div></div>
+        <div class="row"><div class="path">runtime/events.py</div><div class="size">26</div><div class="desc">AGENT_MAIN actor 常量 + RuntimeEvents.emit(type_, **payload) 12 处收成 1 行</div></div>
+        <div class="row"><div class="path">runtime/observability.py</div><div class="size">73</div><div class="desc">Meter + MeterRecord(每次 LLM/tool 计量);metred_llm 装饰器</div></div>
+        <div class="row"><div class="path">runtime/recovery.py</div><div class="size">63</div><div class="desc">with_retry + CircuitBreaker(<b style="color:#b91c1c">⚠ main 未装配,无调用方</b>)</div></div>
+        <div class="row"><div class="path">runtime/__init__.py</div><div class="size">25</div><div class="desc">re-export</div></div>
+      </div>
+      <p><b>评价:</b>runtime 12 职责中,Meter 装配、Recovery 死代码、loop 事件循环三层防御扎实</p>
+    </div>
+
+    <div class="card violet">
+      <h3>② master/ · 唯一常驻统筹者(6 文件,Lucien)</h3>
+      <div class="file-list">
+        <div class="row"><div class="path">master/master.py</div><div class="size">204</div><div class="desc">Master 核心:handle_user_message / dispatch_task / _turn / _reply;chat 双轨 + 仲裁 + 派遣 + 摘要 + 触达</div></div>
+        <div class="row"><div class="path">master/arbiter.py</div><div class="size">56</div><div class="desc">消息仲裁(§9.7):QUEUE/AUTO/GUIDE 三模式;判官 LLM 短判</div></div>
+        <div class="row"><div class="path">master/digest.py</div><div class="size">53</div><div class="desc">DigestStore:subagent 状态卡片(duck type,不 import SubagentInstance)</div></div>
+        <div class="row"><div class="path">master/proactive.py</div><div class="size">129</div><div class="desc">ProactiveEngine + ProactiveBudget:问候/追问链上限/安静时段/防轰炸</div></div>
+        <div class="row"><div class="path">master/settings_store_protocol.py</div><div class="size">11</div><div class="desc">SettingsReader Protocol 隔离只读面(脱耦)</div></div>
+        <div class="row"><div class="path">master/__init__.py</div><div class="size">20</div><div class="desc">re-export</div></div>
+      </div>
+      <p><b>评价:</b>204 行 master.py 是整个 agent 的核心枢纽,业务密度高但有清晰分层</p>
+    </div>
+
+    <div class="card violet">
+      <h3>③ personas/ · 5 个人格预设(7 文件,§9.3)</h3>
+      <div class="file-list">
+        <div class="row"><div class="path">personas/base.py</div><div class="size">13</div><div class="desc">Persona dataclass(frozen):key/display_name/style/system_prompt/default_mode/tool_allow</div></div>
+        <div class="row"><div class="path">personas/lucien.py</div><div class="size">35</div><div class="desc">LUCIEN · 唯一常驻统筹者 · tool_allow=None 不裁剪 · ReAct 强制</div></div>
+        <div class="row"><div class="path">personas/iris.py</div><div class="size">26</div><div class="desc">IRIS · 侦察检索 · 5 个工具白名单</div></div>
+        <div class="row"><div class="path">personas/elio.py</div><div class="size">25</div><div class="desc">ELIO · 讲解导师 · default_mode=cot</div></div>
+        <div class="row"><div class="path">personas/miyai.py</div><div class="size">26</div><div class="desc">MIYAI · 整理入库 · 4 个工具白名单</div></div>
+        <div class="row"><div class="path">personas/atlas.py</div><div class="size">35</div><div class="desc">ATLAS · 图谱向导 · 12 个 graph/sources 工具白名单</div></div>
+        <div class="row"><div class="path">personas/__init__.py</div><div class="size">12</div><div class="desc">PERSONAS 字典注册</div></div>
+      </div>
+      <p><b>评价:</b>纯数据 dataclass,模块级单例,Persona 的 <code>tool_allow</code> 是能力面模板(§9.3 关键设计)</p>
+    </div>
+
+    <div class="card violet">
+      <h3>④ subagent/ · 派出与实例(5 文件,§9.4)</h3>
+      <div class="file-list">
+        <div class="row"><div class="path">subagent/spawn.py</div><div class="size">75</div><div class="desc">Spawner.spawn + start;<b style="color:#059669">toolbelt.trimmed() 真裁剪</b>——"不能写文件"不是提示词约束</div></div>
+        <div class="row"><div class="path">subagent/instance.py</div><div class="size">105</div><div class="desc">SubagentInstance + TaskBook;对话型/任务型双轨;run_turn + feed + cancel</div></div>
+        <div class="row"><div class="path">subagent/modes.py</div><div class="size">149</div><div class="desc">7 种模式:Direct/Cot/Plan/ReAct/Reflexion/ToT/GoT;ModeLimits 轮数/工具双上限</div></div>
+        <div class="row"><div class="path">subagent/registry.py</div><div class="size">73</div><div class="desc">SubagentRegistry:用户自建 subagent 定义存 runtime-data/subagents/*.json</div></div>
+        <div class="row"><div class="path">subagent/__init__.py</div><div class="size">18</div><div class="desc">re-export</div></div>
+      </div>
+      <p><b>评价:</b>Spawner.trimmed 真实裁剪,7 种模式策略分发,ToT/GoT 无工具(决策 §15)</p>
+    </div>
+
+    <div class="card violet">
+      <h3>⑤ policy/ · 权限引擎(3 文件,§9.9 四维判定)</h3>
+      <div class="file-list">
+        <div class="row"><div class="path">policy/engine.py</div><div class="size">128</div><div class="desc">PolicyEngine.decide(Action) → Decision;网络/文件/应用内/shell 四维;纯函数</div></div>
+        <div class="row"><div class="path">policy/levels.py</div><div class="size">10</div><div class="desc">Level.IntEnum:L0_SILENT / L1_NOTIFY / L2_CONFIRM</div></div>
+        <div class="row"><div class="path">policy/__init__.py</div><div class="size">22</div><div class="desc">re-export</div></div>
+      </div>
+      <p><b>评价:</b>所有 policy 数据结构都是 frozen=True;fs 维度用 resolve+parents 防 .. 逃逸;app 维 denied 优先于 *</p>
+    </div>
+
+    <div class="card violet">
+      <h3>⑥ memory/ · 四类记忆(5 文件,§9.11)</h3>
+      <div class="file-list">
+        <div class="row"><div class="path">memory/__init__.py</div><div class="size">53</div><div class="desc">Memory 聚合 facade:profile + episodic + semantic + working;recall 三路并发</div></div>
+        <div class="row"><div class="path">memory/profile.py</div><div class="size">60</div><div class="desc">ProfileMemory:用户画像 KV;render(max_chars=800) 截断</div></div>
+        <div class="row"><div class="path">memory/episodic.py</div><div class="size">87</div><div class="desc">EpisodicMemory:决策留痕;recent/search/purge</div></div>
+        <div class="row"><div class="path">memory/semantic.py</div><div class="size">80</div><div class="desc">SemanticMemory:三元组 (subject, relation, obj);query 三种过滤</div></div>
+        <div class="row"><div class="path">memory/working.py</div><div class="size">23</div><div class="desc">WorkingMemory:进程内 deque maxlen=200,崩则丢</div></div>
+      </div>
+      <p><b>评价:</b>三层 sqlite + 一个 deque;Memory 聚合 facade 避免上层 import 三个</p>
+    </div>
+
+    <div class="card violet">
+      <h3>⑦ context/ · 上下文装配(5 文件,§9.12 + §9.20)</h3>
+      <div class="file-list">
+        <div class="row"><div class="path">context/builder.py</div><div class="size">68</div><div class="desc">ContextBuilder.system():6 层层序(规则→人格→风格→画像→任务书→subagent→页面)</div></div>
+        <div class="row"><div class="path">context/loader.py</div><div class="size">43</div><div class="desc">OnDemandLoader:skill/memory/page 三合一;loads 留痕</div></div>
+        <div class="row"><div class="path">context/compressor.py</div><div class="size">37</div><div class="desc">estimate_tokens + compress:第一刀截断旧 tool 结果,第二刀丢弃最旧非 system</div></div>
+        <div class="row"><div class="path">context/pages.py</div><div class="size">55</div><div class="desc">PageContextRegistry:页面感知摘要(§9.20);update/current/render</div></div>
+        <div class="row"><div class="path">context/__init__.py</div><div class="size">15</div><div class="desc">re-export</div></div>
+      </div>
+      <p><b>评价:</b>Builder 6 层层序清晰;按需加载体系完整(compressor 极端路径有 bug 风险,见问题清单)</p>
+    </div>
+
+    <div class="card violet">
+      <h3>⑧ skills/ · 技能(3 文件 + 1 内置,§9.13)</h3>
+      <div class="file-list">
+        <div class="row"><div class="path">skills/loader.py</div><div class="size">42</div><div class="desc">SkillLoader.index() + full_text();索引常驻 + 全文按需</div></div>
+        <div class="row"><div class="path">skills/organizer.py</div><div class="size">66</div><div class="desc">SkillOrganizer:自动整理重复流程(<b style="color:#b91c1c">⚠ main 未装配,无引用</b>)</div></div>
+        <div class="row"><div class="path">skills/builtin/explore-repo/SKILL.md</div><div class="size">6</div><div class="desc">唯一内置 skill</div></div>
+        <div class="row"><div class="path">skills/__init__.py</div><div class="size">7</div><div class="desc">re-export</div></div>
+      </div>
+      <p><b>评价:</b>lazy load 设计正确;organizer 提议整理流水线完整但未装配</p>
+    </div>
+
+    <div class="card violet">
+      <h3>⑨ hooks/ · 钩子(3 文件,§9.16)</h3>
+      <div class="file-list">
+        <div class="row"><div class="path">hooks/triggers.py</div><div class="size">48</div><div class="desc">HookRegistry + 6 个 HOOK_POINTS:on_event/pre_tool/post_tool/on_subagent_start/on_subagent_end/on_user_message;异常隔离</div></div>
+        <div class="row"><div class="path">hooks/loader.py</div><div class="size">40</div><div class="desc">HookLoader.load_dir:声明式 JSON 加载(<b style="color:#b91c1c">⚠ main 未调 load_dir</b>)</div></div>
+        <div class="row"><div class="path">hooks/__init__.py</div><div class="size">7</div><div class="desc">re-export</div></div>
+      </div>
+      <p><b>评价:</b>Hook 体系完整,但 pre_tool 钩子 fire 未消费返回值做拦截(空转)</p>
+    </div>
+
+    <div class="card violet">
+      <h3>⑩ tools/ · agent 自身工具(11 文件,§9.4.1)</h3>
+      <div class="file-list">
+        <div class="row"><div class="path">tools/base.py</div><div class="size">123</div><div class="desc">AgentTool + Toolbelt;trimmed() 真裁剪;policy 判定 + L1/L2 + meter</div></div>
+        <div class="row"><div class="path">tools/fs.py</div><div class="size">105</div><div class="desc">fs jail(双层:内层 _resolve + 外层 policy);read/write/list/delete</div></div>
+        <div class="row"><div class="path">tools/shell.py</div><div class="size">43</div><div class="desc">run_shell:asyncio.create_subprocess_shell + wait_for timeout;L2 默认</div></div>
+        <div class="row"><div class="path">tools/web.py</div><div class="size">57</div><div class="desc">web_fetch 真实可用;web_search 诚实占位</div></div>
+        <div class="row"><div class="path">tools/ask_user.py</div><div class="size">78</div><div class="desc">Question + AskUser.ask/answer;ask 超时返回 None</div></div>
+        <div class="row"><div class="path">tools/ask_user_tool.py</div><div class="size">41</div><div class="desc">ask_user LLM 侧入口</div></div>
+        <div class="row"><div class="path">tools/reach_out.py</div><div class="size">36</div><div class="desc">reach_out 主动发消息 fire-and-forget</div></div>
+        <div class="row"><div class="path">tools/request_context.py</div><div class="size">32</div><div class="desc">request_context:subagent → master 申请上下文</div></div>
+        <div class="row"><div class="path">tools/load_skill.py</div><div class="size">45</div><div class="desc">load_skill + recall_memory LLM 侧入口</div></div>
+        <div class="row"><div class="path">tools/spawn_subagent.py</div><div class="size">38</div><div class="desc">spawn_subagent 工具:chat 派任务型 subagent</div></div>
+        <div class="row"><div class="path">tools/__init__.py</div><div class="size">33</div><div class="desc">re-export</div></div>
+      </div>
+      <p><b>评价:</b>Toolbelt 是 agent 工具与 LLM 协议的唯一桥梁;trimmed 真正裁剪;fs jail 双层防护</p>
+    </div>
+
+    <div class="card slate">
+      <h3>⑪ clients/ · MCP 连接池(0 .py + 1 README,§9.4 演进中)</h3>
+      <div class="file-list">
+        <div class="row"><div class="path">clients/README.md</div><div class="size">5</div><div class="desc">骨架描述:pool.py + discovery.py</div></div>
+      </div>
+      <p><b>评价:</b><b style="color:#b91c1c">空目录</b>,main 未引用,领域服务发现未实现;由 <code>extra_tools</code> 桥注入领域能力(<code>test_wiring.py:60-71</code> 验证)</p>
+    </div>
+
+    <div class="card violet">
+      <h3>⑫ tests/ · 14 个测试文件(~1150 行)</h3>
+      <div class="file-list">
+        <div class="row"><div class="path">tests/test_wiring.py</div><div class="size">71</div><div class="desc">共享 SettingsStore / extra_tools 注入</div></div>
+        <div class="row"><div class="path">tests/test_master.py</div><div class="size">92</div><div class="desc">对话双轨 / 仲裁 / 直聊 / 派单通报 / Lucien 强制 ReAct</div></div>
+        <div class="row"><div class="path">tests/test_capabilities.py</div><div class="size">154</div><div class="desc">11 capability + 团队页 + 派遣工具面真裁剪</div></div>
+        <div class="row"><div class="path">tests/test_arbiter.py</div><div class="size">30</div><div class="desc">queue/auto/guide 三模式</div></div>
+        <div class="row"><div class="path">tests/test_proactive.py</div><div class="size">69</div><div class="desc">上线问候 / 安静时段 / 预算 / 追问链</div></div>
+        <div class="row"><div class="path">tests/test_observe.py</div><div class="size">46</div><div class="desc">source.ready 留痕 / auto_index 派单</div></div>
+        <div class="row"><div class="path">tests/test_memory.py</div><div class="size">67</div><div class="desc">四类记忆 + recall 聚合 + retention</div></div>
+        <div class="row"><div class="path">tests/test_context.py</div><div class="size">89</div><div class="desc">层序 / 压缩 / 页面 / 按需加载留痕</div></div>
+        <div class="row"><div class="path">tests/test_modes.py</div><div class="size">131</div><div class="desc">7 模式 + ReAct 轮数/工具双上限</div></div>
+        <div class="row"><div class="path">tests/test_subagent_registry.py</div><div class="size">38</div><div class="desc">校验 / 存取 / 列举</div></div>
+        <div class="row"><div class="path">tests/test_scheduler_state.py</div><div class="size">86</div><div class="desc">并发上限 / 定时器 / checkpoint</div></div>
+        <div class="row"><div class="path">tests/test_policy.py</div><div class="size">81</div><div class="desc">四维权限(网络/fs/app/shell)</div></div>
+        <div class="row"><div class="path">tests/test_skills.py</div><div class="size">66</div><div class="desc">索引 / 全文 / 自动整理</div></div>
+        <div class="row"><div class="path">tests/test_tools.py</div><div class="size">99</div><div class="desc">fs jail / 裁剪 / L1/L2 通道</div></div>
+        <div class="row"><div class="path">tests/test_askuser.py</div><div class="size">35</div><div class="desc">事件 / 回投 / 超时 / 未知 id miss</div></div>
+      </div>
+      <p><b>评价:</b>14 个测试文件覆盖 9 大主题,无空白领域;<code>test_capabilities.py</code> 154 行是 11 个 parity capability 的端到端断言</p>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">4.3 agent 启动流程</h3>
+    <div class="arch-wrap">
+      <svg viewBox="0 0 1100 460" xmlns="http://www.w3.org/2000/svg" style="font-family:monospace">
+        <defs>
+          <marker id="arr2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="#475569"/>
+          </marker>
+        </defs>
+        <rect x="50" y="20" width="180" height="40" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+        <text x="140" y="45" text-anchor="middle" font-size="13" fill="#1e3a8a" font-weight="600">python -m agent.main</text>
+
+        <line x1="140" y1="60" x2="140" y2="80" stroke="#475569" stroke-width="1.5" marker-end="url(#arr2)"/>
+        <rect x="50" y="80" width="180" height="40" rx="6" fill="#bfdbfe" stroke="#3b82f6"/>
+        <text x="140" y="105" text-anchor="middle" font-size="12" fill="#1e40af">build_agent()</text>
+
+        <line x1="140" y1="120" x2="140" y2="140" stroke="#475569" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+        <g font-size="11">
+          <rect x="20" y="140" width="180" height="20" rx="4" fill="#fef3c7"/>
+          <text x="110" y="155" text-anchor="middle" fill="#78350f">EventLog + EventBus + Cursor</text>
+
+          <rect x="210" y="140" width="160" height="20" rx="4" fill="#fef3c7"/>
+          <text x="290" y="155" text-anchor="middle" fill="#78350f">SettingsStore (16 agent.*)</text>
+
+          <rect x="380" y="140" width="140" height="20" rx="4" fill="#fef3c7"/>
+          <text x="450" y="155" text-anchor="middle" fill="#78350f">Memory (4 类)</text>
+
+          <rect x="530" y="140" width="160" height="20" rx="4" fill="#fef3c7"/>
+          <text x="610" y="155" text-anchor="middle" fill="#78350f">ensure_workdir</text>
+
+          <rect x="700" y="140" width="160" height="20" rx="4" fill="#fef3c7"/>
+          <text x="780" y="155" text-anchor="middle" fill="#78350f">SkillLoader + Pages</text>
+
+          <rect x="870" y="140" width="160" height="20" rx="4" fill="#fef3c7"/>
+          <text x="950" y="155" text-anchor="middle" fill="#78350f">PolicyEngine + Meter</text>
+        </g>
+
+        <line x1="140" y1="170" x2="140" y2="190" stroke="#475569" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+        <g font-size="11">
+          <rect x="20" y="190" width="180" height="20" rx="4" fill="#d1fae5"/>
+          <text x="110" y="205" text-anchor="middle" fill="#065f46">Toolbelt (13+ tools)</text>
+
+          <rect x="210" y="190" width="160" height="20" rx="4" fill="#d1fae5"/>
+          <text x="290" y="205" text-anchor="middle" fill="#065f46">Scheduler + Checkpoints</text>
+
+          <rect x="380" y="190" width="140" height="20" rx="4" fill="#d1fae5"/>
+          <text x="450" y="205" text-anchor="middle" fill="#065f46">Spawner</text>
+
+          <rect x="530" y="190" width="160" height="20" rx="4" fill="#d1fae5"/>
+          <text x="610" y="205" text-anchor="middle" fill="#065f46">ProactiveEngine</text>
+
+          <rect x="700" y="190" width="160" height="20" rx="4" fill="#d1fae5"/>
+          <text x="780" y="205" text-anchor="middle" fill="#065f46">SubagentRegistry</text>
+
+          <rect x="870" y="190" width="160" height="20" rx="4" fill="#d1fae5"/>
+          <text x="950" y="205" text-anchor="middle" fill="#065f46">Master (Lucien)</text>
+        </g>
+
+        <line x1="140" y1="220" x2="140" y2="240" stroke="#475569" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+        <rect x="20" y="240" width="180" height="20" rx="4" fill="#a78bfa"/>
+        <text x="110" y="255" text-anchor="middle" fill="#fff">Observer</text>
+
+        <rect x="210" y="240" width="160" height="20" rx="4" fill="#a78bfa"/>
+        <text x="290" y="255" text-anchor="middle" fill="#fff">11 capability registry</text>
+
+        <rect x="380" y="240" width="690" height="20" rx="4" fill="#a78bfa"/>
+        <text x="725" y="255" text-anchor="middle" fill="#fff">EventLoop(USER_MESSAGE → master, USER_ONLINE → proactive, source.ready/USER_ACTIVITY → observer)</text>
+
+        <line x1="140" y1="270" x2="140" y2="290" stroke="#475569" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+        <rect x="50" y="290" width="180" height="40" rx="6" fill="#1e3a8a"/>
+        <text x="140" y="315" text-anchor="middle" font-size="13" fill="#fff" font-weight="600">app.loop.run() 阻塞</text>
+
+        <rect x="260" y="290" width="780" height="40" rx="6" fill="#ecfeff" stroke="#0891b2"/>
+        <text x="650" y="305" text-anchor="middle" font-size="12" fill="#155e75" font-weight="600">事件循环:读 EventBus → 分发 → 异常隔离 → 推进 cursor</text>
+        <text x="650" y="322" text-anchor="middle" font-size="11" fill="#0e7490">fnmatch 通配(支持 *.xxx) · 离线事件先 read_missed 补齐</text>
+
+        <text x="550" y="380" text-anchor="middle" font-size="11" fill="#6c7a9c">main.py:251-258</text>
+        <text x="550" y="400" text-anchor="middle" font-size="10" fill="#6c7a9c">loop.py:39-56 · master.py:64-92 · tools/base.py:74-121</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ============== 5. SERVICES 10 服务 ============== -->
+  <section id="services">
+    <div class="section-title">
+      <span class="num">5</span>
+      <h2>10 个 Services 业务服务</h2>
+      <span class="sub">每个服务 = 独立进程 · 自带队列与调度 · REST + MCP 双协议</span>
+    </div>
+    <p class="section-subtitle">
+      services/ 是 Voyager 的"身体"——10 个领域服务各自管自己的数据,提供能力,通过事件流互通。
+      通用模板(七件套):<code>capabilities.py / wiring.py / rest.py / mcp_server.py / worker.py / store.py / settings.py / service.json / tests/</code>。
+    </p>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">5.1 服务清单与文件体量</h3>
+    <table>
+      <thead>
+        <tr><th>服务</th><th>状态</th><th>.py 数</th><th>capability</th><th>主要子目录</th><th>职责</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="chip brand">_template</span></td>
+          <td><span class="chip gray">template</span></td>
+          <td>6</td>
+          <td>3</td>
+          <td>—</td>
+          <td>新服务脚手架:echo/get_info/submit_job 演示长任务</td>
+        </tr>
+        <tr>
+          <td><span class="chip brand">gateway</span></td>
+          <td><span class="chip green">implemented</span></td>
+          <td>7</td>
+          <td>0(纯路由)</td>
+          <td>—</td>
+          <td>对人类唯一入口:鉴权/限流/审计/chat/SSE/健康聚合</td>
+        </tr>
+        <tr>
+          <td><span class="chip brand">notes</span></td>
+          <td><span class="chip green">implemented</span></td>
+          <td>6</td>
+          <td>6</td>
+          <td>—</td>
+          <td>Markdown 笔记:create/update/delete/list/get/link_note</td>
+        </tr>
+        <tr>
+          <td><span class="chip brand">llm</span></td>
+          <td><span class="chip green">implemented</span></td>
+          <td>8</td>
+          <td>11</td>
+          <td>catalog + client</td>
+          <td>BYOK 提供商:6 家目录 + api key + complete + 用量</td>
+        </tr>
+        <tr>
+          <td><span class="chip brand">graph</span></td>
+          <td><span class="chip green">implemented</span></td>
+          <td>16</td>
+          <td>19</td>
+          <td>engines/{c,python} + pipelines/{code,ai}</td>
+          <td>图谱:双管线 + C/Python 双引擎 + AI 引导 + 邻居/路径/合并</td>
+        </tr>
+        <tr>
+          <td><span class="chip green">sources</span></td>
+          <td><span class="chip green">implemented</span></td>
+          <td>7</td>
+          <td>20</td>
+          <td>modules/{repo,books,news}</td>
+          <td>聚合资源:repo (GitHub) + books + news;新增类型 = 新增子模块目录</td>
+        </tr>
+        <tr>
+          <td><span class="chip green">office</span></td>
+          <td><span class="chip green">implemented</span></td>
+          <td>6</td>
+          <td>10</td>
+          <td>modules/{doc,slides}</td>
+          <td>聚合办公:doc (Word 类) + slides (PPT 类);共享 DocumentStore</td>
+        </tr>
+        <tr>
+          <td><span class="chip brand">code_exec</span></td>
+          <td><span class="chip green">implemented</span></td>
+          <td>7</td>
+          <td>3</td>
+          <td>executor</td>
+          <td>代码沙箱:Docker 优先 + 宿主回退;list_runtimes/run_snippet/run_file</td>
+        </tr>
+        <tr>
+          <td><span class="chip brand">browser</span></td>
+          <td><span class="chip green">implemented</span></td>
+          <td>7</td>
+          <td>5</td>
+          <td>host(占位)</td>
+          <td>Playwright 自动化:navigate/click/type/read/screenshot;host 占位</td>
+        </tr>
+        <tr>
+          <td><span class="chip brand">settings</span></td>
+          <td><span class="chip green">implemented</span></td>
+          <td>5</td>
+          <td>6</td>
+          <td>—</td>
+          <td>设置聚合:list_themes/get_theme/set_theme + get_settings/get_setting/set_setting</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">5.2 gateway 详细(7 文件,零业务原则)</h3>
+    <div class="card cyan">
+      <p>gateway 是对人类唯一入口,严格"零业务逻辑"原则:不直连领域服务表,不存用户业务数据,只做协议转换/鉴权/限流/审计/chat 通道/SSE。</p>
+      <div class="file-list">
+        <div class="row"><div class="path">gateway/rest.py</div><div class="size">93</div><div class="desc">create_app(mounts, bus, ...) + ServiceError 全局 handler + actor_middleware + /health</div></div>
+        <div class="row"><div class="path">gateway/mounts.py</div><div class="size">46</div><div class="desc">MountSpec dataclass + mount_services() → build_router;probe 可选</div></div>
+        <div class="row"><div class="path">gateway/activity.py</div><div class="size">63</div><div class="desc">行为白名单(page_view/pointer/selection/manual) + 上线 + feed 重建</div></div>
+        <div class="row"><div class="path">gateway/chat.py</div><div class="size">121</div><div class="desc">消息通道:POST /api/chat/messages + GET 历史 + SSE(/api/chat/stream,after_seq 续传 + 一次追平 + 心跳)</div></div>
+        <div class="row"><div class="path">gateway/health.py</div><div class="size">63</div><div class="desc">HealthProbe:register / probe_all / snapshot / overall;状态迁移发 service.health.changed</div></div>
+        <div class="row"><div class="path">gateway/ratelimit.py</div><div class="size">51</div><div class="desc">RateLimiter 滑动窗口(60s)+ SSE 连接上限(8)</div></div>
+        <div class="row"><div class="path">gateway/settings.py</div><div class="size">19</div><div class="desc">3 DEFS(速率/SSE 连接/历史页大小)</div></div>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">5.3 notes 详细(6 文件)</h3>
+    <div class="card green">
+      <div class="file-list">
+        <div class="row"><div class="path">capabilities.py</div><div class="size">105</div><div class="desc">6 能力:create/update/delete/list/get/link_note;长任务:无;受 secret 保护:无</div></div>
+        <div class="row"><div class="path">store.py</div><div class="size">112</div><div class="desc">NoteStore 单表:notes(id/title/content/tags/source_id/node_id);list 用 substr(content,1,120) 截 excerpt</div></div>
+        <div class="row"><div class="path">rest.py</div><div class="size">43</div><div class="desc">薄壳</div></div>
+        <div class="row"><div class="path">mcp_server.py</div><div class="size">22</div><div class="desc">stdio 入口</div></div>
+        <div class="row"><div class="path">settings.py</div><div class="size">12</div><div class="desc">3 DEFS(sort/page_size/autosave)</div></div>
+        <div class="row"><div class="path">wiring.py</div><div class="size">34</div><div class="desc">probe=lambda: {"status": "up"};settings_store 可选注入</div></div>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">5.4 llm 详细(8 文件 · 11 capability · 范本级)</h3>
+    <div class="card cyan">
+      <p><b>最复杂的能力注册表</b>:<code>set_api_key</code> 服务侧二次强制仅 user 可写(双重门)。</p>
+      <div class="file-list">
+        <div class="row"><div class="path">capabilities.py</div><div class="size">221</div><div class="desc">11 能力;_actor 注入强制 user-only 写 secret</div></div>
+        <div class="row"><div class="path">catalog.py</div><div class="size">68</div><div class="desc">6 个 BUILTIN_PROVIDERS:openai/anthropic/deepseek/moonshot/openrouter/ollama</div></div>
+        <div class="row"><div class="path">client.py</div><div class="size">203</div><div class="desc">httpx.AsyncClient 直连;complete + test_connection;tools 双格式转换;无 litellm 依赖</div></div>
+        <div class="row"><div class="path">store.py</div><div class="size">137</div><div class="desc">ProviderStore:providers/usage 两表;list 时永不出 key(只 has_api_key)</div></div>
+        <div class="row"><div class="path">wiring.py</div><div class="size">39</div><div class="desc">owns_secrets 标识本地创建</div></div>
+        <div class="row"><div class="path">rest.py</div><div class="size">42</div><div class="desc">薄壳</div></div>
+        <div class="row"><div class="path">mcp_server.py</div><div class="size">22</div><div class="desc">stdio 入口</div></div>
+        <div class="row"><div class="path">settings.py</div><div class="size">14</div><div class="desc">4 DEFS(default_provider/model/temperature/max_output_tokens)</div></div>
+      </div>
+      <p><b>关键设计:</b>secret 边界双重保险(平台层 SettingsStore + 服务侧 _actor);计量直写(失败也记);tools 双格式(OpenAI/Anthropic)统一中性格式转换。</p>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">5.5 graph 详细(16 文件 · 最复杂领域)</h3>
+    <div class="card green">
+      <p>graph 是整个系统最复杂的领域:规范存储 + 双管线 + 双引擎 + AI 引导 + 任务调度 + 队列。</p>
+      <div class="file-list">
+        <div class="row"><div class="path">capabilities.py</div><div class="size">224</div><div class="desc">19 能力:enqueue/cancel/reorder/list + set_node/set_relationship(set_nodes/set_relationships 批量) + graph_guide + query/get_subgraph/expand_neighbors/find_path/graph_stats/list_projects/engine_info/export_subgraph/merge_nodes/drop_project_graph</div></div>
+        <div class="row"><div class="path">store.py</div><div class="size">362</div><div class="desc">GraphStore 单一类 8 方法(CRUD/query/subgraph/neighbors/find_path/merge_nodes/export);UNIQUE(project,label,qualified_name) 与 (project,src,dst,type) 实现 upsert</div></div>
+        <div class="row"><div class="path">index_queue.py</div><div class="size">127</div><div class="desc">IndexQueue:sqlite jobs 表;enqueue/cancel/reorder/next/finish/list;next() 单调度器语义</div></div>
+        <div class="row"><div class="path">scheduler.py</div><div class="size">94</div><div class="desc">IndexScheduler:并发信号量 + max_attempts + 指数 backoff;_run_guarded 失败 finish(retry=...)</div></div>
+        <div class="row"><div class="path">wiring.py</div><div class="size">61</div><div class="desc">store+queue+adapter+scheduler;start=sched.start</div></div>
+        <div class="row"><div class="path">rest.py</div><div class="size">56</div><div class="desc">薄壳 + 启动 scheduler</div></div>
+        <div class="row"><div class="path">mcp_server.py</div><div class="size">22</div><div class="desc">stdio 入口</div></div>
+        <div class="row"><div class="path">settings.py</div><div class="size">18</div><div class="desc">5 DEFS(engine.mode/c_url/index.concurrency/index.max_attempts/query.default_limit)</div></div>
+        <div class="row"><div class="path">engines/adapter.py</div><div class="size">76</div><div class="desc">EngineAdapter:auto/c/python 三模式;resolve() 幂等;graph.engine.fallback 事件</div></div>
+        <div class="row"><div class="path">engines/c/client.py</div><div class="size">87</div><div class="desc">CEngineClient:HTTP + JSON-RPC;index_repository 同步 POST + 轮询</div></div>
+        <div class="row"><div class="path">engines/python/engine.py</div><div class="size">725</div><div class="desc">GraphEngine 进程内单例;<b style="color:#b91c1c">⚠ 7 职责混入单类(超 500 行软上限);⚠ 唯一品牌名硬违规(第 1 行 docstring)</b></div></div>
+        <div class="row"><div class="path">engines/python/server.py</div><div class="size">139</div><div class="desc">可选 HTTP sidecar:127.0.0.1 only + Host 头校验 + repo_path 越界拒绝</div></div>
+        <div class="row"><div class="path">engines/python/indexer.py</div><div class="size">600+</div><div class="desc">多语言索引:ast/正则解析 Python/JS/TS/Go/Rust/Java/.env;.engineignore 解析;SAFETY_CORE_DIRS 不可否定</div></div>
+        <div class="row"><div class="path">pipelines/code/analyze.py</div><div class="size">78</div><div class="desc">analyze_repo(adapter, store, project, repo_path):解析 → 导出 → 跨仓关联</div></div>
+        <div class="row"><div class="path">pipelines/code/relate.py</div><div class="size">52</div><div class="desc">relate_repos(store, projects):共享外部依赖 → CROSS_REPO 边(upsert 幂等)</div></div>
+        <div class="row"><div class="path">pipelines/ai/guide.py</div><div class="size">78</div><div class="desc">validate_* + guide_text()(注入 agent 上下文的建图约定)</div></div>
+      </div>
+      <p><b>关键设计:</b>规范存储 + 双引擎适配层;code 与 ai 管线共享 store(用 source 字段区分);C/Python 双引擎,Python 回退(force_layout_3d O(n²) 不实际跑迭代,留前端)。</p>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">5.6 sources 详细(聚合 · 7 文件 + 3 子模块)</h3>
+    <div class="card green">
+      <div class="file-list">
+        <div class="row"><div class="path">capabilities.py</div><div class="size">49</div><div class="desc">聚合注册表:registry.merge(repo, books, news);SourcesDeps 注入;零业务判断</div></div>
+        <div class="row"><div class="path">rest.py</div><div class="size">52</div><div class="desc">薄壳</div></div>
+        <div class="row"><div class="path">settings.py</div><div class="size">13</div><div class="desc">3 DEFS(sort.default/import.clone/news.page_limit)</div></div>
+        <div class="row"><div class="path">wiring.py</div><div class="size">63</div><div class="desc">创建 3 个 store + SecretStore + RepoWorker</div></div>
+        <div class="row"><div class="path">modules/repo/capabilities.py</div><div class="size">158</div><div class="desc">11 能力;_actor 强制 set_github_token 仅 user;含 import_repo 长任务</div></div>
+        <div class="row"><div class="path">modules/repo/store.py</div><div class="size">149</div><div class="desc">RepoStore 单表;列表默认不含 readme</div></div>
+        <div class="row"><div class="path">modules/repo/worker.py</div><div class="size">99</div><div class="desc">RepoWorker:git clone --depth 1 → workspace/repo/&lt;owner&gt;__&lt;name&gt;;支持 clone_fn 注入</div></div>
+        <div class="row"><div class="path">modules/repo/github.py</div><div class="size">107</div><div class="desc">parse_repo_url/fetch_repo_info/fetch_readme/search_repos/list_starred</div></div>
+        <div class="row"><div class="path">modules/books/capabilities.py</div><div class="size">95</div><div class="desc">4 能力:add_book/list_books/get_chapter/remove_book</div></div>
+        <div class="row"><div class="path">modules/books/store.py</div><div class="size">73</div><div class="desc">BookStore 单表</div></div>
+        <div class="row"><div class="path">modules/news/capabilities.py</div><div class="size">87</div><div class="desc">5 能力:fetch_news/add_news/list_news/get_news/remove_news</div></div>
+        <div class="row"><div class="path">modules/news/store.py</div><div class="size">86</div><div class="desc">NewsStore + html_to_text(去标签 + 20k 截断)</div></div>
+      </div>
+      <p><b>关键设计:</b>聚合层仅 registry.merge 一行;子模块互不 import;set_github_token 与 llm.set_api_key 同样的 _actor.kind is USER 模式;新增资源类型 = modules/ 下新增自包含目录 + 聚合层一行注册。</p>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">5.7 office 详细(聚合 · 6 文件 + 2 子模块)</h3>
+    <div class="card green">
+      <div class="file-list">
+        <div class="row"><div class="path">capabilities.py</div><div class="size">30</div><div class="desc">registry.merge(doc, slides);OfficeDeps 注入</div></div>
+        <div class="row"><div class="path">store.py</div><div class="size">99</div><div class="desc">DocumentStore 单表 documents(kind: doc/slides, blocks: JSON)</div></div>
+        <div class="row"><div class="path">rest.py</div><div class="size">48</div><div class="desc">薄壳</div></div>
+        <div class="row"><div class="path">mcp_server.py</div><div class="size">22</div><div class="desc">stdio 入口</div></div>
+        <div class="row"><div class="path">wiring.py</div><div class="size">29</div><div class="desc">单一 store + init_all</div></div>
+        <div class="row"><div class="path">settings.py</div><div class="size">12</div><div class="desc">1 DEFS(export.dir)</div></div>
+        <div class="row"><div class="path">modules/doc/capabilities.py</div><div class="size">95</div><div class="desc">5 能力:create_doc/get_doc/update_doc/insert_block/delete_doc</div></div>
+        <div class="row"><div class="path">modules/slides/capabilities.py</div><div class="size">95</div><div class="desc">5 能力:create_deck/get_deck/update_deck/add_slide/delete_deck</div></div>
+      </div>
+      <p><b>关键设计:</b>doc 与 slides 共享 DocumentStore(用 kind 区分);模块卡列出 6 能力,实际只 5(<b style="color:#f59e0b">restyle/export_doc/get_selection_context 缺</b>)。</p>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">5.8 code_exec 详细(7 文件 · 沙箱)</h3>
+    <div class="card green">
+      <div class="file-list">
+        <div class="row"><div class="path">capabilities.py</div><div class="size">168</div><div class="desc">3 能力:list_runtimes/run_snippet/run_file;asyncio.create_task 立即返回 JobRef(<b style="color:#f59e0b">⚠ 未标 long_running=True</b>)</div></div>
+        <div class="row"><div class="path">executor.py</div><div class="size">154</div><div class="desc">run_in_runtime → _run_docker 或 _run_host;warning 写入 stderr;资源限额 60s timeout / 512m</div></div>
+        <div class="row"><div class="path">store.py</div><div class="size">80</div><div class="desc">ExecutionStore 单表</div></div>
+        <div class="row"><div class="path">wiring.py</div><div class="size">45</div><div class="desc">注入 SettingsStore</div></div>
+        <div class="row"><div class="path">rest.py</div><div class="size">48</div><div class="desc">薄壳</div></div>
+        <div class="row"><div class="path">mcp_server.py</div><div class="size">24</div><div class="desc">stdio 入口</div></div>
+        <div class="row"><div class="path">settings.py</div><div class="size">73</div><div class="desc">5 DEFS(runtimes JSON / timeout / memory_mb / network / use_host)</div></div>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">5.9 browser 详细(7 文件 · 占位)</h3>
+    <div class="card amber">
+      <div class="file-list">
+        <div class="row"><div class="path">capabilities.py</div><div class="size">118</div><div class="desc">5 能力:navigate/click/type/read/screenshot;严格域名白名单</div></div>
+        <div class="row"><div class="path">host.py</div><div class="size">80</div><div class="desc"><b style="color:#b91c1c">纯占位</b>:navigate/click/type_text/read_page/screenshot 全是 title="placeholder";真实实现须在 desktop/browser-host 经 IPC 替换</div></div>
+        <div class="row"><div class="path">store.py</div><div class="size">56</div><div class="desc">BrowserStore 极简:仅 sessions 元数据</div></div>
+        <div class="row"><div class="path">wiring.py</div><div class="size">33</div><div class="desc">装配 + SettingsStore</div></div>
+        <div class="row"><div class="path">rest.py</div><div class="size">48</div><div class="desc">薄壳</div></div>
+        <div class="row"><div class="path">mcp_server.py</div><div class="size">24</div><div class="desc">stdio 入口</div></div>
+        <div class="row"><div class="path">settings.py</div><div class="size">19</div><div class="desc">2 DEFS(headless/allowed_domains)</div></div>
+      </div>
+      <p><b>评价:</b>骨架状态完全合规模块卡描述("宿主在 desktop"),但意味着此服务的 capability 全部<b>不可在单体模式下提供真值</b>。</p>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">5.10 settings 详细(5 文件 · 设置聚合)</h3>
+    <div class="card green">
+      <div class="file-list">
+        <div class="row"><div class="path">capabilities.py</div><div class="size">105</div><div class="desc">6 能力:list_themes/get_theme/set_theme + get_settings/get_setting/set_setting;secret 写保护完全在 platform 层</div></div>
+        <div class="row"><div class="path">rest.py</div><div class="size">42</div><div class="desc">薄壳</div></div>
+        <div class="row"><div class="path">mcp_server.py</div><div class="size">22</div><div class="desc">stdio 入口</div></div>
+        <div class="row"><div class="path">settings.py</div><div class="size">26</div><div class="desc">4 DEFS(appearance.theme/font_scale/code_font;privacy.activity_report)</div></div>
+        <div class="row"><div class="path">wiring.py</div><div class="size">32</div><div class="desc">SettingsStore 可选注入;register_fresh 幂等</div></div>
+      </div>
+      <p><b>关键设计:</b>设置页动态渲染的数据源,行为级聚合完整;THEMES = ("dark", "light", "system")。</p>
+    </div>
+  </section>
+
+  <!-- ============== 6. PLATFORM 7 包 ============== -->
+  <section id="platform">
+    <div class="section-title">
+      <span class="num">6</span>
+      <h2>7 个 Platform 包</h2>
+      <span class="sub">横切设施 · 唯一被允许的"被依赖" · 22 个 .py + 10 个 test</span>
+    </div>
+    <p class="section-subtitle">
+      platform/ 是 Voyager 的"神经系统"——7 个包只含机制、不含业务、不出现领域词汇与品牌名。
+      依赖方向严格向下(contracts 是叶子),无环,无反向 import。
+    </p>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">6.1 依赖图(实测)</h3>
+    <div class="arch-wrap">
+      <svg viewBox="0 0 1100 320" xmlns="http://www.w3.org/2000/svg" style="font-family:monospace">
+        <defs>
+          <marker id="arr3" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="#64748b"/>
+          </marker>
+        </defs>
+        <rect x="450" y="20" width="200" height="50" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+        <text x="550" y="42" text-anchor="middle" font-size="13" fill="#78350f" font-weight="600">platform-contracts</text>
+        <text x="550" y="60" text-anchor="middle" font-size="11" fill="#78350f">零依赖 · 纯类型</text>
+
+        <rect x="100" y="130" width="170" height="50" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1"/>
+        <text x="185" y="152" text-anchor="middle" font-size="12" fill="#78350f" font-weight="600">platform-actor</text>
+        <text x="185" y="170" text-anchor="middle" font-size="10" fill="#78350f">HMAC token + scope</text>
+
+        <rect x="300" y="130" width="170" height="50" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1"/>
+        <text x="385" y="152" text-anchor="middle" font-size="12" fill="#78350f" font-weight="600">platform-eventbus</text>
+        <text x="385" y="170" text-anchor="middle" font-size="10" fill="#78350f">持久事件流</text>
+
+        <rect x="500" y="130" width="200" height="50" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1"/>
+        <text x="600" y="152" text-anchor="middle" font-size="12" fill="#78350f" font-weight="600">platform-secrets</text>
+        <text x="600" y="170" text-anchor="middle" font-size="10" fill="#78350f">Fernet 加密(不依赖 contracts)</text>
+
+        <rect x="730" y="130" width="170" height="50" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1"/>
+        <text x="815" y="152" text-anchor="middle" font-size="12" fill="#78350f" font-weight="600">platform-capability</text>
+        <text x="815" y="170" text-anchor="middle" font-size="10" fill="#78350f">能力框架 + 双协议</text>
+
+        <rect x="930" y="130" width="120" height="50" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1"/>
+        <text x="990" y="152" text-anchor="middle" font-size="12" fill="#78350f" font-weight="600">platform-settings</text>
+        <text x="990" y="170" text-anchor="middle" font-size="10" fill="#78350f">设置项框架</text>
+
+        <rect x="730" y="220" width="170" height="50" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1"/>
+        <text x="815" y="242" text-anchor="middle" font-size="12" fill="#78350f" font-weight="600">platform-health</text>
+        <text x="815" y="260" text-anchor="middle" font-size="10" fill="#78350f">健康探测 + 状态事件</text>
+
+        <line x1="550" y1="70" x2="200" y2="130" stroke="#64748b" stroke-width="1" marker-end="url(#arr3)"/>
+        <line x1="550" y1="70" x2="385" y2="130" stroke="#64748b" stroke-width="1" marker-end="url(#arr3)"/>
+        <line x1="550" y1="70" x2="815" y2="130" stroke="#64748b" stroke-width="1" marker-end="url(#arr3)"/>
+        <line x1="550" y1="70" x2="990" y2="130" stroke="#64748b" stroke-width="1" marker-end="url(#arr3)"/>
+        <line x1="600" y1="70" x2="600" y2="130" stroke="#64748b" stroke-width="1" marker-end="url(#arr3)"/>
+
+        <line x1="815" y1="180" x2="815" y2="220" stroke="#64748b" stroke-width="1" marker-end="url(#arr3)"/>
+        <line x1="990" y1="180" x2="990" y2="220" stroke="#64748b" stroke-width="1" marker-end="url(#arr3)"/>
+      </svg>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">6.2 contracts(纯类型,7 文件)</h3>
+    <div class="card amber">
+      <div class="file-list">
+        <div class="row"><div class="path">__init__.py</div><div class="size">42</div><div class="desc">集中 re-export,无任何逻辑</div></div>
+        <div class="row"><div class="path">events.py</div><div class="size">120</div><div class="desc">Event(frozen, 6 字段) + ActorRef(frozen, 3 字段) + ActorKind(4 枚举) + LOCAL_USER 常量 + DomainEvent 11 字符串 + RuntimeEvent 11 PascalCase 字符串 + new_trace_id()</div></div>
+        <div class="row"><div class="path">dto.py</div><div class="size">52</div><div class="desc">JobRef + JobStatus(5 态) + HealthReport + HealthStatus(4 态)</div></div>
+        <div class="row"><div class="path">errors.py</div><div class="size">102</div><div class="desc">ErrorSuffix(9 值) + HTTP_STATUS 映射 + make_code + ErrorBody + ErrorEnvelope + ServiceError(异常类)</div></div>
+        <div class="row"><div class="path">version.py</div><div class="size">6</div><div class="desc">PROTOCOL_VERSION=0.1.0 + ENVELOPE_VERSION=1</div></div>
+        <div class="row"><div class="path">tests/test_contracts.py</div><div class="size">74</div><div class="desc">7 测试:roundtrip + envelope 字段 + HTTP 映射</div></div>
+      </div>
+      <p><b>纯类型验证:</b>全包仅导入 <code>time</code> <code>uuid</code> <code>dataclasses</code> <code>enum</code> <code>typing</code> <code>json</code>——全部标准库,零依赖。<b>铁律 §7.1 严格遵守</b>。</p>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">6.3 capability(能力框架,7 文件,33+ 测试)</h3>
+    <div class="card cyan">
+      <div class="file-list">
+        <div class="row"><div class="path">__init__.py</div><div class="size">39</div><div class="desc">re-export 18 个符号</div></div>
+        <div class="row"><div class="path">define.py</div><div class="size">134</div><div class="desc">@capability 装饰器(name 强校验 ^[a-z][a-z0-9_]*$) + Capability(frozen 7 字段) + coerce_input(浅层校验)</div></div>
+        <div class="row"><div class="path">registry.py</div><div class="size">56</div><div class="desc">Registry:register(冲突→CONFLICT) / get / merge(*others);冲突立即报错,符合 §6.4 聚合"零逻辑"</div></div>
+        <div class="row"><div class="path">gen_rest.py</div><div class="size">97</div><div class="desc">build_router:GET 列能力 + POST 调用;JobRef→202;ServiceError→错误体+HTTP 映射</div></div>
+        <div class="row"><div class="path">gen_mcp.py</div><div class="size">127</div><div class="desc">build_server:→ MCP tools;build_tool_specs(REST 与 MCP 共享 JSON schema)</div></div>
+        <div class="row"><div class="path">guards.py</div><div class="size">183</div><div class="desc">LocalAuth + CostQuota + AuditEntry + AuditSink Protocol + InMemoryAuditSink(<b style="color:#b91c1c">⚠ 占位</b>) + summarize_args(脱敏) + execute(查表→鉴权→配额→入参校验→_actor 注入→handler→长任务 JobRef 校验→审计)</div></div>
+        <div class="row"><div class="path">wiring.py</div><div class="size">31</div><div class="desc">Wiring(registry, probe, start, stop, close) 五元组;独立/聚合运行共用</div></div>
+        <div class="row"><div class="path">tests/</div><div class="size">~410</div><div class="desc">4 个测试文件(test_define / test_registry / test_gen_rest / test_gen_mcp / test_guards)</div></div>
+      </div>
+      <p><b>关键设计:</b>"一份 Action 模型"严格落地 —— REST 与 MCP 共享同一 <code>dataclass_to_json_schema</code>;入口强制三件事(鉴权/配额/审计)在框架层做,handler 不可见;无论成败都落审计。</p>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">6.4 eventbus(持久事件流,4 文件)</h3>
+    <div class="card cyan">
+      <div class="file-list">
+        <div class="row"><div class="path">log.py</div><div class="size">94</div><div class="desc">EventLog:SQLite WAL + threading.Lock;schema events(seq PK + 6 字段) + 索引 (type)/(ts);append 返回 seq</div></div>
+        <div class="row"><div class="path">bus.py</div><div class="size">92</div><div class="desc">EventBus:publish 先 log.append(seq) 再直推;put_nowait 失败置 lagged=True(显式补偿);read_missed 补齐</div></div>
+        <div class="row"><div class="path">cursor.py</div><div class="size">34</div><div class="desc">CursorStore:cursors(name PK, last_seq);默认与 EventLog 共用连接</div></div>
+        <div class="row"><div class="path">tests/test_eventbus.py</div><div class="size">99</div><div class="desc">11 测试:跨实例/掉队/游标不回退</div></div>
+      </div>
+      <p><b>关键设计:</b>内存 queue 是"通知",SQLite 是"事实";掉队显式补偿(不丢事件,只标 lagged);WAL 模式单连接串行化所有写。</p>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">6.5 actor(鉴权,3 文件)</h3>
+    <div class="card cyan">
+      <div class="file-list">
+        <div class="row"><div class="path">token.py</div><div class="size">75</div><div class="desc">LocalTokenIssuer:HMAC-SHA256 签发 + verify(防计时);密钥落盘 os.O_EXCL 0o600;TTL 30 天</div></div>
+        <div class="row"><div class="path">context.py</div><div class="size">31</div><div class="desc">ActorContext(frozen) + WILDCARD="*" + restrict() 收窄实现(<b style="color:#059669">"持 * → 收窄为 requested,不持 * → 取交集"</b>)</div></div>
+        <div class="row"><div class="path">tests/test_actor.py</div><div class="size">64</div><div class="desc">9 测试:签发/持久/防篡改/过期/garbage/restrict/wildcard/has_scope</div></div>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">6.6 settings(设置项框架,3 文件)</h3>
+    <div class="card cyan">
+      <div class="file-list">
+        <div class="row"><div class="path">define.py</div><div class="size">87</div><div class="desc">SettingDef(frozen 9 字段含 secret) + SettingType 6 枚举 + validate(类型+范围+choice)</div></div>
+        <div class="row"><div class="path">store.py</div><div class="size">134</div><div class="desc">SettingsStore:secret 写保护(actor.kind is USER 才放行);list_schema 不回 value(只 has_value);set 落库 + 发 settings.changed 事件(secret 不带 value 字段)</div></div>
+        <div class="row"><div class="path">tests/test_settings.py</div><div class="size">112</div><div class="desc">13 测试:默认值/持久化/未知键/类型/范围/secret 写禁止/事件 payload 脱敏</div></div>
+      </div>
+      <p><b>关键设计:</b>secret 写保护在 <code>SettingsStore.set</code> 内部独立执行,即使上层忘加 LocalAuth 也守得住;<b>铁律 7 隐私例外的双重门</b>。</p>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">6.7 secrets(密钥保管,3 文件)</h3>
+    <div class="card amber">
+      <div class="file-list">
+        <div class="row"><div class="path">key_material.py</div><div class="size">48</div><div class="desc">load_key_material:优先级 SECRETS_ENCRYPTION_KEY → SECRET_KEY → .env → 空串;<b style="color:#b91c1c">⚠ 无长度/熵校验</b></div></div>
+        <div class="row"><div class="path">store.py</div><div class="size">100</div><div class="desc">SecretStore:Fernet(SHA-256 派生 32 字节) + InvalidToken 兜底返 None(轮换友好);keys() 只回键名不返回值</div></div>
+        <div class="row"><div class="path">tests/test_secrets.py</div><div class="size">58</div><div class="desc">7 测试:加密往返/缺失/轮换/无材料降级/keys 不返回值</div></div>
+      </div>
+      <p><b>关键设计:</b>轮换 → 旧密文解不开 → 视作"未配置",用户重填,正确安全策略;双重脱敏(Secrets keys 不返回值 + capability guards 字段名匹配)。</p>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">6.8 health(健康探测,3 文件)</h3>
+    <div class="card green">
+      <div class="file-list">
+        <div class="row"><div class="path">monitor.py</div><div class="size">92</div><div class="desc">HealthMonitor:poll_once 遍历探针,异常→DOWN(故障隔离);状态变化发 service.health.changed</div></div>
+        <div class="row"><div class="path">errors.py</div><div class="size">40</div><div class="desc">unavailable/queue_full 助手:便捷构造 ServiceError + 可读 hint</div></div>
+        <div class="row"><div class="path">tests/test_health.py</div><div class="size">85</div><div class="desc">7 测试:首次观测/状态迁移/稳态不发/探针异常/未知服务/错误助手</div></div>
+      </div>
+      <p><b>问题:</b>HealthMonitor 与 services/gateway/health.py 的 HealthProbe 并存,语义重叠。</p>
+    </div>
+  </section>
+
+  <!-- ============== 7. DATA FLOW ============== -->
+  <section id="dataflow">
+    <div class="section-title">
+      <span class="num">7</span>
+      <h2>端到端数据流</h2>
+      <span class="sub">"用户输入'帮我把导入仓库功能关闭'"完整链路</span>
+    </div>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">7.1 事件入 → 派单 → 工具 → 结果回流</h3>
+    <div class="arch-wrap">
+      <svg viewBox="0 0 1200 580" xmlns="http://www.w3.org/2000/svg" style="font-family:monospace">
+        <defs>
+          <marker id="arr4" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="#64748b"/>
+          </marker>
+          <marker id="arrBlue2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="#1e40af"/>
+          </marker>
+        </defs>
+
+        <rect x="40" y="20" width="120" height="40" rx="6" fill="#dbeafe" stroke="#3b82f6"/>
+        <text x="100" y="42" text-anchor="middle" font-size="12" fill="#1e3a8a" font-weight="600">apps/web</text>
+        <text x="100" y="56" text-anchor="middle" font-size="10" fill="#475569">用户输入</text>
+
+        <rect x="200" y="20" width="120" height="40" rx="6" fill="#1e40af"/>
+        <text x="260" y="42" text-anchor="middle" font-size="12" fill="#fff" font-weight="600">gateway</text>
+        <text x="260" y="56" text-anchor="middle" font-size="10" fill="#bfdbfe">chat.py + ratelimit</text>
+
+        <rect x="360" y="20" width="120" height="40" rx="6" fill="#a78bfa"/>
+        <text x="420" y="42" text-anchor="middle" font-size="12" fill="#fff" font-weight="600">EventBus</text>
+        <text x="420" y="56" text-anchor="middle" font-size="10" fill="#e9d5ff">user.message + trace_id</text>
+
+        <rect x="520" y="20" width="120" height="40" rx="6" fill="#a78bfa"/>
+        <text x="580" y="42" text-anchor="middle" font-size="12" fill="#fff" font-weight="600">EventLoop</text>
+        <text x="580" y="56" text-anchor="middle" font-size="10" fill="#e9d5ff">master.handle_user_message</text>
+
+        <rect x="680" y="20" width="120" height="40" rx="6" fill="#a78bfa"/>
+        <text x="740" y="42" text-anchor="middle" font-size="12" fill="#fff" font-weight="600">Master</text>
+        <text x="740" y="56" text-anchor="middle" font-size="10" fill="#e9d5ff">_turn → spawner.spawn</text>
+
+        <rect x="840" y="20" width="120" height="40" rx="6" fill="#a78bfa"/>
+        <text x="900" y="42" text-anchor="middle" font-size="12" fill="#fff" font-weight="600">Spawner</text>
+        <text x="900" y="56" text-anchor="middle" font-size="10" fill="#e9d5ff">toolbelt.trimmed</text>
+
+        <rect x="1000" y="20" width="120" height="40" rx="6" fill="#a78bfa"/>
+        <text x="1060" y="42" text-anchor="middle" font-size="12" fill="#fff" font-weight="600">ContextBuilder</text>
+        <text x="1060" y="56" text-anchor="middle" font-size="10" fill="#e9d5ff">6 层 system</text>
+
+        <line x1="160" y1="40" x2="200" y2="40" stroke="#1e40af" stroke-width="2" marker-end="url(#arrBlue2)"/>
+        <line x1="320" y1="40" x2="360" y2="40" stroke="#1e40af" stroke-width="2" marker-end="url(#arrBlue2)"/>
+        <line x1="480" y1="40" x2="520" y2="40" stroke="#1e40af" stroke-width="2" marker-end="url(#arrBlue2)"/>
+        <line x1="640" y1="40" x2="680" y2="40" stroke="#1e40af" stroke-width="2" marker-end="url(#arrBlue2)"/>
+        <line x1="800" y1="40" x2="840" y2="40" stroke="#1e40af" stroke-width="2" marker-end="url(#arrBlue2)"/>
+        <line x1="960" y1="40" x2="1000" y2="40" stroke="#1e40af" stroke-width="2" marker-end="url(#arrBlue2)"/>
+
+        <text x="60" y="120" font-size="12" fill="#475569" font-weight="600">[1] 浏览器 → POST /api/chat/messages</text>
+        <text x="60" y="140" font-size="11" fill="#6c7a9c" font-family="monospace">fetch('/api/chat/messages', { method: 'POST', body: JSON.stringify({content}) })</text>
+        <text x="60" y="155" font-size="11" fill="#6c7a9c" font-family="monospace">  ↳ bridge/client.ts:23-46  → gateway/chat.py:48-60</text>
+
+        <text x="60" y="185" font-size="12" fill="#475569" font-weight="600">[2] gateway 限流 + 投事件</text>
+        <text x="60" y="205" font-size="11" fill="#6c7a9c" font-family="monospace">RateLimiter.check(actor)  →  EventBus.publish(Event(type='user.message', actor=LOCAL_USER, trace_id=...))</text>
+
+        <text x="60" y="235" font-size="12" fill="#475569" font-weight="600">[3] agent 事件循环分发</text>
+        <text x="60" y="255" font-size="11" fill="#6c7a9c" font-family="monospace">EventLoop._dispatch(event)  →  pattern 'user.message' 命中 → master.handle_user_message(text, trace_id)</text>
+
+        <text x="60" y="285" font-size="12" fill="#475569" font-weight="600">[4] master 决策</text>
+        <text x="60" y="305" font-size="11" fill="#6c7a9c" font-family="monospace">proactive.notify_user_reply() + memory.working.add("user", text)</text>
+        <text x="60" y="320" font-size="11" fill="#6c7a9c" font-family="monospace">if chat is None: spawner.spawn(TaskBook(CHAT_GOAL, REACT, conversational=True), persona='lucien')</text>
+
+        <text x="60" y="350" font-size="12" fill="#475569" font-weight="600">[5] 上下文装配</text>
+        <text x="60" y="370" font-size="11" fill="#6c7a9c" font-family="monospace">ContextBuilder.system(persona=Lucien, task=CHAT_GOAL, style='热心')</text>
+        <text x="60" y="385" font-size="11" fill="#6c7a9c" font-family="monospace">  6 层: 全局规则(8条) + Lucien prompt + 风格 + 画像 + 任务书 + subagent 摘要 + 页面</text>
+
+        <text x="60" y="415" font-size="12" fill="#475569" font-weight="600">[6] LLM 看到 13+ 工具</text>
+        <text x="60" y="435" font-size="11" fill="#6c7a9c" font-family="monospace">ask_user / reach_out / recall_memory / load_skill / read_file / write_file / delete_file</text>
+        <text x="60" y="450" font-size="11" fill="#6c7a9c" font-family="monospace">run_shell / web_fetch / web_search / spawn_subagent / request_context</text>
+
+        <text x="60" y="480" font-size="12" fill="#475569" font-weight="600">[7] 工具调用(经 Toolbelt)</text>
+        <text x="60" y="500" font-size="11" fill="#6c7a9c" font-family="monospace">policy.decide(Action(dim, target, write, irreversible)) → L0/L1/L2</text>
+        <text x="60" y="515" font-size="11" fill="#6c7a9c" font-family="monospace">L2 确认 → ask_user.ask(Question(kind='confirm'))  →  用户回投 → handler 执行</text>
+
+        <text x="60" y="545" font-size="12" fill="#475569" font-weight="600">[8] 结果回流</text>
+        <text x="60" y="565" font-size="11" fill="#6c7a9c" font-family="monospace">master._reply(text, trace_id) → EventBus.publish(AGENT_MESSAGE) → SSE → 前端 chatStore.dispatch</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ============== 8. ISSUES ============== -->
+  <section id="issues">
+    <div class="section-title">
+      <span class="num">8</span>
+      <h2>关键问题清单</h2>
+      <span class="sub">按严重度降序 · 含 Parity + 脱耦 + 安全 + 性能</span>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:60px">紧急度</th>
+          <th>问题</th>
+          <th>位置</th>
+          <th>影响</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="sev critical">P0</span></td>
+          <td><b>Parity 在 chrome 体验层大量失败(12 项)</b>—— 关闭 AskUser 弹窗、清空草稿、急停 running agent、FloatingChat 展开/收起、collapse 侧边栏、Electron 窗口控制等</td>
+          <td>前端 chrome 状态(全部 zustand useState)+ apps/desktop 空目录</td>
+          <td>违反铁律 7"任何操作人和 agent 都可执行"</td>
+        </tr>
+        <tr>
+          <td><span class="sev critical">P0</span></td>
+          <td><b>审计落库未实现</b></td>
+          <td><code>platform/audit/</code> 只有 README;InMemoryAuditSink 占位(<code>guards.py:104-111</code>)</td>
+          <td>生产零审计,合规/取证/异常回溯全无</td>
+        </tr>
+        <tr>
+          <td><span class="sev critical">P0</span></td>
+          <td><b>SECRET_KEY 无长度/熵校验</b></td>
+          <td><code>platform_secrets/key_material.py:18-20</code> _pick 只 strip 不校验</td>
+          <td>空串/弱材料能开仓,削弱 Fernet 派生强度</td>
+        </tr>
+        <tr>
+          <td><span class="sev high">P1</span></td>
+          <td><b>AGENT_MAIN 模块级常量固定 trace_id</b></td>
+          <td><code>deploy/bridge.py:19-20</code> 默认 factory 一次性生成,与 user.message trace_id 脱钩</td>
+          <td>跨服务审计/调试断链</td>
+        </tr>
+        <tr>
+          <td><span class="sev high">P1</span></td>
+          <td><b>无 kill switch / 急停 running subagent</b></td>
+          <td>无 capability;UI 不存在;双方都缺</td>
+          <td>长任务无安全阀,用户和 agent 都不能急停</td>
+        </tr>
+        <tr>
+          <td><span class="sev high">P1</span></td>
+          <td><b>apps/desktop/ 目录完全空白</b></td>
+          <td>glob 无匹配</td>
+          <td>Electron 端 Parity 无法验证</td>
+        </tr>
+        <tr>
+          <td><span class="sev high">P1</span></td>
+          <td><b>用户没有"为 agent 设置全局能力白名单"UI 入口</b></td>
+          <td><code>PermissionMatrix.tsx</code> 只读跳转;AppPolicy UI 暴露缺失</td>
+          <td>"为 agent 设置权限"实际只能到 subagent 工具面级</td>
+        </tr>
+        <tr>
+          <td><span class="sev high">P1</span></td>
+          <td><b>applyCodeFont 未实现</b>(隐藏 bug)</td>
+          <td><code>useTheme.ts:58-60</code> 只 applyTheme 和 applyFontScale</td>
+          <td>代码字体设置项改了但 UI 不响应</td>
+        </tr>
+        <tr>
+          <td><span class="sev high">P1</span></td>
+          <td><b>deploy/backend.py 跨服务 import 8 服务</b></td>
+          <td><code>build()</code> 函数体内</td>
+          <td>§3.3 与 §13.1 规则冲突,无 CI 强制也无豁免</td>
+        </tr>
+        <tr>
+          <td><span class="sev medium">P2</span></td>
+          <td><b>graph/engines/python/engine.py 725 行(超 500 软上限)</b></td>
+          <td>GraphEngine 7 职责混入单类</td>
+          <td>文件级脱耦违反,任何修改要上下翻 500 行</td>
+        </tr>
+        <tr>
+          <td><span class="sev medium">P2</span></td>
+          <td><b>graph/engines/python/engine.py:1 品牌名硬违规</b></td>
+          <td>docstring "Voyager 自研图谱引擎"</td>
+          <td>唯一业务 Python 代码品牌名违规,§13.3 违反</td>
+        </tr>
+        <tr>
+          <td><span class="sev medium">P2</span></td>
+          <td><b>sources 缺 mcp_server.py</b></td>
+          <td>glob 验证其他 9 服务都有</td>
+          <td>agent / 外部 client 经 MCP 消费能力缺失</td>
+        </tr>
+        <tr>
+          <td><span class="sev medium">P2</span></td>
+          <td><b>compressor.py 第二刀在 messages≤8 时可能死循环</b></td>
+          <td><code>compressor.py:33-37</code> while 条件 + for 找 role!=system</td>
+          <td>极端 context 溢出时可能卡死</td>
+        </tr>
+        <tr>
+          <td><span class="sev medium">P2</span></td>
+          <td><b>code_exec.run_* 未标 long_running=True</b></td>
+          <td><code>code_exec/capabilities.py:141-167</code> 实际行为是长任务但未标注</td>
+          <td>框架层不校验,行为与元数据不一致</td>
+        </tr>
+        <tr>
+          <td><span class="sev medium">P2</span></td>
+          <td><b>runtime/recovery.py 在生产路径上无调用方</b></td>
+          <td>with_retry / CircuitBreaker 未装配,无测试</td>
+          <td>虚假容错能力</td>
+        </tr>
+        <tr>
+          <td><span class="sev medium">P2</span></td>
+          <td><b>runtime/observability.py 实际行为未测</b></td>
+          <td>metred_llm 仅导出,无测试</td>
+          <td>可观测性空转</td>
+        </tr>
+        <tr>
+          <td><span class="sev medium">P2</span></td>
+          <td><b>hooks/triggers.py fire 未消费 pre_tool 返回值</b></td>
+          <td>设计拦截但实现空转</td>
+          <td>pre_tool 钩子无法生效</td>
+        </tr>
+        <tr>
+          <td><span class="sev medium">P2</span></td>
+          <td><b>master/proactive.py 硬编码中文 + emoji</b></td>
+          <td><code>proactive.py:93</code> "怎么不回我?还在忙吗?🙂"</td>
+          <td>与全局规则"禁止 emoji"冲突</td>
+        </tr>
+        <tr>
+          <td><span class="sev low">P3</span></td>
+          <td><b>browser 全 5 capability 是占位</b></td>
+          <td><code>host.py</code> 全 title="placeholder"</td>
+          <td>desktop 未集成前不可生产使用</td>
+        </tr>
+        <tr>
+          <td><span class="sev low">P3</span></td>
+          <td><b>code_exec._run_host 网络隔离无效</b></td>
+          <td>use_host_fallback 继承进程网络</td>
+          <td>安全语义不完整</td>
+        </tr>
+        <tr>
+          <td><span class="sev low">P3</span></td>
+          <td><b>notes 列表排序仅 updated_ts DESC 单字段</b></td>
+          <td>设置项 sort.default 未消费</td>
+          <td>设置项定义但不生效</td>
+        </tr>
+        <tr>
+          <td><span class="sev low">P3</span></td>
+          <td><b>HealthMonitor 与 HealthProbe 并存</b></td>
+          <td>平台与 gateway 两套并行实现</td>
+          <td>语义重叠,gateway 实际只用 HealthProbe</td>
+        </tr>
+        <tr>
+          <td><span class="sev low">P3</span></td>
+          <td><b>EventLog.read_after(limit=500) 无分页边界保护</b></td>
+          <td>消费者忘循环会丢事件</td>
+          <td>易遗漏,需改为迭代器</td>
+        </tr>
+        <tr>
+          <td><span class="sev low">P3</span></td>
+          <td><b>RuntimeEvent 与 DomainEvent 命名风格分裂</b></td>
+          <td>小写点分 vs PascalCase</td>
+          <td>前端 TS 生成器要按两套规则</td>
+        </tr>
+        <tr>
+          <td><span class="sev low">P3</span></td>
+          <td><b>skils/builtin 只有 1 个 explore-repo</b></td>
+          <td><code>skills/builtin/explore-repo/SKILL.md</code></td>
+          <td>skill 体系骨架</td>
+        </tr>
+        <tr>
+          <td><span class="sev low">P3</span></td>
+          <td><b>clients/ 整目录空</b></td>
+          <td><code>agent/clients/README.md</code> 5 行描述</td>
+          <td>MCP 连接池未实现,§9.4 演进中</td>
+        </tr>
+        <tr>
+          <td><span class="sev low">P3</span></td>
+          <td><b>office 缺 restyle/export_doc/get_selection_context</b></td>
+          <td>模块卡 §8.6 列 6 能力,实际 5</td>
+          <td>模块卡与实现不对齐</td>
+        </tr>
+        <tr>
+          <td><span class="sev low">P3</span></td>
+          <td><b>graph C sidecar 自动拉起未做</b></td>
+          <td><code>graph.md</code> 自承"仅探测+回退"</td>
+          <td>sidecar 崩溃只能 Python 回退</td>
+        </tr>
+        <tr>
+          <td><span class="sev low">P3</span></td>
+          <td><b>EventLog 跨进程并发写未测试</b></td>
+          <td><code>test_eventbus.py:43-51</code> 只测 1 写 1 读</td>
+          <td>多进程形态下写串行化未验证</td>
+        </tr>
+        <tr>
+          <td><span class="sev low">P3</span></td>
+          <td><b>RestrictedActorContext 跨服务调用未测</b></td>
+          <td><code>guards.py:122-182</code> 未调 restrict</td>
+          <td>提权阻断机制存在但无跨进程测试</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============== 9. SCALABILITY ============== -->
+  <section id="scalability">
+    <div class="section-title">
+      <span class="num">9</span>
+      <h2>拓展性分析</h2>
+      <span class="sub">新增什么 / 哪里会卡 / 未来怎么走</span>
+    </div>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">9.1 新增什么很容易</h3>
+    <div class="grid-3">
+      <div class="card green">
+        <h3>✅ 新增 capability(强)</h3>
+        <p>注册表新增条目。REST / MCP / agent 三处零改动。<br>新增成本:1 行 <code>@capability(reg, name, description, ...)</code>。</p>
+      </div>
+      <div class="card green">
+        <h3>✅ 新增资源类型(sources 子模块)</h3>
+        <p><code>services/sources/modules/&lt;type&gt;/</code> 新建自包含目录(capabilities.py / store.py / worker.py 可选)。<br>聚合层只多一行 <code>registry.merge(...)</code>。</p>
+      </div>
+      <div class="card green">
+        <h3>✅ 新增文档类型(office 子模块)</h3>
+        <p>同 sources 模式。共享 DocumentStore + 独立 kind。</p>
+      </div>
+      <div class="card green">
+        <h3>✅ 新增建图管线(graph)</h3>
+        <p><code>services/graph/pipelines/&lt;type&gt;/</code> 新建。既有管线不受影响。</p>
+      </div>
+      <div class="card green">
+        <h3>✅ 新增设置项</h3>
+        <p>服务的 <code>settings.py</code> 加一行 <code>SettingDef(...)</code>,前端零改动(动态渲染)。</p>
+      </div>
+      <div class="card green">
+        <h3>✅ 新增人格</h3>
+        <p>在 <code>agent/personas/</code> 加新文件定义 <code>Persona(...)</code>,<code>__init__.py</code> 注册。</p>
+      </div>
+      <div class="card green">
+        <h3>✅ 新增钩子点</h3>
+        <p>在 <code>HOOK_POINTS</code> tuple 加新项。</p>
+      </div>
+      <div class="card green">
+        <h3>✅ 新增 subagent 模式</h3>
+        <p>在 <code>Mode</code> Enum + <code>run_mode</code> 策略分发加 case。</p>
+      </div>
+      <div class="card green">
+        <h3>✅ 新增能力元数据</h3>
+        <p><code>@capability</code> 装饰器参数扩展(reversible / scopes / cost)无需框架改动。</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">9.2 哪里会卡(影响拓展性)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>维度</th>
+          <th>现状</th>
+          <th>卡点</th>
+          <th>缓释建议</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>单进程单体形态</td>
+          <td>四进程 / 两进程 / 单体可切</td>
+          <td>多进程形态下内存限流 / 审计不一致</td>
+          <td>引入 Redis 形态存储(单进程不变)</td>
+        </tr>
+        <tr>
+          <td>graph 双管线</td>
+          <td>code / ai 互不 import,同一 store</td>
+          <td>新管线增加会改 store schema</td>
+          <td>store 用 JSON 字段兜底,允许额外元数据</td>
+        </tr>
+        <tr>
+          <td>graph Python 引擎 725 行</td>
+          <td>单类 7 职责</td>
+          <td>Cypher 子集扩展会撞上限</td>
+          <td>拆为 indexer / query / trace / cypher 多文件</td>
+        </tr>
+        <tr>
+          <td>agent 自身工具</td>
+          <td>fs / shell / web / ask_user / spawn / recall</td>
+          <td>新工具需改 runtime + tools + 权限</td>
+          <td>建立"工具能力面"统一接口(类似 capability 框架)</td>
+        </tr>
+        <tr>
+          <td>EventLog 单进程 sqlite</td>
+          <td>持久化日志 + 游标订阅</td>
+          <td>大量事件下写入竞争 / 索引膨胀</td>
+          <td>周期性归档 + 按 ts 分区</td>
+        </tr>
+        <tr>
+          <td>前端 5 件套每页面一套</td>
+          <td>页面自包含 store/provider/hooks</td>
+          <td>页面增多时 bridge 层 / 设计 token 散落</td>
+          <td>建立 apps/web/src/components/common 基础组件库</td>
+        </tr>
+        <tr>
+          <td>deploy/backend.py 跨服务 import</td>
+          <td>单体模式硬编码 8 服务</td>
+          <td>新增第 11 服务需改 deploy</td>
+          <td>改用服务注册表 + 动态加载</td>
+        </tr>
+        <tr>
+          <td>前端 bridge 统一信封</td>
+          <td>单 callCapability 单函数</td>
+          <td>新能力路由规则变化需改 client.ts</td>
+          <td>现架构已留好扩展点,影响极小</td>
+        </tr>
+        <tr>
+          <td>apps/desktop 空白</td>
+          <td>整个桌面端未实现</td>
+          <td>Electron 端 Parity 无法验证</td>
+          <td>建立 desktop shell + file-bridge + browser-host 三件套</td>
+        </tr>
+        <tr>
+          <td>chrome 体验层 Parity 缺失</td>
+          <td>弹窗/草稿/急停 12 项</td>
+          <td>用户和 agent 行为不对称,违反铁律 7</td>
+          <td>补 chrome 状态 capability 化 + apps/desktop</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">9.3 拓展性综合评价</h3>
+    <div class="callout tip">
+      <b>机制层可扩展性:优</b>(91/100) — 新增 capability / 子模块 / 服务 / 设置项 / 人格 都是 1-N 行;
+      <b>数据层可扩展性:良</b>(78/100) — 业务 schema 演进需要兼顾共享 + 服务独立;
+      <b>chrome 体验层可扩展性:差</b>(35/100) — 弹窗/草稿/急停 缺失,需要单独投入;
+      <b>生产可扩展性:中</b>(70/100) — 审计落库、SECRET_KEY 校验、trace_id 续传 三件硬骨头未解决。
+    </div>
+  </section>
+
+  <!-- ============== 10. SUMMARY ============== -->
+  <section id="summary-final">
+    <div class="section-title">
+      <span class="num">10</span>
+      <h2>总结</h2>
+      <span class="sub">基于 4 个并行 subagent 的全量证据汇总</span>
+    </div>
+
+    <div class="grid-2">
+      <div class="card green">
+        <h3>✅ 优点(做得好的)</h3>
+        <ol style="margin:0;padding-left:18px;font-size:13px;color:var(--text-1)">
+          <li>服务间 / 平台反向 / agent → services.* / 聚合子模块 <b>4 项横向 import 全部为 0</b></li>
+          <li>"一份 Action 模型"严格落地 — 抽查 8 个 rest.py / 9 个 mcp_server.py 全部是 wire() 薄壳</li>
+          <li>框架层集中强制鉴权/限流/审计,handler 不可跳过</li>
+          <li>隐私例外多层防御(framework + service 双重校验,llm.set_api_key / sources.set_github_token)</li>
+          <li>密钥零明文痕迹(测试断言 key 不出能力出口)</li>
+          <li>trace_id 端到端 5 层命名一致(虽然 AGENT_MAIN 有断链,但事件/错误体/上下文/事件流都正确)</li>
+          <li>0 个大杂烩文件,文件级脱耦严格执行</li>
+          <li>每条 capability 描述直接锚定 architecture.md 章节,代码即文档</li>
+          <li>聚合服务壳零业务逻辑,新增子模块 = 新增目录</li>
+          <li>46 个测试文件,~200 用例,核心能力 + 错误路径双覆盖</li>
+          <li>Parity 在核心业务层(设置/笔记/图谱/资源/LLM)扎实,所有 capability 都过同一注册表</li>
+          <li>secret 边界双层强制(平台层 SettingsStore + 服务层 _actor),不靠提示词约束</li>
+          <li>subagent 工具面真裁剪(Toolbelt.trimmed 真的从工具字典里删)</li>
+          <li>actor 不可变性广覆盖(frozen=True 跨包),提权阻断机制到位</li>
+          <li>事件流驱动 UI 刷新(note.*/task.*/settings.changed/graph.engine.fallback 全部正确发布订阅)</li>
+        </ol>
+      </div>
+      <div class="card rose">
+        <h3>❌ 缺点(必须修的)</h3>
+        <ol style="margin:0;padding-left:18px;font-size:13px;color:var(--text-1)">
+          <li><b>Parity 在 chrome 体验层 12 项失败</b>(用户能 / agent 不能):关闭 AskUser、清空草稿、急停、collapse、FloatingChat、Electron...</li>
+          <li><b>审计落库未实现</b>(只有 InMemoryAuditSink),生产零审计</li>
+          <li><b>SECRET_KEY 无长度校验</b>,空串能开仓</li>
+          <li><b>AGENT_MAIN 不传 trace_id</b>,跨服务审计/调试断链</li>
+          <li><b>无 kill switch / 急停</b>,长任务无安全阀</li>
+          <li><b>apps/desktop/ 目录完全空白</b>,Electron 端 Parity 无法验证</li>
+          <li><b>AppPolicy.allowed UI 入口缺失</b>,用户只能到 subagent 工具面级</li>
+          <li><b>applyCodeFont 未实现</b>(隐藏 bug)</li>
+          <li><b>deploy/backend.py 跨服务 import 8 服务</b>,§3.3 与 §13.1 规则冲突</li>
+          <li><b>graph/engines/python/engine.py 725 行</b> + 品牌名硬违规</li>
+          <li><b>sources 缺 mcp_server.py</b>,agent MCP 消费能力缺失</li>
+          <li><b>compressor.py 第二刀可能死循环</b>(极端 context 溢出)</li>
+          <li><b>code_exec.run_* 未标 long_running=True</b>,框架不校验</li>
+          <li><b>runtime/recovery.py 死代码</b>(with_retry / CircuitBreaker 无调用方)</li>
+          <li><b>hooks/triggers.py fire 未消费 pre_tool 返回值</b>(空转)</li>
+          <li><b>master/proactive.py 硬编码中文 + emoji</b>(违反全局规则)</li>
+          <li><b>browser 全 5 capability 是占位</b>(host.py 全 title="placeholder")</li>
+          <li><b>HealthMonitor 与 HealthProbe 并存</b>(语义重叠)</li>
+          <li><b>跨进程 restrict 强制未测</b>(提权阻断机制存在但无跨进程测试)</li>
+          <li><b>RuntimeEvent 与 DomainEvent 命名风格分裂</b>(小写点分 vs PascalCase)</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card cyan">
+      <h3>📊 一句话总评</h3>
+      <p>Voyager 后端是"<b>架构哲学已落地、机制选型正确、扩展性可证</b>"的高质量 monorepo。
+        <b>横向 import 矩阵 4 项全部为 0</b>;"一份 Action 模型"严格落地(91 个 capability 经统一注册表生成 REST + MCP);
+        <b>Parity 机制层(actor 不可变、secret 双层强制、subagent 工具面裁剪)全部到位</b>;
+        <b>Parity 业务层(设置/笔记/图谱/资源/LLM)24/50 完整闭环</b>;
+        <b>Parity chrome 体验层 12/50 严重缺失</b>。
+        距离生产可用还差 5 件事:<b>① 审计落库 ② SECRET_KEY 校验 ③ AGENT_MAIN trace_id 续传 ④ chrome 层 Parity 补齐 ⑤ apps/desktop 落地</b>。</p>
+    </div>
+
+    <div class="info-banner" style="margin-top:32px">
+      <b>📌 关于前端迁移的快速结论(基于本审查)</b>:
+      RepoPilot 旧前端 → Voyager 新前端,<b>API 形态完全不一样</b>(旧:100+ IApiClient 强类型方法;新:callCapability 单函数 + EventSource);
+      <b>package.json 字符级一致</b>(底座 0 成本);
+      <b>预计 28-38 人时分阶段保留式迁移</b>。
+      详细方案见 <code>voyager-report.html</code>(之前生成的报告)。
+    </div>
+  </section>
+
+  <footer>
+    <p>本报告由 4 个并行只读 subagent 收集证据 + 主会话整合 · 文件 <code>voyager-deep-report.html</code></p>
+    <p>数据基于 2026-08-26 仓库快照 · 仅评估现状 · 未对任何文件做修改</p>
+    <p style="margin-top:8px;font-size:11px;color:#94a3b8">
+      4 个 subagent 任务 ID: <code>bg_168d64ad-...</code>(Parity) · <code>bg_af7bf990-...</code>(agent) · <code>bg_30c88bb5-...</code>(services) · <code>bg_b887ba54-...</code>(platform)
+    </p>
+  </footer>
+
+</div>
+</body>
+</html>

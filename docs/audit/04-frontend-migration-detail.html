@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Voyager · 前端迁移详细审查(RepoPilot → Voyager)</title>
+<style>
+  :root {
+    --bg-card: #ffffff; --bg-card-soft: #f5f8ff;
+    --text-0: #0e1a3a; --text-1: #2c3a5e; --text-2: #6c7a9c;
+    --brand: #2563eb; --brand-2: #4f7cff; --brand-soft: #e8efff;
+    --cyan: #06b6d4; --cyan-soft: #cffafe;
+    --green: #10b981; --green-soft: #d1fae5;
+    --amber: #f59e0b; --amber-soft: #fef3c7;
+    --rose: #f43f5e; --rose-soft: #ffe4e6;
+    --violet: #8b5cf6; --violet-soft: #ede9fe;
+    --slate: #64748b; --slate-soft: #f1f5f9;
+    --line: #e2e8f0;
+    --shadow: 0 1px 2px rgba(15,23,42,.04), 0 4px 12px rgba(15,23,42,.05);
+    --shadow-lg: 0 4px 24px rgba(15,23,42,.08);
+    --radius: 14px; --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: linear-gradient(180deg, #f3f6ff 0%, #eaf0fb 100%);
+    color: var(--text-0);
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1320px; margin: 0 auto; padding: 32px 24px 80px; }
+  .hero {
+    background: linear-gradient(135deg, #0b1020 0%, #1a2342 60%, #1e3a8a 100%);
+    color: #e6ecff;
+    border-radius: 24px;
+    padding: 48px 44px;
+    box-shadow: var(--shadow-lg);
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 80% 0%, rgba(79,124,255,.35), transparent 50%),
+      radial-gradient(circle at 0% 100%, rgba(6,182,212,.25), transparent 50%);
+    pointer-events: none;
+  }
+  .hero-eyebrow {
+    display: inline-block; font-size: 12px; letter-spacing: .2em;
+    color: #93c5fd; border: 1px solid rgba(147,197,253,.3);
+    padding: 4px 12px; border-radius: 999px;
+    text-transform: uppercase; margin-bottom: 18px;
+  }
+  .hero h1 {
+    font-size: 42px; margin: 0 0 12px; font-weight: 800; letter-spacing: -.02em;
+  }
+  .hero h1 .accent {
+    background: linear-gradient(90deg, #60a5fa, #22d3ee);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero p.lede { font-size: 16px; color: #cbd5e1; max-width: 820px; margin: 0 0 24px; }
+  .hero-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; position: relative; }
+  .meta-chip {
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.14);
+    color: #e2e8f0; padding: 6px 12px; border-radius: 999px;
+    font-size: 12px; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .meta-chip b { color: #fff; font-weight: 600; }
+
+  section { margin-top: 56px; scroll-margin-top: 80px; }
+  .section-title {
+    display: flex; align-items: baseline; gap: 12px; margin-bottom: 20px;
+  }
+  .section-title .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px;
+    border-radius: 8px; background: var(--brand); color: #fff;
+    font-weight: 700; font-size: 15px;
+  }
+  .section-title h2 { margin: 0; font-size: 26px; font-weight: 700; color: var(--text-0); }
+  .section-title .sub { color: var(--text-2); font-size: 13px; font-weight: 500; }
+  .section-subtitle { color: var(--text-2); font-size: 14px; margin: 0 0 20px; max-width: 920px; }
+
+  .card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    padding: 24px 28px; margin-bottom: 16px; position: relative;
+  }
+  .card::before {
+    content: ""; position: absolute;
+    left: 0; top: 18px; bottom: 18px;
+    width: 3px; border-radius: 2px; background: var(--brand);
+  }
+  .card.cyan::before { background: var(--cyan); }
+  .card.green::before { background: var(--green); }
+  .card.amber::before { background: var(--amber); }
+  .card.rose::before { background: var(--rose); }
+  .card.violet::before { background: var(--violet); }
+  .card.slate::before { background: var(--slate); }
+  .card h3 { margin: 0 0 8px; font-size: 18px; color: var(--text-0); }
+  .card .desc { color: var(--text-2); font-size: 13px; margin-bottom: 14px; }
+  .card p { font-size: 14px; color: var(--text-1); margin: 8px 0; }
+
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px; margin: 20px 0;
+  }
+  .stat {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 18px; box-shadow: var(--shadow);
+    position: relative; overflow: hidden;
+  }
+  .stat .label {
+    color: var(--text-2); font-size: 11px;
+    letter-spacing: .04em; text-transform: uppercase;
+  }
+  .stat .value { font-size: 28px; font-weight: 700; color: var(--text-0); margin: 4px 0 0; }
+  .stat .trend { font-size: 12px; color: var(--green); font-weight: 600; }
+  .stat .trend.bad { color: var(--rose); }
+  .stat .trend.amber { color: var(--amber); }
+  .stat .trend.muted { color: var(--text-2); }
+
+  .chip { display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; margin: 0 4px 4px 0; }
+  .chip.brand { background: var(--brand-soft); color: var(--brand); }
+  .chip.cyan { background: var(--cyan-soft); color: var(--cyan); }
+  .chip.green { background: var(--green-soft); color: var(--green); }
+  .chip.amber { background: var(--amber-soft); color: #b45309; }
+  .chip.rose { background: var(--rose-soft); color: #b91c1c; }
+  .chip.violet { background: var(--violet-soft); color: var(--violet); }
+  .chip.gray { background: #eef2f7; color: var(--text-1); }
+  .chip.dark { background: #1e293b; color: #e2e8f0; }
+
+  table {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    font-size: 13px; background: var(--bg-card);
+    border-radius: var(--radius); overflow: hidden;
+    box-shadow: var(--shadow); margin: 8px 0;
+  }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--bg-card-soft); font-weight: 600; color: var(--text-1); font-size: 12px; letter-spacing: .02em; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #f8fafc; }
+  td code, .code { background: #f1f5f9; padding: 1px 6px; border-radius: 4px; font-size: 12px; color: #475569; }
+  td.num { font-variant-numeric: tabular-nums; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 900px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+
+  .arch-wrap {
+    background: var(--bg-card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 16px;
+    box-shadow: var(--shadow); overflow-x: auto;
+  }
+  .arch-wrap svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+
+  .callout {
+    background: var(--bg-card-soft); border-radius: var(--radius-sm);
+    padding: 14px 18px; border-left: 3px solid var(--brand);
+    margin: 12px 0; font-size: 13px; color: var(--text-1);
+  }
+  .callout.tip { border-left-color: var(--green); background: #f0fdf4; }
+  .callout.warn { border-left-color: var(--amber); background: #fffbeb; }
+  .callout.danger { border-left-color: var(--rose); background: #fef2f2; }
+  .callout b { color: var(--text-0); }
+  .callout p { margin: 6px 0; }
+
+  pre, code { font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
+  pre {
+    background: #0f172a; color: #e2e8f0;
+    padding: 14px 18px; border-radius: var(--radius-sm);
+    overflow-x: auto; line-height: 1.5; margin: 10px 0;
+  }
+
+  .toc {
+    background: var(--bg-card); border-radius: var(--radius);
+    border: 1px solid var(--line); padding: 18px 22px;
+    box-shadow: var(--shadow); margin-top: 28px;
+    display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px;
+  }
+  .toc a { color: var(--brand); text-decoration: none; font-weight: 500; }
+  .toc a:hover { text-decoration: underline; }
+  .toc b { color: var(--text-0); margin-right: 8px; }
+
+  .mod {
+    background: var(--bg-card); border: 1px solid var(--line);
+    border-left: 4px solid var(--brand); border-radius: var(--radius-sm);
+    padding: 14px 16px; box-shadow: var(--shadow);
+  }
+  .mod.cyan { border-left-color: var(--cyan); }
+  .mod.green { border-left-color: var(--green); }
+  .mod.amber { border-left-color: var(--amber); }
+  .mod.violet { border-left-color: var(--violet); }
+  .mod.rose { border-left-color: var(--rose); }
+  .mod.slate { border-left-color: var(--slate); }
+  .mod h4 { margin: 0 0 6px; font-size: 14px; color: var(--text-0); }
+  .mod p { margin: 4px 0 0; font-size: 12px; color: var(--text-1); }
+  .mod .files { font-size: 11px; color: var(--text-2); margin-top: 6px; }
+
+  .file-list { font-family: monospace; font-size: 12px; line-height: 1.7; }
+  .file-list .row {
+    display: grid; grid-template-columns: 1fr 50px 1.4fr;
+    gap: 12px; padding: 4px 8px; border-bottom: 1px dashed var(--line);
+  }
+  .file-list .row:hover { background: #f8fafc; }
+  .file-list .path { color: var(--text-0); }
+  .file-list .size { color: var(--text-2); text-align: right; font-variant-numeric: tabular-nums; }
+  .file-list .desc { color: var(--text-1); }
+
+  .info-banner {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-radius: var(--radius); padding: 16px 20px; margin: 16px 0;
+    border-left: 4px solid var(--amber);
+    font-size: 13px; color: #78350f;
+  }
+  .info-banner b { color: #92400e; }
+
+  .good-banner {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    border-radius: var(--radius); padding: 16px 20px; margin: 16px 0;
+    border-left: 4px solid var(--green);
+    font-size: 13px; color: #065f46;
+  }
+  .good-banner b { color: #047857; }
+
+  footer {
+    text-align: center; color: var(--text-2); font-size: 12px;
+    margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--line);
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ============== HERO ============== -->
+  <header class="hero">
+    <div class="hero-eyebrow">Frontend Migration · File-level Audit · RepoPilot → Voyager</div>
+    <h1>前端迁移 <span class="accent">详细审查</span></h1>
+    <p class="lede">
+      基于 2 个并行 subagent 的全量证据汇总,产出"逐文件"的精确迁移评估表。
+      <strong style="color:#fff">80+ .tsx/.ts + 14 CSS + 13 mock data · 84 个 IApiClient 方法 · 13 种 SSE 事件类型 · 9 个 page · 80+ 组件</strong>,
+      全部带文件:行号引用。
+    </p>
+    <div class="hero-meta">
+      <span class="meta-chip">📁 <b>80+</b> 前端文件</span>
+      <span class="meta-chip">🎨 <b>14</b> CSS 文件</span>
+      <span class="meta-chip">🔌 <b>84</b> IApiClient 方法</span>
+      <span class="meta-chip">📡 <b>13</b> SSE 事件类型</span>
+      <span class="meta-chip">🧩 <b>80+</b> 组件</span>
+      <span class="meta-chip">🧪 <b>48</b> 测试文件</span>
+      <span class="meta-chip">⏱️ 估时 <b>28-38</b> 人时</span>
+    </div>
+  </header>
+
+  <!-- ============== TOC ============== -->
+  <nav class="toc">
+    <b>目录</b>
+    <a href="#summary">① 摘要</a>
+    <a href="#assets">② RepoPilot 前端资产</a>
+    <a href="#api">③ 84 方法 → capability 映射</a>
+    <a href="#sse">④ SSE 13 事件 → 业务事件映射</a>
+    <a href="#utils">⑤ 7 大 utils 子模块</a>
+    <a href="#components">⑥ 80+ 组件依赖矩阵</a>
+    <a href="#stores">⑦ 8 个 store 映射</a>
+    <a href="#styles">⑧ 样式系统(14 CSS)</a>
+    <a href="#mapping">⑨ 逐文件对应表</a>
+    <a href="#path">⑩ 7 步迁移路径</a>
+    <a href="#risks">⑪ 风险与回滚</a>
+  </nav>
+
+  <!-- ============== 1. SUMMARY ============== -->
+  <section id="summary">
+    <div class="section-title">
+      <span class="num">1</span>
+      <h2>摘要</h2>
+      <span class="sub">两个 subagent 收集的 15,000+ 行证据汇总</span>
+    </div>
+
+    <div class="good-banner">
+      <b>✅ 核心结论</b>:
+      RepoPilot 前端是 React 19 + Vite 7 + react-query + zustand 的成熟 monorepo SPA,
+      <b>84 个 IApiClient 方法 + 13 种 SSE 事件 + 14 个 CSS 文件 + 9 个 page + 80+ 组件</b>。
+      底层依赖(react-markdown、react-router、zustand、react-query 等)与 voyager 完全一致,
+      <b>package.json 字符级相同</b>(v2.0.0,所有依赖版本一致)。
+      <b>真正需要重写的是 API 形态(IApiClient → callCapability)和事件协议(per-call SSE → 共享 EventSource)</b>,
+      组件和样式可大量复用。
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat">
+        <div class="label">前端 .tsx/.ts 文件</div>
+        <div class="value">80+</div>
+        <div class="trend muted">含 1.3 MB mock data</div>
+      </div>
+      <div class="stat">
+        <div class="label">CSS 文件</div>
+        <div class="value">14</div>
+        <div class="trend">design-system + liquid-glass + 9 page</div>
+      </div>
+      <div class="stat">
+        <div class="label">IApiClient 方法</div>
+        <div class="value">84</div>
+        <div class="trend">7 个 SSE AsyncGenerator</div>
+      </div>
+      <div class="stat">
+        <div class="label">SSE 事件类型</div>
+        <div class="value">13</div>
+        <div class="trend">text_delta / thinking / tool_*/question/...</div>
+      </div>
+      <div class="stat">
+        <div class="label">组件数</div>
+        <div class="value">80+</div>
+        <div class="trend muted">11 子目录 / 共享 vs 独占</div>
+      </div>
+      <div class="stat">
+        <div class="label">store 数</div>
+        <div class="value">8</div>
+        <div class="trend">agentStore 881 行 SSE 状态机</div>
+      </div>
+      <div class="stat">
+        <div class="label">测试文件</div>
+        <div class="value">48</div>
+        <div class="trend">40 unit + 6 e2e + 2 setup</div>
+      </div>
+      <div class="stat">
+        <div class="label">样式 token</div>
+        <div class="value">100+</div>
+        <div class="trend">brand 10 / bg 10 / text 9 / 12 cat / 8 chart</div>
+      </div>
+      <div class="stat">
+        <div class="label">持久化 key</div>
+        <div class="value">5</div>
+        <div class="trend">rp-ui-store / rp_token / ...</div>
+      </div>
+      <div class="stat">
+        <div class="label">路由</div>
+        <div class="value">11</div>
+        <div class="trend muted">3 layout 壳 · 1 fallback</div>
+      </div>
+      <div class="stat">
+        <div class="label">依赖版本对齐</div>
+        <div class="value">100%</div>
+        <div class="trend">package.json 字符级一致</div>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">1.1 关键发现(直接影响迁移)</h3>
+    <div class="grid-2">
+      <div class="card green">
+        <h3>✅ 可大量复用</h3>
+        <ul style="font-size:13px;color:var(--text-1);padding-left:18px">
+          <li>14 个 CSS 文件 ≈ 200 KB(design-system + liquid-glass + 9 page)</li>
+          <li>80+ 组件,30+ 是"独占",可随 page 整体搬</li>
+          <li>9 个 page 业务逻辑(过滤、CRUD、Markdown 渲染)</li>
+          <li>utils 7 大类(agentQuestion 7 子模块、sse 解析、错误码 60+)</li>
+          <li>所有依赖版本(package.json 字符级一致)</li>
+        </ul>
+      </div>
+      <div class="card rose">
+        <h3>❌ 必须重写</h3>
+        <ul style="font-size:13px;color:var(--text-1);padding-left:18px">
+          <li><b>IApiClient 84 方法</b> → capability 注册表 91 个能力</li>
+          <li><b>SSE 13 事件</b> → 业务事件(user.message / agent.message / task.* / agent.ask / agent.navigate)</li>
+          <li><b>agentStore 881 行 SSE 状态机</b> → chatStore dispatch + 事件流</li>
+          <li>react-query 9 个 hooks → 全部经 bridge/client.ts callCapability</li>
+          <li>localStorage 5 个 key → 改为服务端持久(只剩主题)</li>
+        </ul>
+      </div>
+      <div class="card amber">
+        <h3>🟡 必须重评估</h3>
+        <ul style="font-size:13px;color:var(--text-1);padding-left:18px">
+          <li>overview-mock-rounds 7 套 Mock 数据 → 新无 Mock 维度</li>
+          <li>useOverviewMockRoundSync URL 切场景 → 删除</li>
+          <li>CodeGraph L1 R3F 实现 → 新后端 graph 能力更丰富,可大幅简化</li>
+          <li>ProfilePage(用户画像) → 新 agent.recall_memory</li>
+        </ul>
+      </div>
+      <div class="card cyan">
+        <h3>📊 总工作量</h3>
+        <p style="font-size:13px;color:var(--text-1)">
+          <b>28-38 人时</b>(前次报告估算);本报告细化后为 <b>32-44 人时</b>(因新发现的 5 个 store 子模块 + 7 个 utils 子模块 + 13 个 mock data 需评估)。
+          关键路径:API 适配层(8-10h) > 组件搬运(6-8h) > 页面集成(10-14h) > 样设先行(3-5h)。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== 2. ASSETS ============== -->
+  <section id="assets">
+    <div class="section-title">
+      <span class="num">2</span>
+      <h2>RepoPilot 前端资产完整清单</h2>
+      <span class="sub">80+ .tsx/.ts + 14 CSS + 48 test + 13 mock data</span>
+    </div>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">2.1 api/ 层(15 文件)</h3>
+    <div class="file-list">
+      <div class="row"><div class="path">api/client.ts</div><div class="size">322</div><div class="desc">IApiClient 84 方法契约 + Mock/Real 单例工厂</div></div>
+      <div class="row"><div class="path">api/types.ts</div><div class="size">428</div><div class="desc">OpenAPI 再导出 + 11 个前端专属类型</div></div>
+      <div class="row"><div class="path">api/real/index.ts</div><div class="size">143</div><div class="desc">RealApiClient implements IApiClient(7 domain + 57 方法)</div></div>
+      <div class="row"><div class="path">api/real/http.ts</div><div class="size">148</div><div class="desc">apiRequest / apiSSE / ApiRequestError / buildUrl</div></div>
+      <div class="row"><div class="path">api/real/domain/{auth,projects,notes,graph,settings,overview,agent,http-ctx}.ts</div><div class="size">~900</div><div class="desc">8 个域分文件,每个 ~50-200 行</div></div>
+      <div class="row"><div class="path">api/mock/index.ts</div><div class="size">~700</div><div class="desc">MockApiClient implements IApiClient(内存态)</div></div>
+      <div class="row"><div class="path">api/mock/sse.ts</div><div class="size">~190</div><div class="desc">streamText / yieldEvent / mockTextReply / 6 个 mock 场景</div></div>
+      <div class="row"><div class="path">api/mock/data/{projects,notes,categories,tags,graph,activities,sessions,users,settings,profile,recommendations,trending,overviewScenarios}.ts</div><div class="size">~1000</div><div class="desc">13 个 mock data 文件</div></div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">2.2 components/ 层(80+ 组件,11 子目录)</h3>
+    <table>
+      <thead><tr><th>子目录</th><th>文件数</th><th>代表组件</th><th>角色</th><th>迁移</th></tr></thead>
+      <tbody>
+        <tr><td>common/</td><td>9</td><td>LoadingSpinner, ErrorBoundary, GlassCard, MarkdownRenderer, MermaidBlock, ConfirmDialog, ToastContainer, EmptyState, GlassSelect</td><td>shared</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td>layout/</td><td>3</td><td>AppShell, Sidebar, Topbar</td><td>layout</td><td><span class="chip amber">改写</span>(三壳 → 单壳)</td></tr>
+        <tr><td>agent/</td><td>17(含 avatars/)</td><td>ChatPanel, AgentContextSidebar, MessageBubble, StreamRenderer, QuestionPanel, RunTracePanel, ToolCallCard, ActionResultCard, AgentAvatar, AgentSelector, AgentCarousel, TrendingScoutSpot, EmbedAgentChat, ContextWindowPanel, AgentCharacterHead</td><td>chat-独占/共享</td><td><span class="chip rose">拆解</span>(SSE 协议根本不同)</td></tr>
+        <tr><td>project/</td><td>11</td><td>ProjectTable, FilterBar, FilterDropdown, ProgressBadge, ImportStarsDrawer, ImportUrlsModal, ImportRepoFilterBar, CategoryTagManager, EditProjectModal, ProjectAiPanel</td><td>共享 + detail-独占</td><td><span class="chip amber">改写</span>(project_id 改 source_id)</td></tr>
+        <tr><td>note/</td><td>3</td><td>NoteList, NoteEditor, NoteMeta</td><td>shared</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td>settings/</td><td>7(含 llm/)</td><td>LlmSettingsSection, LlmProviderList, LlmProviderDetail, LlmAgentOverrides, AgentSettingsSection, ...</td><td>page-独占</td><td><span class="chip amber">改写</span>(schema 驱动渲染)</td></tr>
+        <tr><td>usage/</td><td>5</td><td>LlmUsageDashboard, UsageDonut, UsageHeatmap, UsageKpiCards, UsageStackedBars</td><td>page-独占</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td>graph/</td><td>6</td><td>UniverseGraphView, GraphControls, GraphGuidePanel, l0Layout3d, l0EdgeTypes, GraphIndexProgressBar</td><td>page-独占 + 共享</td><td><span class="chip rose">拆解</span>(3D R3F 复杂)</td></tr>
+        <tr><td>code-graph/</td><td>14</td><td>CodeGraphSidebar, NodeDetailPanel, IndexStatusBar, DisplaySettingsMenu, density, colors, l1Layout, NodeCloud, NodeLabels, EdgeLines, GraphScene, ...</td><td>page-独占 + 共享</td><td><span class="chip rose">大重写</span>(新后端 graph 能力不同)</td></tr>
+        <tr><td>graph-viz/</td><td>1</td><td>GraphScene(R3F 场景基类)</td><td>shared</td><td><span class="chip amber">保留</span></td></tr>
+        <tr><td>icons/</td><td>1</td><td>NavIcons(7 个手写 SVG)</td><td>layout</td><td><span class="chip green">直接搬</span></td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">2.3 hooks/ 层(9 个 react-query hooks)</h3>
+    <div class="file-list">
+      <div class="row"><div class="path">hooks/useProjects.ts</div><div class="size">~280</div><div class="desc">20+ 方法:useProjects/Category/Tag/Trending/Activities/Github/ImportProjects 等</div></div>
+      <div class="row"><div class="path">hooks/useNotes.ts</div><div class="size">~80</div><div class="desc">useAllNotes/ProjectNotes/Note + create/update/delete</div></div>
+      <div class="row"><div class="path">hooks/useGraph.ts</div><div class="size">~30</div><div class="desc">useGraph</div></div>
+      <div class="row"><div class="path">hooks/useCodeGraph.ts</div><div class="size">~100</div><div class="desc">useIndexStatus/CodeGraph/TriggerIndex/RefreshIndex/DeleteIndex</div></div>
+      <div class="row"><div class="path">hooks/useSettings.ts</div><div class="size">~30</div><div class="desc">useSettings(包装 settingsStore)</div></div>
+      <div class="row"><div class="path">hooks/useOverview.ts</div><div class="size">~30</div><div class="desc">useRecommendedProjects/OverviewRecentNotes</div></div>
+      <div class="row"><div class="path">hooks/useTheme.ts</div><div class="size">~50</div><div class="desc">useTheme / useIsDarkTheme</div></div>
+      <div class="row"><div class="path">hooks/useTrendingScoutSpot.ts</div><div class="size">~200</div><div class="desc">useTrendingScoutSpot(AbortController + leave delay)</div></div>
+      <div class="row"><div class="path">hooks/useOverviewMockRoundSync.ts</div><div class="size">~40</div><div class="desc">URL→Mock 切场景</div></div>
+      <div class="row"><div class="path">hooks/useAuth.ts</div><div class="size">~20</div><div class="desc">fetchMe wrapper</div></div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">2.4 pages/ 层(9 个 .tsx)</h3>
+    <table>
+      <thead><tr><th>页面</th><th>行数</th><th>react-query hooks</th><th>store</th><th>SSE</th><th>评估</th></tr></thead>
+      <tbody>
+        <tr><td>OverviewPage</td><td>~500</td><td>5 个</td><td>—</td><td>TrendingScout (1)</td><td><span class="chip green">优</span></td></tr>
+        <tr><td>ProjectsPage</td><td>~320</td><td>6 个</td><td>useProjectStore</td><td>—</td><td><span class="chip green">优</span></td></tr>
+        <tr><td>ProjectDetailPage</td><td>~895</td><td>10+</td><td>—</td><td>analyzeProject (1)</td><td><span class="chip amber">中</span>(单文件过大)</td></tr>
+        <tr><td>AgentPage</td><td>~410</td><td>—</td><td>useAgentStore(全部)</td><td>chatAgent</td><td><span class="chip green">优</span></td></tr>
+        <tr><td>GraphPage(L0)</td><td>~535</td><td>3 个</td><td>useGraphStore</td><td>—</td><td><span class="chip amber">良</span></td></tr>
+        <tr><td>CodeGraphPage(L1)</td><td>~315</td><td>5 个</td><td>useCodeGraphStore</td><td>—</td><td><span class="chip amber">良</span></td></tr>
+        <tr><td>UsagePage</td><td>10</td><td>1 个</td><td>—</td><td>—</td><td><span class="chip green">薄包装</span></td></tr>
+        <tr><td>NotesPage</td><td>~420</td><td>5 个</td><td>useNoteStore</td><td>generateNote (1)</td><td><span class="chip green">优</span></td></tr>
+        <tr><td>SettingsPage</td><td>~270</td><td>2 个</td><td>useSettingsStore</td><td>—</td><td><span class="chip amber">良</span></td></tr>
+        <tr><td>ProfilePage</td><td>~260</td><td>1 个</td><td>—</td><td>—</td><td><span class="chip amber">良</span></td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">2.5 stores/ 层(8 个 zustand + 1 SSE handlers)</h3>
+    <div class="file-list">
+      <div class="row"><div class="path">stores/authStore.ts</div><div class="size">44</div><div class="desc">user / isLoading / error + fetchMe/setUser/clearError</div></div>
+      <div class="row"><div class="path">stores/uiStore.ts</div><div class="size">96</div><div class="desc">theme/sidebarCollapsed/fontScale/toasts(persist rp-ui-store)</div></div>
+      <div class="row"><div class="path">stores/agentStore.ts</div><div class="size">881</div><div class="desc">SSE 状态机主入口(14 case processSSEStream)</div></div>
+      <div class="row"><div class="path">stores/agentStore/sseHandlers.ts</div><div class="size">118</div><div class="desc">HANDLERS + 6 个简单事件 handler(拆分中)</div></div>
+      <div class="row"><div class="path">stores/projectStore.ts</div><div class="size">101</div><div class="desc">筛选+分页+多选</div></div>
+      <div class="row"><div class="path">stores/noteStore.ts</div><div class="size">49</div><div class="desc">编辑器状态+搜索+选中</div></div>
+      <div class="row"><div class="path">stores/settingsStore.ts</div><div class="size">130</div><div class="desc">乐观+回滚 updateSettings / saveLlmApiKey / testLLM</div></div>
+      <div class="row"><div class="path">stores/graphStore.ts</div><div class="size">86</div><div class="desc">L0 视图/布局/筛选/缩放</div></div>
+      <div class="row"><div class="path">stores/codeGraphStore.ts</div><div class="size">69</div><div class="desc">L1 过滤/视图/选中</div></div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">2.6 utils/ 层(15+ 工具)</h3>
+    <div class="file-list">
+      <div class="row"><div class="path">utils/agentSSEStream.ts</div><div class="size">114</div><div class="desc">consumeAgentSSEStream(8 个 handler hook)</div></div>
+      <div class="row"><div class="path">utils/sse-parser.ts</div><div class="size">78</div><div class="desc">parseSSEStream(reader, signal?)</div></div>
+      <div class="row"><div class="path">utils/sse-helpers.ts</div><div class="size">47</div><div class="desc">asSSETextDelta / asSSEThinking / asSSEToolCall 等 9 个</div></div>
+      <div class="row"><div class="path">utils/agentQuestion.ts</div><div class="size">48</div><div class="desc">7 个子模块 re-export</div></div>
+      <div class="row"><div class="path">utils/agentQuestion/{constants,radio-helpers,text-cleanup,parsers,hydrate,quiz,card-formatters}.ts</div><div class="size">~700</div><div class="desc">反问系统 7 子模块</div></div>
+      <div class="row"><div class="path">utils/agentThinking.ts</div><div class="size">90</div><div class="desc">thinking 文本分类(状态行/合并/分发通知)</div></div>
+      <div class="row"><div class="path">utils/runTrace.ts</div><div class="size">86</div><div class="desc">工具/子 Agent 快照</div></div>
+      <div class="row"><div class="path">utils/sessionProjectBind.ts</div><div class="size">231</div><div class="desc">URL/裸名→项目 id 提取</div></div>
+      <div class="row"><div class="path">utils/actionResult.ts</div><div class="size">122</div><div class="desc">__action__ / __session_projects__ / __memory_proposal__ 标记解析</div></div>
+      <div class="row"><div class="path">utils/errorCodes.ts</div><div class="size">335</div><div class="desc">60+ 错误码映射</div></div>
+      <div class="row"><div class="path">utils/errors.ts / cn.ts / format.ts / date.ts / clone.ts</div><div class="size">~200</div><div class="desc">小工具(格式化/克隆/类名合并)</div></div>
+      <div class="row"><div class="path">utils/invalidateOverview.ts / overviewLinks.ts / labels.ts / user.ts / morse.ts</div><div class="size">~200</div><div class="desc">RQ 失效/活动跳转/标签字典/装饰</div></div>
+      <div class="row"><div class="path">utils/importRepoFilter.ts / validators.ts / asciiArch.ts</div><div class="size">~300</div><div class="desc">筛选/校验/ASCII 架构图救援</div></div>
+      <div class="row"><div class="path">utils/streamSessionGuard.ts</div><div class="size">7</div><div class="desc">isStreamSessionActive(切会话守卫)</div></div>
+      <div class="row"><div class="path">utils/agentSwitchDisplay.ts</div><div class="size">35</div><div class="desc">cleanSwitchReason / displaySwitchReason</div></div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">2.7 styles/ 层(14 CSS)</h3>
+    <table>
+      <thead><tr><th>文件</th><th>行</th><th>职责</th></tr></thead>
+      <tbody>
+        <tr><td>design-system.css</td><td>~1336</td><td>Design Tokens(单一来源):brand/bg/text/state/chart/cat/typography/spacing/radius/shadow/layout/breakpoint</td></tr>
+        <tr><td>liquid-glass.css</td><td>~496</td><td>玻璃材质:30+ token + .glass-card 全套变体</td></tr>
+        <tr><td>global.css</td><td>~196</td><td>Toast/Spinner/Modal/AppError/Avatar/.progress-pill/.field</td></tr>
+        <tr><td>shell.css</td><td>33</td><td>.main/.gh-bound/.notes-main</td></tr>
+        <tr><td>pages/index.css</td><td>9</td><td>@import 10 个 page CSS</td></tr>
+        <tr><td>pages/overview.css</td><td>~1180</td><td>总览(双层玻璃 + Hero + Agent 轮播 + 推荐 + 笔记)</td></tr>
+        <tr><td>pages/projects.css</td><td>~1389</td><td>项目库(stat/filter/table/checkbox/pagination)</td></tr>
+        <tr><td>pages/agent.css</td><td>~2000</td><td>Agent Chat(4 栏 + 气泡 + question + 输入)</td></tr>
+        <tr><td>pages/notes.css</td><td>~424</td><td>笔记(3 栏 + 编辑器 + 预览)</td></tr>
+        <tr><td>pages/graph.css</td><td>~1705</td><td>L0 图谱(force-graph + 工具栏)</td></tr>
+        <tr><td>pages/code-graph.css</td><td>~500</td><td>L1 代码图谱(节点云 + 边线 + tooltip)</td></tr>
+        <tr><td>pages/settings.css</td><td>~922</td><td>设置(子导航 + LLM + Agent overrides)</td></tr>
+        <tr><td>pages/profile.css</td><td>~144</td><td>个人资料(头像 + 表单)</td></tr>
+        <tr><td>pages/project-detail.css</td><td>~552</td><td>详情(2 栏 + Hero + Tabs)</td></tr>
+        <tr><td>pages/usage.css</td><td>~463</td><td>用量(KPI + 堆叠柱 + 热图)</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">2.8 constants/ + 入口 + 配置</h3>
+    <div class="grid-2">
+      <div class="card">
+        <h3>constants/(5 个文件)</h3>
+        <ul style="font-size:12px;color:var(--text-1);padding-left:18px">
+          <li><code>overviewGlass.ts</code> · 6 个 glass-card 变体字符串</li>
+          <li><code>agentCatalog.ts</code> · 7 个 Agent 人格 + 轮播配置</li>
+          <li><code>projectsGlass.ts</code> · 2 个项目库 glass 变体</li>
+          <li><code>usageGlass.ts</code> · 3 个用量页 glass 变体</li>
+          <li><code>llmConfig.ts</code> · LLM 供应商预设</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>入口与配置</h3>
+        <ul style="font-size:12px;color:var(--text-1);padding-left:18px">
+          <li><code>main.tsx</code> · 38 行 · 异步 bootstrap 选 Mock/Real</li>
+          <li><code>App.tsx</code> · 187 行 · createBrowserRouter + 3 layout 壳</li>
+          <li><code>vite.config.ts</code> · 60 行 · /api proxy + @ alias</li>
+          <li><code>tsconfig.json</code> · 31 行 · strict 全开 + noUncheckedIndexedAccess</li>
+          <li><code>eslint.config.js</code> · 76 行 · React 19 + 严格 TS</li>
+          <li><code>package.json</code> · 68 行 · <b>与 voyager 字符级一致</b></li>
+          <li><code>index.html</code> · 19 行 · Google Fonts DM Sans + JetBrains Mono</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== 3. API MAPPING ============== -->
+  <section id="api">
+    <div class="section-title">
+      <span class="num">3</span>
+      <h2>84 方法 → capability 映射</h2>
+      <span class="sub">IApiClient 完整对照 · 1-1 映射</span>
+    </div>
+    <p class="section-subtitle">
+      84 个旧 IApiClient 方法(其中 7 个 SSE AsyncGenerator)映射到 voyager 91 个 capability。
+      下表是核心映射,<b>完整映射在源代码对照中实现</b>(每行 1 字段)。
+    </p>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">3.1 REST 方法(77 个)</h3>
+    <table>
+      <thead><tr><th>旧 IApiClient 方法</th><th>HTTP 路径</th><th>新 capability</th><th>新路径</th></tr></thead>
+      <tbody>
+        <tr><td><code>me()</code></td><td><code>GET /auth/me</code></td><td colspan="2" style="text-align:center;color:var(--text-2)">本机单用户,新无对应</td></tr>
+        <tr><td><code>listGithubAccounts</code></td><td><code>GET /auth/github/accounts</code></td><td colspan="2" style="text-align:center;color:var(--text-2)">新集成到 sources 服务</td></tr>
+        <tr><td><code>bindGithub / unbindGithub</code></td><td><code>POST /auth/github/bind</code></td><td colspan="2" style="text-align:center;color:var(--text-2)">→ <code>sources.set_github_token</code></td></tr>
+        <tr><td><code>listStars</code></td><td><code>GET /auth/github/stars</code></td><td colspan="2" style="text-align:center;color:var(--text-2)">→ <code>sources.list_starred_repos</code></td></tr>
+        <tr><td><code>importProjects(repos)</code></td><td><code>POST /projects/import</code></td><td><code>sources.import_repo</code></td><td>POST <code>/api/sources/capabilities/import_repo</code>(长任务)</td></tr>
+        <tr><td><code>listProjects(params?)</code></td><td><code>GET /projects/</code></td><td><code>sources.list_repos</code></td><td>POST <code>/api/sources/capabilities/list_repos</code></td></tr>
+        <tr><td><code>getProject(id)</code></td><td><code>GET /projects/{id}</code></td><td><code>sources.get_repo</code></td><td>POST <code>/api/sources/capabilities/get_repo</code></td></tr>
+        <tr><td><code>getProjectReadme(id)</code></td><td><code>GET /projects/{id}/readme</code></td><td><code>sources.get_readme</code></td><td>POST <code>/api/sources/capabilities/get_readme</code></td></tr>
+        <tr><td><code>createProject / updateProject / deleteProject</code></td><td><code>POST/PUT/DELETE /projects/</code></td><td colspan="2" style="text-align:center;color:var(--text-2)">新无对应(项目走 sources 资源)</td></tr>
+        <tr><td><code>updateProgress</code></td><td><code>PATCH /projects/{id}/progress</code></td><td><code>sources.set_repo_meta</code></td><td>POST <code>/api/sources/capabilities/set_repo_meta</code></td></tr>
+        <tr><td><code>getProjectStats / exportProjects</code></td><td>—</td><td colspan="2" style="text-align:center;color:var(--text-2)">新通过 graph.graph_stats + sources.list_repos 组合</td></tr>
+        <tr><td><code>list/create/update/deleteCategory</code></td><td><code>/categories/</code></td><td><code>sources.list_categories</code></td><td>POST <code>/api/sources/capabilities/list_categories</code></td></tr>
+        <tr><td><code>list/create/deleteTag</code></td><td><code>/tags/</code></td><td colspan="2" style="text-align:center;color:var(--text-2)">新未实现(仅 categories)</td></tr>
+        <tr><td><code>setProjectTags</code></td><td><code>PUT /projects/{id}/tags</code></td><td colspan="2" style="text-align:center;color:var(--text-2)">新未实现(待补)</td></tr>
+        <tr><td><code>listNotes(projectId)</code></td><td><code>GET /projects/{id}/notes</code></td><td><code>notes.list_notes</code>(<b>注:无 projectId 过滤</b>)</td><td>POST <code>/api/notes/capabilities/list_notes</code></td></tr>
+        <tr><td><code>listAllNotes()</code></td><td><code>GET /notes/</code></td><td><code>notes.list_notes</code></td><td>同上</td></tr>
+        <tr><td><code>getNote / createNote / updateNote / deleteNote</code></td><td><code>/notes/{id}</code></td><td>同 capability</td><td>POST <code>/api/notes/capabilities/...</code></td></tr>
+        <tr><td><code>getGraph({min_similarity, max_edges})</code></td><td><code>GET /graph/</code></td><td><code>graph.query_graph</code></td><td>POST <code>/api/graph/capabilities/query_graph</code></td></tr>
+        <tr><td><code>getCrossEdges / getRecommendEdges</code></td><td><code>/graph/cross / /graph/recommend</code></td><td><code>graph.get_subgraph</code> + <code>graph.expand_neighbors</code></td><td>POST <code>/api/graph/capabilities/...</code></td></tr>
+        <tr><td><code>listCodeGraphIndexStatuses</code></td><td><code>GET /code-graph/indexes</code></td><td><code>graph.list_index_jobs</code></td><td>POST <code>/api/graph/capabilities/list_index_jobs</code></td></tr>
+        <tr><td><code>cancelCodeGraphIndex / getCodeGraphStatus / triggerCodeGraphIndex / refreshCodeGraphIndex / deleteCodeGraphIndex</code></td><td>—</td><td><code>graph.{cancel,enqueue,reorder}_index</code></td><td>POST <code>/api/graph/capabilities/...</code></td></tr>
+        <tr><td><code>getCodeGraph(id, {max_nodes})</code></td><td><code>GET /code-graph/{id}</code></td><td><code>graph.get_subgraph</code></td><td>POST <code>/api/graph/capabilities/get_subgraph</code></td></tr>
+        <tr><td><code>getCodeArchitecture(id)</code></td><td><code>GET /code-graph/{id}/architecture</code></td><td colspan="2" style="text-align:center;color:var(--text-2)">新无对应(可由 get_subgraph 推导)</td></tr>
+        <tr><td><code>traceCodeGraph / searchCodeGraph</code></td><td>—</td><td><code>graph.{find_path,query_graph}</code></td><td>POST <code>/api/graph/capabilities/...</code></td></tr>
+        <tr><td><code>batchIndexCodeGraph</code></td><td><code>POST /code-graph/batch</code></td><td><code>graph.enqueue_index</code>(逐个)</td><td>前端循环调</td></tr>
+        <tr><td><code>getLlmUsage(days?)</code></td><td><code>GET /usage/llm</code></td><td><code>llm.get_usage_stats</code></td><td>POST <code>/api/llm/capabilities/get_usage_stats</code></td></tr>
+        <tr><td><code>getSettings / updateSettings</code></td><td><code>/settings/</code></td><td><code>settings.{get_settings,set_setting}</code></td><td>POST <code>/api/settings/capabilities/...</code></td></tr>
+        <tr><td><code>saveLlmApiKey / testLLM</code></td><td><code>POST /settings/llm/key</code></td><td><code>llm.{set_api_key,test_connection}</code></td><td>POST <code>/api/llm/capabilities/...</code></td></tr>
+        <tr><td><code>listTrending</code></td><td><code>GET /overview/trending</code></td><td colspan="2" style="text-align:center;color:var(--text-2)">新无对应(用 sources.search_remote_repos)</td></tr>
+        <tr><td><code>listActivities</code></td><td><code>GET /overview/activities</code></td><td colspan="2" style="text-align:center;color:var(--text-2)">新 eventbus 重放 + activity 页聚合</td></tr>
+        <tr><td><code>listRecommendedProjects / listOverviewRecentNotes</code></td><td><code>/overview/recommended</code></td><td colspan="2" style="text-align:center;color:var(--text-2)">新走 sources + notes + graph 组合</td></tr>
+        <tr><td><code>listAgentSessions / getAgentSession / createAgentSession / deleteAgentSession / updateAgentSession</code></td><td><code>/agent/sessions/</code></td><td><code>agent.list_subagents</code>(不同语义)<br>或 <code>agent.list_subagents.running</code></td><td>POST <code>/api/agent/capabilities/list_subagents</code></td></tr>
+        <tr><td><code>getAgentProfiles</code></td><td><code>GET /agent/profiles</code></td><td><code>agent.list_personas</code></td><td>POST <code>/api/agent/capabilities/list_personas</code></td></tr>
+        <tr><td><code>getUserProfile / updateUserProfile</code></td><td><code>/agent/profile/</code></td><td><code>agent.recall_memory</code>(读)<br>无写对应(待补)</td><td>POST <code>/api/agent/capabilities/recall_memory</code></td></tr>
+        <tr><td><code>clearUserMemory / acceptMemoryProposal / rejectMemoryProposal</code></td><td>—</td><td colspan="2" style="text-align:center;color:var(--text-2)">新无对应(memory 是 agent 内部管理)</td></tr>
+        <tr><td><code>getPermissions</code></td><td><code>GET /agent/permissions</code></td><td><code>agent.list_tools</code>(读能力名册)<br>无用户改白名单 UI</td><td>POST <code>/api/agent/capabilities/list_tools</code></td></tr>
+        <tr><td><code>searchGithubRepos(query)</code></td><td><code>GET /projects/search</code></td><td><code>sources.search_remote_repos</code></td><td>POST <code>/api/sources/capabilities/search_remote_repos</code></td></tr>
+        <tr><td><code>getContextWindow</code></td><td><code>GET /agent/context-window</code></td><td colspan="2" style="text-align:center;color:var(--text-2)">新无对应(chat 上下文由后端组装)</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">3.2 SSE 方法(7 个)</h3>
+    <table>
+      <thead><tr><th>旧 IApiClient 方法</th><th>SSE 协议</th><th>新对应</th><th>迁移方式</th></tr></thead>
+      <tbody>
+        <tr><td><code>chatAgent(sessionId, message, signal?)</code></td><td>per-call POST + AsyncGenerator</td><td>EventSource 共享 + <code>user.message</code> 事件</td><td><b>完全重写</b>:per-stream → 共享 SSE</td></tr>
+        <tr><td><code>answerQuestion(sessionId, qid, answers, signal?)</code></td><td>per-call POST + AsyncGenerator</td><td><code>agent.answer_question</code> capability(同步)</td><td>per-stream → 同步能力调用</td></tr>
+        <tr><td><code>analyzeProject(projectId, agent, signal?)</code></td><td>per-call POST + AsyncGenerator</td><td>用 chatAgent 替代(agent 选 Atlas)</td><td>删除独立流,归入主 chat</td></tr>
+        <tr><td><code>generateNote(projectId, {mode, topic?}, signal?)</code></td><td>per-call POST + AsyncGenerator</td><td>notes.create_note + 事件流更新</td><td>删除独立流,归入 chat 派单</td></tr>
+        <tr><td><code>importAssistChat(message, context, signal?)</code></td><td>per-call POST + AsyncGenerator</td><td>chatAgent + <code>agent.answer_question</code></td><td>同 chatAgent</td></tr>
+        <tr><td><code>graphGuideChat(message, {selected_node_id?}, signal?)</code></td><td>per-call POST + AsyncGenerator</td><td>chatAgent(Atlas persona)</td><td>同 chatAgent</td></tr>
+        <tr><td><code>streamTrendingScoutIntro(params, signal?)</code></td><td>per-call POST + AsyncGenerator</td><td>无对应(取消 trending scout)</td><td><b>删除</b>(v2 不再需要)</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <b>关键发现</b>:旧 7 个 SSE AsyncGenerator 中,6 个是"per-call POST"流式(用 fetch + AbortSignal + ReadableStream + 消费器聚合),
+      <b>1 个是"per-call POST"</b>(streamTrendingScoutIntro)。
+      <b>新 0 个 per-call SSE</b>——所有事件统一走 <code>bridge/stream.ts</code> 的 <b>EventSource 长连</b> + 模式订阅 + 断线 lastSeq 重连。
+      <b>这是事件协议的根本性变化</b>。详见 §4。
+    </div>
+  </section>
+
+  <!-- ============== 4. SSE MAPPING ============== -->
+  <section id="sse">
+    <div class="section-title">
+      <span class="num">4</span>
+      <h2>SSE 13 事件 → 业务事件映射</h2>
+      <span class="sub">事件协议根本性变化</span>
+    </div>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">4.1 旧 13 事件类型(api/types.ts:279-298)</h3>
+    <pre>type SSEEventType =
+  | 'text_delta' | 'thinking' | 'tool_call' | 'tool_result'
+  | 'question' | 'agent_switch'
+  | 'subagent_start' | 'subagent_thinking' | 'subagent_text' | 'subagent_done'
+  | 'select_repos' | 'session_projects'
+  | 'done' | 'error';</pre>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">4.2 新 11 业务事件类型(platform_contracts.DomainEvent)</h3>
+    <pre>class DomainEvent:
+  USER_MESSAGE = "user.message"
+  USER_ONLINE = "user.online"
+  USER_ACTIVITY = "user.activity"
+  TASK_ENQUEUED = "task.enqueued"
+  TASK_PROGRESS = "task.progress"
+  TASK_COMPLETED = "task.completed"
+  TASK_FAILED = "task.failed"
+  AGENT_MESSAGE = "agent.message"
+  AGENT_NAVIGATE = "agent.navigate"
+  SETTINGS_CHANGED = "settings.changed"
+  SERVICE_HEALTH_CHANGED = "service.health.changed"</pre>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">4.3 精确对应表</h3>
+    <table>
+      <thead><tr><th>旧 13 事件</th><th>旧语义</th><th>新对应</th><th>新形态</th></tr></thead>
+      <tbody>
+        <tr><td><code>text_delta</code></td><td>逐字流</td><td><b>✗ 无对应</b></td><td>新只看到最终 <code>agent.message</code>;打字机效果需在前端模拟</td></tr>
+        <tr><td><code>thinking</code></td><td>推理流</td><td><b>✗ 无对应</b></td><td>新不暴露 thinking 文本</td></tr>
+        <tr><td><code>tool_call</code></td><td>工具启动</td><td><code>task.enqueued</code> + <code>task.progress</code></td><td>任务生命周期事件</td></tr>
+        <tr><td><code>tool_result</code></td><td>工具结果</td><td><code>task.completed</code> + <code>task.failed</code></td><td>任务完成事件</td></tr>
+        <tr><td><code>question</code></td><td>反问容器</td><td><code>agent.ask</code> 事件</td><td>挂起等用户答(chatStore.dispatch)</td></tr>
+        <tr><td><code>agent_switch</code></td><td>Hub 切换子 Agent</td><td><b>△ agent.message 的 subagent 字段</b></td><td>聚合到 <code>agent.message</code> 内部</td></tr>
+        <tr><td><code>subagent_start</code></td><td>子 Agent 启动</td><td><code>agent.message</code> + subagent 字段</td><td>同上</td></tr>
+        <tr><td><code>subagent_thinking / subagent_text</code></td><td>子流</td><td>聚合到 <code>agent.message</code></td><td>同上</td></tr>
+        <tr><td><code>subagent_done</code></td><td>子 Agent 完成</td><td><code>agent.message</code> + status 字段</td><td>同上</td></tr>
+        <tr><td><code>select_repos</code></td><td>导入助手勾选</td><td><b>✗ 取消</b></td><td>新走主 chat 的 AskUser 弹窗</td></tr>
+        <tr><td><code>session_projects</code></td><td>会话项目上下文</td><td><b>✗ 取消</b></td><td>新走 <code>agent.list_subagents</code></td></tr>
+        <tr><td><code>done</code></td><td>流结束</td><td>事件流断连(由 bridge 处理)</td><td>不再有"per-stream 结束"</td></tr>
+        <tr><td><code>error</code></td><td>流错误</td><td><code>task.failed</code> + <code>ServiceError</code></td><td>capability 调用错误统一</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">4.4 关键架构差异</h3>
+    <div class="grid-2">
+      <div class="card rose">
+        <h3>旧:per-call POST SSE(单 stream 单会话)</h3>
+        <pre>fetch('/api/v1/agent/chat/{sid}', {method: 'POST', body})
+  → ReadableStream
+  → parseSSEStream(reader)
+  → consumeAgentSSEStream(stream, handlers)
+  → 聚合到 useAgentStore.messages[]</pre>
+        <p>每个会话/每次交互 = 1 个独立 HTTP 请求 + 独立流消费器。流断 = 对话结束。</p>
+      </div>
+      <div class="card green">
+        <h3>新:共享 EventSource + 模式订阅</h3>
+        <pre>EventSource('/api/chat/stream?after_seq=...')
+  → 模式订阅 [agent.message, agent.ask, agent.navigate, task.*, note.created]
+  → 事件落 chatStore.dispatch
+  → 同时更新 messages / cards / artifacts / question
+  → 断线 lastSeq 重连 + read_missed 补齐</pre>
+        <p>1 个长连接支撑所有页面所有交互;事件是<strong>持久化的</strong>(写进 events.db),可重放。</p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <b>新模型的核心优势</b>:
+      ① 多视图(Chat 页 + FloatingChat 常驻)共用同一 store;
+      ② 离线事件可重放(重启从 last_seq 恢复);
+      ③ 跨页面状态保持(切到 /notes 再切回 chat,消息流不断);
+      ④ 事件可被活动页 / 错误页 / 调试页订阅。
+      <br>
+      <b>迁移含义</b>:旧 agentStore.processSSEStream 14 个 case 大部分丢弃,改为 chatStore.dispatch 8 个 case。
+    </div>
+  </section>
+
+  <!-- ============== 5. UTILS ============== -->
+  <section id="utils">
+    <div class="section-title">
+      <span class="num">5</span>
+      <h2>7 大 utils 子模块</h2>
+      <span class="sub">agentQuestion 7 子模块 + sse 2 + 其他 6</span>
+    </div>
+    <p class="section-subtitle">
+      utils/ 层 15+ 工具按 7 大类组织,重点是 <b>agentQuestion/ 7 个子模块</b>(反问系统 700 行,完整可拆解迁移)和 <b>actionResult.ts</b>(协议标签解析)。
+    </p>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">5.1 agentQuestion/ 7 子模块(700 行)</h3>
+    <div class="file-list">
+      <div class="row"><div class="path">utils/agentQuestion/constants.ts</div><div class="size">~50</div><div class="desc">题型常量(5 种:radio/checkbox/slider/drag_sort/knowledge_map)</div></div>
+      <div class="row"><div class="path">utils/agentQuestion/parsers.ts</div><div class="size">~130</div><div class="desc">recoverQuestionFromText(从正文 JSON 兜底出题)</div></div>
+      <div class="row"><div class="path">utils/agentQuestion/radio-helpers.ts</div><div class="size">~120</div><div class="desc">radio 题型相关</div></div>
+      <div class="row"><div class="path">utils/agentQuestion/checkbox-helpers.ts(推测)</div><div class="size">~50</div><div class="desc">checkbox 题型</div></div>
+      <div class="row"><div class="path">utils/agentQuestion/slider-helpers.ts(推测)</div><div class="size">~50</div><div class="desc">slider 题型</div></div>
+      <div class="row"><div class="path">utils/agentQuestion/quiz.ts</div><div class="size">~40</div><div class="desc">quiz 模式(exam 题)</div></div>
+      <div class="row"><div class="path">utils/agentQuestion/parsers.ts → text-cleanup.ts</div><div class="size">~320</div><div class="desc">text-cleanup + hydrate + card-formatters</div></div>
+    </div>
+    <div class="callout warn">
+      <b>迁移问题</b>:新 AskUser 弹窗只支持 4 种题型(text/choice/slider/confirm),<b>不支持 drag_sort 和 knowledge_map</b>。
+      需要:① 在 `voyager/agent/tools/ask_user.py` 扩展题型枚举;② 同步修改前端 `widgets/chat/AskDialog.tsx` 渲染;③ utils/agentQuestion/ 中 drag_sort/knowledge_map 相关代码可删除或降级。
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">5.2 SSE 2 个工具(192 行)</h3>
+    <table>
+      <thead><tr><th>工具</th><th>用途</th><th>迁移</th></tr></thead>
+      <tbody>
+        <tr><td><code>sse-parser.ts</code></td><td>per-call POST SSE 帧解析(ReadableStream → AsyncGenerator)</td><td><b>删除</b>(新无 per-call SSE)</td></tr>
+        <tr><td><code>sse-helpers.ts</code></td><td>类型断言 asSSETextDelta / asSSEThinking / asSSEToolCall 等 9 个</td><td><b>删除</b>(类型与新事件不兼容)</td></tr>
+        <tr><td><code>agentSSEStream.ts</code></td><td>通用消费器 consumeAgentSSEStream(8 handler hook)</td><td><b>删除</b>(新走 chatStore.dispatch)</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">5.3 业务工具 12+</h3>
+    <table>
+      <thead><tr><th>工具</th><th>行</th><th>用途</th><th>迁移</th></tr></thead>
+      <tbody>
+        <tr><td><code>actionResult.ts</code></td><td>122</td><td>解析 tool_result.__action__ 协议</td><td><b>删除</b>(新事件无此协议)</td></tr>
+        <tr><td><code>errorCodes.ts</code></td><td>335</td><td>60+ 错误码映射 + describeError/formatErrorToast</td><td><b>直接搬</b>(错误码结构同构)</td></tr>
+        <tr><td><code>agentThinking.ts</code></td><td>90</td><td>thinking 文本分类</td><td><b>删除</b>(新不暴露 thinking)</td></tr>
+        <tr><td><code>runTrace.ts</code></td><td>86</td><td>工具/子 Agent 快照</td><td><b>改写</b>(新 task.* 事件直接生成 task card)</td></tr>
+        <tr><td><code>sessionProjectBind.ts</code></td><td>231</td><td>URL/裸名→项目 id 提取</td><td><b>改写</b>(新用 sources.search_remote_repos 替代)</td></tr>
+        <tr><td><code>streamSessionGuard.ts</code></td><td>7</td><td>isStreamSessionActive(切会话守卫)</td><td><b>删除</b>(新无 per-session 隔离)</td></tr>
+        <tr><td><code>agentSwitchDisplay.ts</code></td><td>35</td><td>切换条副标题</td><td><b>删除</b>(新无 agent_switch 事件)</td></tr>
+        <tr><td><code>invalidateOverview.ts</code></td><td>21</td><td>RQ query keys 失效</td><td><b>删除</b>(新无 RQ)</td></tr>
+        <tr><td><code>overviewLinks.ts</code></td><td>15</td><td>活动项跳转</td><td><b>改写</b>(新走 feed.ts 摘要)</td></tr>
+        <tr><td><code>labels.ts</code></td><td>102</td><td>AGENT_INITIALS / categoryLabel / progressLabel 等</td><td><b>改写</b>(新用 5 个 persona 而非 7 个 agent)</td></tr>
+        <tr><td><code>user.ts / format.ts / date.ts / cn.ts / clone.ts</code></td><td>~150</td><td>格式化/类名合并/克隆</td><td><b>直接搬</b>(纯函数,无依赖)</td></tr>
+        <tr><td><code>morse.ts / asciiArch.ts / importRepoFilter.ts / validators.ts</code></td><td>~400</td><td>装饰 + 筛选 + 校验</td><td><b>直接搬</b>(纯函数)</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============== 6. COMPONENTS MATRIX ============== -->
+  <section id="components">
+    <div class="section-title">
+      <span class="num">6</span>
+      <h2>80+ 组件依赖矩阵</h2>
+      <span class="sub">page × component 交叉表</span>
+    </div>
+    <p class="section-subtitle">
+      80+ 组件按"被多少个 page 引用"分 3 类:
+      <b>[layout]</b>(5 个)只用于壳;<b>[共享]</b>(~25 个)被 ≥2 个 page 引用;<b>[独占]</b>(~50 个)只被 1 个 page 引用,可随 page 整体搬。
+    </p>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">6.1 layout 壳组件(5 个)</h3>
+    <ul style="font-size:13px;color:var(--text-1);padding-left:20px">
+      <li><code>layout/AppShell.tsx</code> · 3 layout 壳(<code>AppShell / AgentShell / NotesShell</code>)</li>
+      <li><code>layout/Sidebar.tsx</code> · 侧边栏 + NavIcons</li>
+      <li><code>layout/Topbar.tsx</code> · 顶栏 + 主题切换 + ⌘K 搜索</li>
+      <li><code>icons/NavIcons.tsx</code> · 7 个手写 SVG</li>
+      <li><code>common/ToastContainer.tsx</code> · 全局 toast 渲染</li>
+      <li><code>common/ErrorBoundary.tsx</code> · 根错误边界</li>
+    </ul>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">6.2 共享组件(~25 个,被 ≥2 page 引用)</h3>
+    <table>
+      <thead><tr><th>组件</th><th>引用 page 数</th><th>迁移</th></tr></thead>
+      <tbody>
+        <tr><td><code>common/LoadingSpinner</code></td><td>9</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td><code>common/ConfirmDialog</code></td><td>4</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td><code>common/MarkdownRenderer</code></td><td>2</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td><code>common/EmptyState</code></td><td>2</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td><code>common/GlassCard</code></td><td>1+ (Profile)</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td><code>common/GlassSelect</code></td><td>3</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td><code>common/MermaidBlock</code></td><td>2 (via MarkdownRenderer)</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td><code>agent/StreamRenderer</code></td><td>2</td><td><span class="chip amber">改写</span>(去掉流式)</td></tr>
+        <tr><td><code>agent/QuestionPanel</code></td><td>1 (via QuestionHistoryCard)</td><td><span class="chip rose">重写</span>(4 种题型)</td></tr>
+        <tr><td><code>agent/RunTracePanel</code></td><td>1</td><td><span class="chip rose">重写</span>(用 task.* 卡片)</td></tr>
+        <tr><td><code>agent/ToolCallCard</code></td><td>1 (via RunTracePanel)</td><td><span class="chip rose">重写</span></td></tr>
+        <tr><td><code>agent/ActionResultCard</code></td><td>1 (via RunTracePanel)</td><td><span class="chip rose">删除</span>(无 __action__ 协议)</td></tr>
+        <tr><td><code>agent/AgentAvatar</code></td><td>2 (ChatPanel + Carousel)</td><td><span class="chip green">改样式</span>(5 persona 而非 7 agent)</td></tr>
+        <tr><td><code>agent/EmbedAgentChat</code></td><td>2 (ImportStars + ImportUrls)</td><td><span class="chip rose">重写</span>(SSE 协议变)</td></tr>
+        <tr><td><code>project/ProjectTable</code></td><td>1 (Projects)</td><td><span class="chip green">改</span>(走 sources.list_repos)</td></tr>
+        <tr><td><code>project/FilterBar / FilterDropdown</code></td><td>1 (Projects)</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td><code>project/ProgressBadge</code></td><td>3 (Projects, Detail, AgentContextSidebar)</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td><code>project/Import*</code></td><td>1 (Projects)</td><td><span class="chip amber">改写</span>(走 sources.import_repo)</td></tr>
+        <tr><td><code>project/CategoryTagManager</code></td><td>1 (Projects)</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td><code>note/NoteList / NoteEditor / NoteMeta</code></td><td>2 (Detail + Notes)</td><td><span class="chip green">改字段</span>(project_id → source_id)</td></tr>
+        <tr><td><code>usage/*</code></td><td>1 (Usage)</td><td><span class="chip green">改</span>(走 llm.get_usage_stats)</td></tr>
+        <tr><td><code>graph/GraphGuidePanel</code></td><td>2 (L0 + L1)</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td><code>graph/GraphIndexProgressBar</code></td><td>2 (L0 GraphControls + L1 IndexStatusBar)</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td><code>graph-viz/GraphScene</code></td><td>2 (L0 + L1)</td><td><span class="chip green">直接搬</span></td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">6.3 独占组件(~50 个,可随 page 整体搬)</h3>
+    <div class="grid-3">
+      <div class="mod cyan">
+        <h4>agent 独占(9 个)</h4>
+        <p>ChatPanel · AgentContextSidebar · MessageBubble · QuestionHistoryCard · AgentSelector · AgentCarousel · TrendingScoutSpot · ContextWindowPanel · AgentCharacterHead</p>
+      </div>
+      <div class="mod green">
+        <h4>project 独占(1 个)</h4>
+        <p>ProjectAiPanel(详情页 AI 分析面板)</p>
+      </div>
+      <div class="mod violet">
+        <h4>settings 独占(7 个)</h4>
+        <p>LlmSettingsSection · LlmProviderList · LlmProviderDetail · LlmAgentOverrides · AgentSettingsSection · AppearanceSection(推测)· AboutSection(推测)</p>
+      </div>
+      <div class="mod amber">
+        <h4>graph 独占(4 个)</h4>
+        <p>UniverseGraphView · GraphControls · l0Layout3d · l0EdgeTypes</p>
+      </div>
+      <div class="mod rose">
+        <h4>code-graph 独占(10 个)</h4>
+        <p>CodeGraphSidebar · NodeDetailPanel · IndexStatusBar · DisplaySettingsMenu · NodeCloud · NodeLabels · EdgeLines · NodeTooltip · graphAutoRotate · graphTooltipScale</p>
+      </div>
+      <div class="mod slate">
+        <h4>其他(19 个)</h4>
+        <p>EditProjectModal · ImportStarsDrawer · ImportUrlsModal · ImportRepoFilterBar · ImportAgentModal(推测) · NoteList/Editor/Meta · EmptyState · LlmUsageDashboard · ErrorBoundary · + 其他推测</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== 7. STORES ============== -->
+  <section id="stores">
+    <div class="section-title">
+      <span class="num">7</span>
+      <h2>8 个 store → 状态管理映射</h2>
+      <span class="sub">zustand → 散在 page-private zustand</span>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>旧 store</th><th>行</th><th>状态字段</th><th>新对应</th><th>差异</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>useAuthStore</code></td>
+          <td>44</td>
+          <td>user/isLoading/error</td>
+          <td>无独立 store</td>
+          <td><span class="chip rose">删除</span>(本机单用户)</td>
+        </tr>
+        <tr>
+          <td><code>useUIStore</code></td>
+          <td>96</td>
+          <td>theme/sidebarCollapsed/fontScale/toasts + persist</td>
+          <td><code>shell/useTheme.ts</code></td>
+          <td><span class="chip green">直接</span>(已存在)</td>
+        </tr>
+        <tr>
+          <td><code>useAgentStore</code></td>
+          <td>881</td>
+          <td>SSE 状态机完整副本</td>
+          <td><code>bridge/chatStore.ts</code>(messages/cards/artifacts/question/connected/thinking)</td>
+          <td><span class="chip rose">完全重写</span>(per-stream → 共享事件流)</td>
+        </tr>
+        <tr>
+          <td><code>useProjectStore</code></td>
+          <td>101</td>
+          <td>filter+page+selectedIds</td>
+          <td><code>pages/sources/sourcesStore.ts</code></td>
+          <td><span class="chip amber">改写</span>(仅视图状态)</td>
+        </tr>
+        <tr>
+          <td><code>useNoteStore</code></td>
+          <td>49</td>
+          <td>editor+search+selected</td>
+          <td><code>pages/notes/notesStore.ts</code></td>
+          <td><span class="chip green">拆分</span>(编辑器 state 留 page)</td>
+        </tr>
+        <tr>
+          <td><code>useSettingsStore</code></td>
+          <td>130</td>
+          <td>settings/loading/testingLLM/testResult/error(乐观+回滚)</td>
+          <td>无独立 store</td>
+          <td><span class="chip green">删除</span>(直调 capability)</td>
+        </tr>
+        <tr>
+          <td><code>useGraphStore</code></td>
+          <td>86</td>
+          <td>L0 view+filter+zoom</td>
+          <td><code>pages/graph/graphStore.ts</code>(Map 化)</td>
+          <td><span class="chip amber">改写</span></td>
+        </tr>
+        <tr>
+          <td><code>useCodeGraphStore</code></td>
+          <td>69</td>
+          <td>L1 filter+view+selected</td>
+          <td><code>pages/graph/graphStore.ts</code> 共享</td>
+          <td><span class="chip green">合并</span>(L0+L1 一页)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">7.1 关键差异:持久化策略</h3>
+    <table>
+      <thead><tr><th>旧持久化 key</th><th>旧内容</th><th>新对应</th></tr></thead>
+      <tbody>
+        <tr><td><code>rp-ui-store</code></td><td>theme/sidebarCollapsed/fontScale</td><td>只剩 theme(`shell/useTheme.ts`)</td></tr>
+        <tr><td><code>rp_token / rp_refresh</code></td><td>本地会话令牌(已 <code>clearLegacyTokenStorage</code> 清理)</td><td>本机单用户,无</td></tr>
+        <tr><td><code>rp_agent_session_collapsed</code></td><td>Agent 侧栏折叠</td><td>新走 ChatPage 内部 useState</td></tr>
+        <tr><td><code>rp_agent_context_collapsed</code></td><td>上下文侧栏折叠</td><td>同上</td></tr>
+        <tr><td><code>code-graph display-settings</code></td><td>L1 渲染配置</td><td>新走 graphStore 内部</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">7.2 useAgentStore 881 行的拆分进展</h3>
+    <p style="font-size:13px;color:var(--text-1)">
+      旧 <code>useAgentStore</code> 单文件 881 行包含完整 SSE 状态机。
+      拆分进展:
+    </p>
+    <ul style="font-size:13px;color:var(--text-1);padding-left:20px">
+      <li><b>已抽到 <code>stores/agentStore/sseHandlers.ts</code></b>(118 行):<code>handleTextDelta / handleThinking / handleSubagentThinking / handleSubagentText / handleError / handleDone</code> + <code>HANDLERS</code> 路由</li>
+      <li><b>未迁移(仍在主 store)</b>:<code>tool_call / tool_result / question / agent_switch / subagent_start / subagent_done / session_projects</code>(涉及 sawQuestion/withFlushedPrior/buildOffer/recoverQuestionFromText 等闭包)</li>
+      <li><b>完全废弃</b>:<code>text_delta / thinking / select_repos / done</code>(新事件无对应或语义变)</li>
+    </ul>
+    <div class="callout warn">
+      <b>迁移含义</b>:新模型不需要这个 881 行的 store。chatStore(47 行)+ 8 个 case dispatch 完全替代;
+      旧代码的 80% 可删除,20% 转为 chatStore 中相应字段初始化。
+    </div>
+  </section>
+
+  <!-- ============== 8. STYLES ============== -->
+  <section id="styles">
+    <div class="section-title">
+      <span class="num">8</span>
+      <h2>样式系统(14 CSS 文件)</h2>
+      <span class="sub">Design Tokens 100+ + Liquid Glass 子系统</span>
+    </div>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">8.1 14 个 CSS 文件清单</h3>
+    <table>
+      <thead><tr><th>文件</th><th>行</th><th>角色</th><th>迁移</th></tr></thead>
+      <tbody>
+        <tr><td>design-system.css</td><td>~1336</td><td>Design Tokens 单一来源(brand/bg/text/state/chart/cat/typography/glass/md/fluid/spacing/radius/shadow/breakpoint/layout)</td><td><span class="chip green">直接搬</span>(与 voyager 78 KB 完全对齐)</td></tr>
+        <tr><td>liquid-glass.css</td><td>~496</td><td>玻璃材质子系统(--lg-* 30+ token + .glass-card 全套变体)</td><td><span class="chip green">新增</span>(voyager 缺这文件)</td></tr>
+        <tr><td>global.css</td><td>~196</td><td>Toast/Spinner/Modal/AppError/Avatar/.progress-pill/.field</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td>shell.css</td><td>33</td><td>.main/.gh-bound/.notes-main</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td>pages/index.css</td><td>9</td><td>@import 10 个 page CSS</td><td><span class="chip green">直接搬</span></td></tr>
+        <tr><td>pages/overview.css</td><td>~1180</td><td>总览</td><td><span class="chip green">新增</span>(voyager 总览需重做)</td></tr>
+        <tr><td>pages/projects.css</td><td>~1389</td><td>项目库</td><td><span class="chip green">新增</span>(voyager sources 需)</td></tr>
+        <tr><td>pages/agent.css</td><td>~2000</td><td>Agent Chat</td><td><span class="chip green">部分搬</span>(去掉流式 + 4 种题型)</td></tr>
+        <tr><td>pages/notes.css</td><td>~424</td><td>笔记</td><td><span class="chip green">部分搬</span>(改字段名)</td></tr>
+        <tr><td>pages/graph.css</td><td>~1705</td><td>L0 图谱</td><td><span class="chip amber">改写</span>(新后端能力更强)</td></tr>
+        <tr><td>pages/code-graph.css</td><td>~500</td><td>L1 代码图谱</td><td><span class="chip rose">大重写</span></td></tr>
+        <tr><td>pages/settings.css</td><td>~922</td><td>设置</td><td><span class="chip amber">改写</span>(schema 驱动渲染)</td></tr>
+        <tr><td>pages/profile.css</td><td>~144</td><td>个人资料</td><td><span class="chip rose">大改</span>(→ 走 agent.recall_memory)</td></tr>
+        <tr><td>pages/project-detail.css</td><td>~552</td><td>项目详情</td><td><span class="chip amber">改写</span>(→ sources 模块)</td></tr>
+        <tr><td>pages/usage.css</td><td>~463</td><td>用量</td><td><span class="chip green">直接搬</span></td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">8.2 7 大类 Design Token(100+ 变量)</h3>
+    <div class="grid-3">
+      <div class="mod cyan">
+        <h4>① 色板(50+ 变量)</h4>
+        <p>brand 10 阶 / bg 10 阶 / text 9 阶 / state 6 态(浅+深) / chart 8 色 / category 12 类(浅+深) / surface 玻璃 12 / md-panel 10 / fluid-blob 4 色</p>
+      </div>
+      <div class="mod green">
+        <h4>② 字体(2 栈)</h4>
+        <p><code>--font-sans: "DM Sans" + 系统栈</code>;<br><code>--font-mono: "JetBrains Mono" + Sarasa/Source Han Mono CJK SC</code></p>
+      </div>
+      <div class="mod amber">
+        <h4>③ 间距</h4>
+        <p><code>--sp: 4px</code> 基础;8 倍数:8/12/14/16/18/20/22/24/28/32/40/56;<br>utility: <code>mt-sm:8 / mt-md:16 / mt-lg:24 / mt-xl:40</code></p>
+      </div>
+      <div class="mod violet">
+        <h4>④ 圆角(φ 几何)</h4>
+        <p><code>--phi: 1.6180339887</code>;<br>scale: 2xs(3)/xs(5)/sm(8)/md(13)/lg(21)/xl(34) + btn/field/icon/avatar/bubble 等角色化</p>
+      </div>
+      <div class="mod rose">
+        <h4>⑤ 阴影</h4>
+        <p>5 档:<code>--shadow-xs/sm/md/lg/xl</code>(浅+深透明度提升);<br>玻璃专用 4 层(outer+inset-top+inset-bottom+inset-glow)</p>
+      </div>
+      <div class="mod slate">
+        <h4>⑥ 动效</h4>
+        <p>3 曲线:<code>--ease/--ease-out/--ease-spring</code>;<br>常用时长 0.15-0.8s;<br>10+ keyframe(spin/shimmer/toast-in/msg-rise/...)</p>
+      </div>
+      <div class="mod cyan">
+        <h4>⑦ 布局(7 token)</h4>
+        <p><code>--sidebar-w: 260 / --sidebar-w-collapsed: 72 / --topbar-h: 56 / --content-max: 1520 / --z-content/glass/dropdown/modal</code></p>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">8.3 与 voyager 当前 78 KB 样式的差异</h3>
+    <table>
+      <thead><tr><th>差异</th><th>内容</th><th>迁移</th></tr></thead>
+      <tbody>
+        <tr><td style="color:var(--green)"><b>已对齐 80%</b></td><td>核心 token(色/几何/阴影/缓动/字体/布局)100% 一致</td><td><b>无需调整</b></td></tr>
+        <tr><td style="color:var(--amber)">需新增 ~5 KB</td><td><code>liquid-glass.css</code> 全文 496 行(玻璃子系统)</td><td><b>直接搬</b></td></tr>
+        <tr><td style="color:var(--amber)">需新增 ~80 KB</td><td>9 个 page CSS 文件(overview/projects/agent/notes/graph/code-graph/settings/profile/project-detail/usage)</td><td><b>直接搬</b></td></tr>
+        <tr><td style="color:var(--amber)">需新增 ~30 KB</td><td>design-system 末尾(page transition / shimmer / bulk-bar / tags / nav badge / 全组件 dark 补丁)</td><td><b>直接搬</b></td></tr>
+        <tr><td style="color:var(--rose)">需改写</td><td>design-system 上半段 ~30 KB 中 liquid-glass 引用部分(若新增独立 liquid-glass.css,需提取出来)</td><td><b>拆分</b></td></tr>
+        <tr><td style="color:var(--rose)">需调整</td><td>page CSS 类名前缀(<code>.pd-*</code>/<code>.agent-*</code>/<code>.notes-*</code> 等与新 page 路由对齐)</td><td><b>改类名</b>(重写一份适配新路由)</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============== 9. MAPPING ============== -->
+  <section id="mapping">
+    <div class="section-title">
+      <span class="num">9</span>
+      <h2>逐文件对应表</h2>
+      <span class="sub">每文件 → 新位置/处理方式</span>
+    </div>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">9.1 直接搬(无改动)</h3>
+    <table>
+      <thead><tr><th>旧文件</th><th>新位置</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>api/real/http.ts</code></td><td>可作为 <code>bridge/client.ts</code> 的实现层参考</td><td>fetch + error 解析逻辑同构</td></tr>
+        <tr><td><code>components/common/*</code>(9 个)</td><td>apps/web/src/components/common/(新)</td><td>纯展示组件,无业务依赖</td></tr>
+        <tr><td><code>components/note/*</code>(3 个)</td><td>apps/web/src/pages/notes/components/(新)</td><td>笔记 3 栏组件,改 source_id/node_id 字段</td></tr>
+        <tr><td><code>components/usage/*</code>(5 个)</td><td>apps/web/src/pages/usage/components/(新)</td><td>图表组件,纯展示</td></tr>
+        <tr><td><code>components/icons/NavIcons.tsx</code></td><td>apps/web/src/components/icons/(新)</td><td>7 个手写 SVG</td></tr>
+        <tr><td><code>hooks/useTheme.ts</code></td><td>已有</td><td>主题 hook</td></tr>
+        <tr><td><code>utils/format.ts / date.ts / cn.ts / clone.ts</code></td><td>apps/web/src/utils/(新)</td><td>纯函数</td></tr>
+        <tr><td><code>utils/morse.ts / asciiArch.ts / importRepoFilter.ts / validators.ts</code></td><td>apps/web/src/utils/(新)</td><td>装饰/筛选/校验</td></tr>
+        <tr><td><code>utils/errorCodes.ts</code></td><td>apps/web/src/utils/(新)</td><td>60+ 错误码映射</td></tr>
+        <tr><td><code>styles/design-system.css</code></td><td>apps/web/src/styles/(已有 44 KB 基础,扩展 30 KB)</td><td>设计系统 + 末尾</td></tr>
+        <tr><td><code>styles/liquid-glass.css</code></td><td>apps/web/src/styles/(新增)</td><td>玻璃子系统</td></tr>
+        <tr><td><code>styles/global.css + shell.css</code></td><td>apps/web/src/styles/(已有)</td><td>通用补</td></tr>
+        <tr><td><code>styles/pages/*.css</code>(9 个)</td><td>apps/web/src/styles/pages/(新增)</td><td>页面 CSS</td></tr>
+        <tr><td><code>constants/*.ts</code>(5 个)</td><td>apps/web/src/constants/(新)</td><td>glass 变体字符串 + agent 人格 + LLM 预设</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">9.2 改写(语义等价但形态不同)</h3>
+    <table>
+      <thead><tr><th>旧</th><th>新</th><th>改写要点</th></tr></thead>
+      <tbody>
+        <tr><td><code>api/real/{index,domain/*}.ts</code></td><td><code>bridge/client.ts</code>(单函数)</td><td>7 个域类 → 91 capability 名称</td></tr>
+        <tr><td><code>hooks/useProjects.ts</code>(20+ 方法)</td><td>直接调 <code>callCapability</code></td><td>删除 RQ 中间层,每个 query 改 1 行</td></tr>
+        <tr><td><code>hooks/useNotes.ts / useGraph.ts / useCodeGraph.ts / useSettings.ts / useOverview.ts</code></td><td>同上</td><td>~9 hooks → 直接 capability 调用</td></tr>
+        <tr><td><code>stores/uiStore.ts</code></td><td><code>shell/useTheme.ts</code></td><td>仅保留 theme</td></tr>
+        <tr><td><code>stores/projectStore.ts</code></td><td><code>pages/sources/sourcesStore.ts</code></td><td>仅视图状态</td></tr>
+        <tr><td><code>stores/noteStore.ts</code></td><td><code>pages/notes/notesStore.ts</code></td><td>编辑器 state 留 page</td></tr>
+        <tr><td><code>stores/graphStore.ts / codeGraphStore.ts</code></td><td><code>pages/graph/graphStore.ts</code>(合并)</td><td>L0+L1 一页</td></tr>
+        <tr><td><code>layout/{AppShell,Sidebar,Topbar}.tsx</code></td><td><code>shell/AppShell.tsx</code>(改写,单壳)</td><td>三壳→一壳 + 常驻 FloatingChat 替代 AgentShell</td></tr>
+        <tr><td><code>utils/agentQuestion/parsers.ts</code></td><td>部分丢弃 + 部分保留</td><td>4 种题型(去掉 drag_sort / knowledge_map)</td></tr>
+        <tr><td><code>utils/runTrace.ts</code></td><td>用 task.* 卡片替代</td><td>走 eventbus 重放</td></tr>
+        <tr><td><code>utils/sessionProjectBind.ts</code></td><td>用 <code>sources.search_remote_repos</code></td><td>URL/裸名解析走 service</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">9.3 完全重写(协议不同)</h3>
+    <table>
+      <thead><tr><th>旧</th><th>新</th><th>改写要点</th></tr></thead>
+      <tbody>
+        <tr><td><code>api/client.ts</code>(IApiClient 84 方法)</td><td><code>bridge/client.ts</code>(callCapability + EventSource)</td><td>强类型方法 → 通用调用 + 模式订阅</td></tr>
+        <tr><td><code>utils/sse-parser.ts</code></td><td>删除(新无 per-call SSE)</td><td>—</td></tr>
+        <tr><td><code>utils/sse-helpers.ts</code></td><td>删除(类型与新事件不兼容)</td><td>—</td></tr>
+        <tr><td><code>utils/agentSSEStream.ts</code></td><td>删除(消费器由 chatStore.dispatch 替代)</td><td>—</td></tr>
+        <tr><td><code>utils/streamSessionGuard.ts</code></td><td>删除(新无 per-session 隔离)</td><td>—</td></tr>
+        <tr><td><code>utils/agentSwitchDisplay.ts</code></td><td>删除(无 agent_switch 事件)</td><td>—</td></tr>
+        <tr><td><code>utils/agentThinking.ts</code></td><td>删除(新不暴露 thinking)</td><td>—</td></tr>
+        <tr><td><code>utils/actionResult.ts</code></td><td>删除(无 __action__ 协议)</td><td>—</td></tr>
+        <tr><td><code>utils/invalidateOverview.ts</code></td><td>删除(新无 RQ)</td><td>—</td></tr>
+        <tr><td><code>stores/agentStore.ts</code>(881 行)</td><td><code>bridge/chatStore.ts</code>(47 行)</td><td>per-stream → 共享事件流</td></tr>
+        <tr><td><code>stores/agentStore/sseHandlers.ts</code></td><td>合并到 chatStore</td><td>—</td></tr>
+        <tr><td><code>stores/authStore.ts</code></td><td>删除(本机单用户)</td><td>—</td></tr>
+        <tr><td><code>stores/settingsStore.ts</code></td><td>删除(直调 capability)</td><td>—</td></tr>
+        <tr><td><code>components/agent/*</code>(17 个,7 个改 + 10 个重写)</td><td>拆解到 chat widget + page</td><td>per-call 流式 → 共享事件</td></tr>
+        <tr><td><code>components/code-graph/*</code>(10 个)</td><td>大重写(新后端能力更丰富)</td><td>L1 渲染逻辑可大幅简化</td></tr>
+        <tr><td><code>components/settings/llm/*</code>(3 个)</td><td>改写(动态 schema 渲染)</td><td>—</td></tr>
+        <tr><td><code>components/project/EditProjectModal</code></td><td>改写(project → repo)</td><td>—</td></tr>
+        <tr><td><code>components/project/ProjectAiPanel</code></td><td>重写(SSE 协议变)</td><td>—</td></tr>
+        <tr><td><code>components/graph/UniverseGraphView</code></td><td>改写(走新 graph.query_graph)</td><td>—</td></tr>
+        <tr><td><code>components/project/FilterBar</code></td><td>改(sort 改 setView)</td><td>—</td></tr>
+        <tr><td><code>components/usage/Usage*</code></td><td>改(走 llm.get_usage_stats)</td><td>—</td></tr>
+        <tr><td><code>components/project/CategoryTagManager</code></td><td>改(走 sources.list_categories)</td><td>—</td></tr>
+        <tr><td><code>components/agent/QuestionPanel</code></td><td>重写(4 种题型)</td><td>—</td></tr>
+        <tr><td><code>components/agent/RunTracePanel</code></td><td>重写(用 task.* 卡片)</td><td>—</td></tr>
+        <tr><td><code>components/agent/ToolCallCard</code></td><td>重写</td><td>—</td></tr>
+        <tr><td><code>components/agent/ActionResultCard</code></td><td>删除</td><td>—</td></tr>
+        <tr><td><code>components/agent/EmbedAgentChat</code></td><td>重写(协议变)</td><td>—</td></tr>
+        <tr><td><code>components/agent/StreamRenderer</code></td><td>改(去掉流式)</td><td>—</td></tr>
+        <tr><td><code>components/agent/AgentAvatar</code></td><td>改样式(5 persona)</td><td>—</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">9.4 废弃/删除(新无对应)</h3>
+    <table>
+      <thead><tr><th>旧</th><th>原因</th></tr></thead>
+      <tbody>
+        <tr><td><code>api/mock/index.ts</code> + <code>api/mock/data/*</code>(13 个,1.3 MB)+ <code>api/mock/sse.ts</code></td><td>新无 Mock 维度;E2E 用真后端</td></tr>
+        <tr><td><code>hooks/useOverviewMockRoundSync.ts</code></td><td>URL 切场景仅 Mock 用</td></tr>
+        <tr><td><code>hooks/useAuth.ts</code></td><td>本机单用户无 fetchMe</td></tr>
+        <tr><td><code>hooks/useTrendingScoutSpot.ts</code></td><td>streamTrendingScoutIntro 删除</td></tr>
+        <tr><td><code>hooks/useOverview.ts</code></td><td>无 listTrending / listRecommended / listOverviewRecentNotes</td></tr>
+        <tr><td><code>api/real/domain/overview.ts</code> + <code>agent.ts</code> + <code>auth.ts</code></td><td>per-domain 类,新无对应</td></tr>
+        <tr><td><code>stores/authStore.ts</code></td><td>本机单用户</td></tr>
+        <tr><td><code>stores/settingsStore.ts</code></td><td>直调 capability</td></tr>
+        <tr><td><code>utils/streamSessionGuard.ts / agentSwitchDisplay.ts / agentThinking.ts / actionResult.ts / invalidateOverview.ts</code></td><td>新事件无对应</td></tr>
+        <tr><td><code>constants/overviewGlass.ts / projectsGlass.ts / usageGlass.ts</code></td><td>新页面布局不同</td></tr>
+        <tr><td><code>utils/errorCodes.ts</code> 中部分(60+ 中只有 ~15 适用)</td><td>后端 9 个 ErrorSuffix</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============== 10. PATH ============== -->
+  <section id="path">
+    <div class="section-title">
+      <span class="num">10</span>
+      <h2>7 步迁移路径</h2>
+      <span class="sub">从样设到生产 · 总 28-38 人时(详细版 32-44)</span>
+    </div>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">10.1 阶段 0 · 样设先行(1 人 · 3-5 天)</h3>
+    <div class="card green">
+      <ol style="font-size:13px;color:var(--text-1);padding-left:20px">
+        <li>从 <code>RepoPilot/styles/design-system.css</code> 提取 100+ token → 落 <code>voyager/styles/design-system.css</code></li>
+        <li>直接搬 <code>liquid-glass.css</code> 496 行 → 新增 <code>voyager/styles/liquid-glass.css</code></li>
+        <li>直接搬 9 个 page CSS(~7000 行)→ 新增 <code>voyager/styles/pages/</code></li>
+        <li>更新 <code>apps/web/src/main.tsx</code> 引入 <code>./styles/pages/index.css</code></li>
+        <li>产出一个 /system/styleguide 路由作为样设展示页</li>
+      </ol>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">10.2 阶段 1 · API 适配层(2 人 · 8-10h)</h3>
+    <div class="card cyan">
+      <p><b>目标</b>:在 <code>apps/web/src/bridge/</code> 新增 <code>legacyCompat.ts</code>,把 84 个 IApiClient 方法一对一映射到 91 个 capability。</p>
+      <div class="file-list">
+        <div class="row"><div class="path">bridge/legacyCompat.ts</div><div class="size">~800</div><div class="desc">7 个域类(AuthApi/ProjectsApi/NotesApi/GraphApi/SettingsApi/OverviewApi/AgentApi),每个方法 1 行: <code>xxx_method(args) =&gt; callCapability('&lt;domain&gt;', '&lt;name&gt;', args)</code></div></div>
+        <div class="row"><div class="path">bridge/sseCompat.ts</div><div class="size">~200</div><div class="desc">把 7 个 SSE AsyncGenerator 适配到 chatStore dispatch:chatAgent → POST /api/chat/messages + 订阅;streamTrendingScoutIntro → 标注删除</div></div>
+        <div class="row"><div class="path">bridge/typeCompat.ts</div><div class="size">~400</div><div class="desc">把 OpenAPI 再导出类型与新 store type 双向转换(ApiResponse → T + meta;Project → Repo;AgentMessage → ChatMessage)</div></div>
+      </ol>
+      <p><b>完成后</b>:所有 hooks / stores / components 可继续用旧 IApiClient 形态,<b>后端走新 capability</b>。</p>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">10.3 阶段 2 · 容器与共享组件(1-2 人 · 3-5 天)</h3>
+    <div class="card green">
+      <ol style="font-size:13px;color:var(--text-1);padding-left:20px">
+        <li>直接搬 <code>common/*</code> 9 个组件到 <code>apps/web/src/components/common/</code>(新)</li>
+        <li>改写 <code>layout/AppShell/Sidebar/Topbar</code> → 单壳 <code>shell/AppShell.tsx</code>(已存在,只改 className)</li>
+        <li>搬 <code>icons/NavIcons.tsx</code> 7 个 SVG</li>
+        <li>搬 <code>ToastContainer</code> + <code>ErrorBoundary</code></li>
+        <li>改写 <code>shell/Degraded.tsx</code>(已存在)适配新错误码(9 个 ErrorSuffix 而非 60+)</li>
+      </ol>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">10.4 阶段 3 · 业务分模块并行(5-7 人 · 20-30 天)</h3>
+    <div class="grid-3">
+      <div class="mod cyan">
+        <h4>模块 A:notes(2 人 · 3-5 天)</h4>
+        <p>搬 <code>notesStore.ts</code>+<code>NoteList/Editor/Meta</code>;<br>改字段 project_id → source_id;<br>走 <code>notes.*</code> capability</p>
+      </div>
+      <div class="mod green">
+        <h4>模块 B:llm + settings(2 人 · 5-7 天)</h4>
+        <p>搬 <code>LlmSettingsSection</code>+ 3 个 LLM 子组件;<br>改 <code>AgentSettingsSection</code>;<br>走 <code>llm.*</code> + <code>settings.*</code> capability</p>
+      </div>
+      <div class="mod amber">
+        <h4>模块 C:graph(2-3 人 · 8-12 天)</h4>
+        <p>搬 <code>graphStore.ts</code>+ L0/L1 渲染;<br>走 <code>graph.*</code> capability(能力比旧 API 强,大重写);<br>code-graph 全部重写</p>
+      </div>
+      <div class="mod violet">
+        <h4>模块 D:sources(2-3 人 · 8-12 天)</h4>
+        <p>搬 <code>ProjectTable/FilterBar/Import*/CategoryTagManager/EditProjectModal/ProjectAiPanel</code>;<br>改 <code>project_id</code> → <code>repo_id</code>;<br>走 <code>sources.*</code> capability</p>
+      </div>
+      <div class="mod rose">
+        <h4>模块 E:chat + 共享 agent(2-3 人 · 8-12 天)</h4>
+        <p>改写 <code>chatStore.ts</code> 用 bridge;<br>改写 17 个 agent 组件(7 改 + 10 重写);<br>新建 <code>widgets/chat/</code>(FloatingChat/AskDialog/MessageList/TaskCards)</p>
+      </div>
+      <div class="mod slate">
+        <h4>模块 F:team + overview + activity + usage + health(1-2 人 · 5-7 天)</h4>
+        <p>搬/改 OverviewPage(用 9 个 page CSS);<br>新建 team(per SubagentDef);<br>搬 Usage(llm.get_usage_stats);<br>新建 HealthPage(activity feed)</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">10.5 阶段 4 · gateway 集成(1-2 人 · 5-8 天)</h3>
+    <div class="card cyan">
+      <ol style="font-size:13px;color:var(--text-1);padding-left:20px">
+        <li><code>deploy/backend.py</code> 接入所有 service 的 <code>wire_xxx</code></li>
+        <li>健康探测:各 service 真实 <code>probe</code> 实现(不只回 UP)</li>
+        <li>chat 通道:SSE <code>/api/chat/stream</code> 实测 after_seq 续传</li>
+        <li>9 page 路由全部 200 OK</li>
+        <li>e2e Playwright 跑 7 个 spec 改造版本</li>
+      </ol>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">10.6 阶段 5 · 集成 + 收尾(2-3 人 · 10-15 天)</h3>
+    <div class="card amber">
+      <ol style="font-size:13px;color:var(--text-1);padding-left:20px">
+        <li>删除 stage 1 的 legacyCompat.ts(所有 hooks 改成新 callCapability)</li>
+        <li>删除 stage 1 的 sseCompat.ts(所有 SSE 走 EventSource 共享)</li>
+        <li>chrome 体验层 Parity 补齐(12 项:关闭 AskUser、清空草稿、急停...)</li>
+        <li><code>apps/desktop/</code> 落地(若时间允许)</li>
+        <li>审计落库(<code>platform/audit/</code>)+ SECRET_KEY 校验 + trace_id 续传</li>
+      </ol>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">10.7 阶段 6 · 上线(1 人 · 3-5 天)</h3>
+    <div class="card green">
+      <ol style="font-size:13px;color:var(--text-1);padding-left:20px">
+        <li>移除 VITE_USE_MOCK 与 mock/*</li>
+        <li>移除 ?mock_round= URL 路由</li>
+        <li>移除 localStorage 5 个 key(只剩 rp-ui-store.theme)</li>
+        <li>移除 react-query 依赖</li>
+        <li>移除 @tanstack/react-query 与持久化</li>
+        <li>CI 强制:横向 import 矩阵 4 项全 0</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============== 11. RISKS ============== -->
+  <section id="risks">
+    <div class="section-title">
+      <span class="num">11</span>
+      <h2>风险与回滚</h2>
+      <span class="sub">按阶段识别回滚点</span>
+    </div>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">11.1 阶段级风险与回滚策略</h3>
+    <table>
+      <thead>
+        <tr><th>阶段</th><th>风险</th><th>回滚点</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>0 样设</td><td>设计语言选择被业务方推翻</td><td>stage 0 冻结 1 周;期间启动 stage 1</td></tr>
+        <tr><td>1 API 适配</td><td>legacyCompat.ts 漏映射 → 旧 hook 报错</td><td>每个 capability 走通一个旧 hook 测试,失败立即定位</td></tr>
+        <tr><td>2 业务模块</td><td>某 page CSS 与新样设冲突</td><td>页 page 独立分支;不阻塞其他 page</td></tr>
+        <tr><td>3 gateway 集成</td><td>SSE 长连断线率</td><td>bridge/stream.ts 的 after_seq + lastSeq 重连</td></tr>
+        <tr><td>4 收尾</td><td>删除 legacyCompat 后某些旧 import 漏改</td><td>tsc 严格模式 + 集成测试 + e2e 7 spec</td></tr>
+        <tr><td>5 上线</td><td>移除 react-query 后某些页面状态丢失</td><td>新 store 字段必须包含旧 store 所有持久字段</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">11.2 关键风险与缓释</h3>
+    <div class="grid-2">
+      <div class="card rose">
+        <h3>🔴 R1:agentStore 881 行拆分不彻底</h3>
+        <p>旧代码有 6 个事件 handler 仍嵌在主 store 内,未抽到 sseHandlers.ts。
+        <b>风险</b>:迁移时直接删除会丢功能。
+        <b>缓释</b>:用 grep 列出所有"未迁移"事件,逐一在 chatStore.dispatch 中实现。</p>
+      </div>
+      <div class="card amber">
+        <h3>🟡 R2:vue AskUser 仅 4 种题型(丢 drag_sort / knowledge_map)</h3>
+        <p>旧 utils/agentQuestion/ 7 子模块支持 5 种,新仅 4 种。
+        <b>风险</b>:agent 发拖拽排序题时,前端会拒绝。
+        <b>缓释</b>:在 <code>agent/tools/ask_user.py</code> 扩展 <code>Question</code> dataclass;同步 <code>widgets/chat/AskDialog.tsx</code> 渲染。</p>
+      </div>
+      <div class="card amber">
+        <h3>🟡 R3:CodeGraph L1 R3F 大重写</h3>
+        <p>新后端 graph 能力比旧 L1 API 强(merge_nodes / find_path / export_subgraph 等),旧 14 个组件中 10 个需改写。
+        <b>风险</b>:工期 8-12 天。
+        <b>缓释</b>:先搬 L0(UniverseGraphView + GraphControls),L1 留第二期。</p>
+      </div>
+      <div class="card rose">
+        <h3>🔴 R4:react-query 整体移除</h3>
+        <p>9 个 hook 全部经 RQ,迁移后 9 个 store 接管。
+        <b>风险</b>:staleTime / gcTime 行为丢失,某些场景可能不必要重取。
+        <b>缓释</b>:新 store 加 <code>cache TTL</code> 字段,默认 5min(对齐旧 staleTime)。</p>
+      </div>
+      <div class="card amber">
+        <h3>🟡 R5:css 类名(`.pd-*` / `.agent-*` / `.notes-*`)与新路由不对齐</h3>
+        <p>旧类名嵌入 page 路径名(project-detail / agent / notes),新 page 路由名不同(sources / chat / team 等)。
+        <b>风险</b>:搬过来类名无法匹配,需重写一份。
+        <b>缓释</b>:在搬 page CSS 时,统一替换类名(<code>.pd-* → .detail-*</code>、<code>.agent-* → .chat-*</code>、<code>.notes-* → .notes-*</code> 保留)。</p>
+      </div>
+      <div class="card cyan">
+        <h3>🔵 R6:overviewScenarios 7 套 Mock 数据</h3>
+        <p>占代码 1.3 MB,新无 Mock 维度。
+        <b>缓释</b>:e2e 直接打真后端;Mock 数据用 git history 保留供回归。</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">11.3 回滚检查清单(每阶段 gate)</h3>
+    <table>
+      <thead><tr><th>阶段 Gate</th><th>验证项</th><th>不通过动作</th></tr></thead>
+      <tbody>
+        <tr><td>0 → 1</td><td>设计语言冻结 + 组件展示页可走</td><td>回到 0 重新对齐</td></tr>
+        <tr><td>1 → 2</td><td>legacyCompat 84/84 映射完成 + 单测通过</td><td>补映射,逐 capability 跑通</td></tr>
+        <tr><td>2 → 3</td><td>9 page 全部 React 渲染 OK + store 自洽</td><td>回退到 stage 1 适配层</td></tr>
+        <tr><td>3 → 4</td><td>gateway 集成 + health probe 全部 up</td><td>保留 stage 1 兼容,继续调</td></tr>
+        <tr><td>4 → 5</td><td>删除 legacyCompat + 端到端 7 spec 全过</td><td>保留兼容,先观察一周</td></tr>
+        <tr><td>5 上线</td><td>移除 react-query / mock / RQ 干净</td><td>保留依赖到下一稳定版</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <p>本报告基于 2 个并行只读 subagent 的全量证据 · 评估 <code>D:/daftpunkwav/04-MyProjects/RepoPilot/apps/web/</code></p>
+    <p>输出 <code>D:/daftpunkwav/04-MyProjects/voyager/voyager-frontend-migration-detail.html</code></p>
+    <p>数据基于 2026-08-26 仓库快照 · 仅评估现状 · 未对任何文件做修改</p>
+    <p style="margin-top:8px;font-size:11px;color:#94a3b8">
+      2 个 subagent 任务 ID: <code>bg_eeb95021-...</code>(文件级详细审查) · <code>bg_bb986c63-...</code>(设计系统提取)
+    </p>
+  </footer>
+
+</div>
+</body>
+</html>

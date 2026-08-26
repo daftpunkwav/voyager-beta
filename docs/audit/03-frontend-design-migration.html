@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Voyager · 独立开发 + 样设先行策略报告</title>
+<style>
+  :root {
+    --bg-card: #ffffff; --bg-card-soft: #f5f8ff;
+    --text-0: #0e1a3a; --text-1: #2c3a5e; --text-2: #6c7a9c;
+    --brand: #2563eb; --brand-2: #4f7cff; --brand-soft: #e8efff;
+    --cyan: #06b6d4; --cyan-soft: #cffafe;
+    --teal: #14b8a6; --teal-soft: #ccfbf1;
+    --green: #10b981; --green-soft: #d1fae5;
+    --amber: #f59e0b; --amber-soft: #fef3c7;
+    --rose: #f43f5e; --rose-soft: #ffe4e6;
+    --violet: #8b5cf6; --violet-soft: #ede9fe;
+    --slate: #64748b; --slate-soft: #f1f5f9;
+    --line: #e2e8f0;
+    --shadow: 0 1px 2px rgba(15,23,42,.04), 0 4px 12px rgba(15,23,42,.05);
+    --shadow-lg: 0 4px 24px rgba(15,23,42,.08);
+    --radius: 14px; --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: linear-gradient(180deg, #f3f6ff 0%, #eaf0fb 100%);
+    color: var(--text-0);
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1280px; margin: 0 auto; padding: 32px 24px 80px; }
+  .hero {
+    background: linear-gradient(135deg, #0b1020 0%, #1a2342 60%, #1e3a8a 100%);
+    color: #e6ecff;
+    border-radius: 24px;
+    padding: 48px 44px;
+    box-shadow: var(--shadow-lg);
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 80% 0%, rgba(79,124,255,.35), transparent 50%),
+      radial-gradient(circle at 0% 100%, rgba(6,182,212,.25), transparent 50%);
+    pointer-events: none;
+  }
+  .hero-eyebrow {
+    display: inline-block; font-size: 12px; letter-spacing: .2em;
+    color: #93c5fd; border: 1px solid rgba(147,197,253,.3);
+    padding: 4px 12px; border-radius: 999px;
+    text-transform: uppercase; margin-bottom: 18px;
+  }
+  .hero h1 {
+    font-size: 44px; margin: 0 0 12px; font-weight: 800; letter-spacing: -.02em;
+  }
+  .hero h1 .accent {
+    background: linear-gradient(90deg, #60a5fa, #22d3ee);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero p.lede { font-size: 16px; color: #cbd5e1; max-width: 820px; margin: 0 0 24px; }
+  .hero-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; position: relative; }
+  .meta-chip {
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.14);
+    color: #e2e8f0; padding: 6px 12px; border-radius: 999px;
+    font-size: 12px; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .meta-chip b { color: #fff; font-weight: 600; }
+
+  section { margin-top: 56px; scroll-margin-top: 80px; }
+  .section-title {
+    display: flex; align-items: baseline; gap: 12px; margin-bottom: 20px;
+  }
+  .section-title .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px;
+    border-radius: 8px; background: var(--brand); color: #fff;
+    font-weight: 700; font-size: 15px;
+  }
+  .section-title h2 { margin: 0; font-size: 26px; font-weight: 700; color: var(--text-0); }
+  .section-title .sub { color: var(--text-2); font-size: 13px; font-weight: 500; }
+  .section-subtitle {
+    color: var(--text-2); font-size: 14px; margin: 0 0 20px; max-width: 920px;
+  }
+
+  .card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    padding: 24px 28px; margin-bottom: 16px; position: relative;
+  }
+  .card::before {
+    content: ""; position: absolute;
+    left: 0; top: 18px; bottom: 18px;
+    width: 3px; border-radius: 2px; background: var(--brand);
+  }
+  .card.cyan::before { background: var(--cyan); }
+  .card.green::before { background: var(--green); }
+  .card.amber::before { background: var(--amber); }
+  .card.rose::before { background: var(--rose); }
+  .card.violet::before { background: var(--violet); }
+  .card.slate::before { background: var(--slate); }
+  .card h3 { margin: 0 0 8px; font-size: 18px; color: var(--text-0); }
+  .card .desc { color: var(--text-2); font-size: 13px; margin-bottom: 14px; }
+  .card p { font-size: 14px; color: var(--text-1); margin: 8px 0; }
+
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px; margin: 20px 0;
+  }
+  .stat {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 18px; box-shadow: var(--shadow);
+    position: relative; overflow: hidden;
+  }
+  .stat .label {
+    color: var(--text-2); font-size: 11px;
+    letter-spacing: .04em; text-transform: uppercase;
+  }
+  .stat .value { font-size: 28px; font-weight: 700; color: var(--text-0); margin: 4px 0 0; }
+  .stat .trend { font-size: 12px; color: var(--green); font-weight: 600; }
+  .stat .trend.bad { color: var(--rose); }
+  .stat .trend.amber { color: var(--amber); }
+  .stat .trend.muted { color: var(--text-2); }
+
+  .chip { display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; margin: 0 4px 4px 0; }
+  .chip.brand { background: var(--brand-soft); color: var(--brand); }
+  .chip.cyan { background: var(--cyan-soft); color: var(--cyan); }
+  .chip.green { background: var(--green-soft); color: var(--green); }
+  .chip.amber { background: var(--amber-soft); color: #b45309; }
+  .chip.rose { background: var(--rose-soft); color: #b91c1c; }
+  .chip.violet { background: var(--violet-soft); color: var(--violet); }
+  .chip.gray { background: #eef2f7; color: var(--text-1); }
+  .chip.dark { background: #1e293b; color: #e2e8f0; }
+
+  table {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    font-size: 13px; background: var(--bg-card);
+    border-radius: var(--radius); overflow: hidden;
+    box-shadow: var(--shadow); margin: 8px 0;
+  }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--bg-card-soft); font-weight: 600; color: var(--text-1); font-size: 12px; letter-spacing: .02em; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #f8fafc; }
+  td code, .code { background: #f1f5f9; padding: 1px 6px; border-radius: 4px; font-size: 12px; color: #475569; }
+  td.num { font-variant-numeric: tabular-nums; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 900px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+
+  .arch-wrap {
+    background: var(--bg-card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 16px;
+    box-shadow: var(--shadow); overflow-x: auto;
+  }
+  .arch-wrap svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+
+  .callout {
+    background: var(--bg-card-soft); border-radius: var(--radius-sm);
+    padding: 14px 18px; border-left: 3px solid var(--brand);
+    margin: 12px 0; font-size: 13px; color: var(--text-1);
+  }
+  .callout.tip { border-left-color: var(--green); background: #f0fdf4; }
+  .callout.warn { border-left-color: var(--amber); background: #fffbeb; }
+  .callout.danger { border-left-color: var(--rose); background: #fef2f2; }
+  .callout b { color: var(--text-0); }
+  .callout p { margin: 6px 0; }
+
+  pre, code { font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
+  pre {
+    background: #0f172a; color: #e2e8f0;
+    padding: 14px 18px; border-radius: var(--radius-sm);
+    overflow-x: auto; line-height: 1.5; margin: 10px 0;
+  }
+
+  .toc {
+    background: var(--bg-card); border-radius: var(--radius);
+    border: 1px solid var(--line); padding: 18px 22px;
+    box-shadow: var(--shadow); margin-top: 28px;
+    display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px;
+  }
+  .toc a { color: var(--brand); text-decoration: none; font-weight: 500; }
+  .toc a:hover { text-decoration: underline; }
+  .toc b { color: var(--text-0); margin-right: 8px; }
+
+  .score-bar {
+    display: inline-block; width: 80px; height: 6px;
+    background: #e5e7eb; border-radius: 3px;
+    overflow: hidden; margin-left: 8px; vertical-align: middle;
+  }
+  .score-bar .fill { display: block; height: 100%; }
+  .score-bar .fill.high { background: linear-gradient(90deg, var(--green), #34d399); }
+  .score-bar .fill.mid { background: linear-gradient(90deg, var(--amber), #fbbf24); }
+  .score-bar .fill.low { background: linear-gradient(90deg, var(--rose), #fb7185); }
+
+  footer {
+    text-align: center; color: var(--text-2); font-size: 12px;
+    margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--line);
+  }
+
+  .info-banner {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-radius: var(--radius); padding: 16px 20px; margin: 16px 0;
+    border-left: 4px solid var(--amber);
+    font-size: 13px; color: #78350f;
+  }
+  .info-banner b { color: #92400e; }
+
+  .good-banner {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    border-radius: var(--radius); padding: 16px 20px; margin: 16px 0;
+    border-left: 4px solid var(--green);
+    font-size: 13px; color: #065f46;
+  }
+  .good-banner b { color: #047857; }
+
+  .mod {
+    background: var(--bg-card); border: 1px solid var(--line);
+    border-left: 4px solid var(--brand); border-radius: var(--radius-sm);
+    padding: 14px 16px; box-shadow: var(--shadow);
+  }
+  .mod.cyan { border-left-color: var(--cyan); }
+  .mod.green { border-left-color: var(--green); }
+  .mod.amber { border-left-color: var(--amber); }
+  .mod.violet { border-left-color: var(--violet); }
+  .mod.rose { border-left-color: var(--rose); }
+  .mod.slate { border-left-color: var(--slate); }
+  .mod h4 { margin: 0 0 6px; font-size: 14px; color: var(--text-0); }
+  .mod p { margin: 4px 0 0; font-size: 12px; color: var(--text-1); }
+  .mod .files { font-size: 11px; color: var(--text-2); margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ============== HERO ============== -->
+  <header class="hero">
+    <div class="hero-eyebrow">Frontend Strategy · Sample Design First · Module Independent</div>
+    <h1>独立开发 + 样设先行 <span class="accent">可行性报告</span></h1>
+    <p class="lede">
+      直接回答两个问题:① 当前项目能否做到每个模块独立开发?② 能否先完成前端整体样设的迁移,然后分模块独立完成每个模块的前后端?
+      <strong style="color:#fff">两个问题的答案都是"能,而且 Voyager 的架构已为这种工作流做好完整准备。</strong>
+    </p>
+    <div class="hero-meta">
+      <span class="meta-chip">✅ 独立开发 <b>能</b></span>
+      <span class="meta-chip">✅ 样设先行 <b>能</b></span>
+      <span class="meta-chip">📦 9 前端 page · 7 service · 5 聚合子模块</span>
+      <span class="meta-chip">🧱 Bridge 边界已隔离</span>
+      <span class="meta-chip">🔄 路由表 1 行/page</span>
+      <span class="meta-chip">⚠️ 有 1 个唯一前置:CSS 锁定</span>
+    </div>
+  </header>
+
+  <!-- ============== TOC ============== -->
+  <nav class="toc">
+    <b>目录</b>
+    <a href="#q1">① 模块独立开发可行性</a>
+    <a href="#scope">② 7 个独立开发单元</a>
+    <a href="#bottleneck">③ 4 个接缝 / 2 个瓶颈</a>
+    <a href="#q2">④ 样设先行可行性</a>
+    <a href="#design-tokens">⑤ 样设 → Design Token</a>
+    <a href="#phases">⑥ 五阶段路径</a>
+    <a href="#gantt">⑦ 甘特图与并行度</a>
+    <a href="#risks">⑧ 风险与缓释</a>
+    <a href="#summary">⑨ 总结</a>
+  </nav>
+
+  <!-- ============== Q1 ============== -->
+  <section id="q1">
+    <div class="section-title">
+      <span class="num">1</span>
+      <h2>① 能否每个模块独立开发?</h2>
+      <span class="sub">结论:能,且已为这种工作流做好完整准备</span>
+    </div>
+    <p class="section-subtitle">
+      §2.1 铁律 1(全层级脱耦)在 Voyager 已被结构性地强制:
+      <b>横向 import 矩阵 4 项全部为 0</b>——
+      services × services、platform → 上层、agent → services.*、聚合子模块互 import 均为零违规。
+      这意味着每个模块的"接缝"已经被语言层隔离,独立开发是默认状态,不是"努力维持"的纪律。
+    </p>
+
+    <div class="good-banner">
+      <b>✅ 一句话结论</b>:
+      7 个独立的开发单元(7 services + 5 聚合子模块 + 9 前端 page + 12 agent 子模块 + 7 platform 包)
+      <b>可以由不同开发者并行开发,无序相互等待</b>。每个单元有自己的目录、自己的七件套或五件套、自己的测试;通过 capability 注册表 + bridge 边界相互通信。
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat">
+        <div class="label">横向 import 违规</div>
+        <div class="value">0</div>
+        <div class="trend">4 项 矩阵全 0</div>
+      </div>
+      <div class="stat">
+        <div class="label">独立可开发单元</div>
+        <div class="value">40+</div>
+        <div class="trend muted">7 svc + 5 子模块 + 9 page + 12 agent + 7 platform</div>
+      </div>
+      <div class="stat">
+        <div class="label">最大单模块文件数</div>
+        <div class="value">76</div>
+        <div class="trend muted">agent 全树,已分层清晰</div>
+      </div>
+      <div class="stat">
+        <div class="label">典型前端 page 体量</div>
+        <div class="value">5-7 文件</div>
+        <div class="trend muted">Notes 6 个 · Team 7 个 · 全部自包含</div>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">1.1 独立性的 5 重证据</h3>
+    <div class="grid-2">
+      <div class="card green">
+        <h3>① 横向 import 矩阵 4 项全 0</h3>
+        <p>实测证据(基于完整代码扫描):</p>
+        <ul style="font-size:13px;color:var(--text-1);margin:8px 0;padding-left:20px">
+          <li>services × services 业务代码 import:<b>0</b></li>
+          <li>platform → 上层 import:<b>0</b></li>
+          <li>agent → services.* 实现层 import:<b>0</b></li>
+          <li>聚合子模块互 import:<b>0</b></li>
+        </ul>
+        <p>语言层阻断(空 <code>__init__.py</code> + 唯一包名 <code>services.&lt;domain&gt;.&lt;mod&gt;</code>)使得任何水平 import 都是显式长路径,本身就是强烈耦合信号。</p>
+      </div>
+      <div class="card green">
+        <h3>② 聚合服务壳"零业务逻辑"原则</h3>
+        <p><code>services/sources/capabilities.py:24-25</code> 仅 2 行:</p>
+        <pre>registry = Registry("sources")
+registry.merge(repo_caps.registry, books_caps.registry, news_caps.registry)</pre>
+        <p>新增资源类型 = <code>modules/&lt;type&gt;/</code> 新建自包含目录 + 聚合层一行注册。聚合层零改动。</p>
+      </div>
+      <div class="card cyan">
+        <h3>③ 每个 services/* 有完整"七件套"</h3>
+        <p><code>capabilities.py / wiring.py / rest.py / mcp_server.py / worker.py(可选) / store.py / settings.py / service.json / tests/</code>。独立运行与聚合运行共用同一 <code>wire()</code>。</p>
+        <p>意味着:开发时 <code>python -m services.notes</code> 即可独立启动该服务跑测试,不需要拉起整个 monorepo。</p>
+      </div>
+      <div class="card cyan">
+        <h3>④ 前端 9 page 自包含五件套</h3>
+        <p>每个 page 目录结构:</p>
+        <ul style="font-size:13px;color:var(--text-1);margin:8px 0;padding-left:20px">
+          <li><code>index.tsx</code>(页面入口)</li>
+          <li><code>store.ts</code>(页面私有 zustand store)</li>
+          <li><code>provider.ts</code>(PageProbe 导出)</li>
+          <li><code>hooks.ts</code>(页面私有逻辑)</li>
+          <li><code>components/</code>(页面私有组件,不外借)</li>
+        </ul>
+        <p>page 之间互不 import,只通过 <code>bridge/</code>(全应用唯一层)通信。</p>
+      </div>
+      <div class="card violet">
+        <h3>⑤ App.tsx 路由表 = 1 行/page</h3>
+        <p>实测 <code>apps/web/src/App.tsx</code>:</p>
+        <pre>import { ChatPage } from '@/pages/chat/ChatPage';
+import { SettingsPage } from '@/pages/settings/SettingsPage';
+import { NotesPage } from '@/pages/notes/NotesPage';
+// ...
+&lt;Route index element={&lt;ChatPage /&gt;} /&gt;
+&lt;Route path="settings" element={&lt;SettingsPage /&gt;} /&gt;
+&lt;Route path="notes" element={&lt;NotesPage /&gt;} /&gt;</pre>
+        <p>新增 page = 一行 import + 一行 route。main.tsx 与其他 page 零改动。</p>
+      </div>
+      <div class="card violet">
+        <h3>⑥ bridge 边界已隔离</h3>
+        <p><code>apps/web/src/bridge/</code> 7 个文件是全应用唯一与后端对话的层:</p>
+        <ul style="font-size:13px;color:var(--text-1);margin:8px 0;padding-left:20px">
+          <li><code>client.ts</code> · 统一 <code>callCapability(domain, name, args)</code> 入口</li>
+          <li><code>stream.ts</code> · SSE 模式订阅</li>
+          <li><code>chatStore.ts</code> · 共享 chat 状态(Chat 页 + FloatingChat 共用)</li>
+          <li><code>activity.ts</code> · 行为上报</li>
+          <li><code>pageContext.ts</code> · PageProbe 协议</li>
+          <li><code>events.ts</code> · 事件类型常量</li>
+          <li><code>feed.ts</code> · FeedEvent 共享类型</li>
+        </ul>
+        <p>page 不直接 fetch 后端,只走 bridge,意味着 bridge 改造不影响 page,page 改造不影响其他 page。</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">1.2 独立开发单元 7 大类</h3>
+    <div class="grid-3">
+      <div class="mod cyan">
+        <h4>① 7 个 services · 完全独立</h4>
+        <p>每个有自己的端口(8010/8020/8030/8040/8050/8060/8070/8080/8090)、自己的 settings.py、自己的 tests/。可独立启动测试。</p>
+        <div class="files">_template · gateway · notes · llm · graph · sources · office · code_exec · browser · settings</div>
+      </div>
+      <div class="mod green">
+        <h4>② 5 个聚合子模块</h4>
+        <p>sources/{repo, books, news} + office/{doc, slides}。每个有自己的 capabilities.py / store.py(部分有 worker.py)。零互 import。</p>
+      </div>
+      <div class="mod amber">
+        <h4>③ 9 个前端 page · 自包含五件套</h4>
+        <p>chat · activity · graph · notes · overview · settings · sources · team · usage。每个 5-7 文件,15-25 KB。</p>
+      </div>
+      <div class="mod violet">
+        <h4>④ 12 个 agent 子模块</h4>
+        <p>runtime / master / personas / subagent / policy / memory / context / skills / hooks / tools / clients(空)。每子模块有自己的 __init__.py + 模块边界清晰。</p>
+      </div>
+      <div class="mod slate">
+        <h4>⑤ 7 个 platform 包 · 依赖方向严格向下</h4>
+        <p>contracts(零依赖叶子)→ eventbus/actor/secrets → capability/settings/health。任一可独立开发,但建议"由底向上"顺序。</p>
+      </div>
+      <div class="mod cyan">
+        <h4>⑥ bridge 层(前端)</h4>
+        <p>7 个文件,所有 page 共用。可由 1-2 人专责,作为"前端能力注册表"独立演进。</p>
+      </div>
+      <div class="mod violet">
+        <h4>⑦ shell/widgets 层(前端壳)</h4>
+        <p>AppShell + ServiceBadge + Degraded + FloatingChat + PageProbe + 3 个 styles。属于"所有 page 的容器",建议由"样设负责人"统一演进。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== SCOPE ============== -->
+  <section id="scope">
+    <div class="section-title">
+      <span class="num">2</span>
+      <h2>② 7 个独立开发单元的边界</h2>
+      <span class="sub">每个单元可独立分配 1-N 名开发者,无需协调</span>
+    </div>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">2.1 后端单元(7 services)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>单元</th>
+          <th>目录</th>
+          <th>独立路径</th>
+          <th>依赖</th>
+          <th>协调点</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="chip brand">notes</span></td>
+          <td><code>services/notes/</code></td>
+          <td><code>python -m services.notes</code> 启动 + 独立 tests/</td>
+          <td>仅 platform_*(7 个包)</td>
+          <td>无</td>
+        </tr>
+        <tr>
+          <td><span class="chip brand">llm</span></td>
+          <td><code>services/llm/</code></td>
+          <td>同上 + FakeLLM 测试</td>
+          <td>platform_* + 6 个 builtin providers</td>
+          <td>无</td>
+        </tr>
+        <tr>
+          <td><span class="chip brand">graph</span></td>
+          <td><code>services/graph/</code></td>
+          <td>独立 + 可选 C sidecar(默认 Python 回退)</td>
+          <td>platform_* + engines/{c,python} + pipelines/{code,ai}</td>
+          <td>C sidecar 构建(若启用)</td>
+        </tr>
+        <tr>
+          <td><span class="chip green">sources</span></td>
+          <td><code>services/sources/</code> + <code>modules/{repo,books,news}/</code></td>
+          <td>聚合层 + 3 子模块可独立测试</td>
+          <td>platform_* + SecretStore(GitHub token)</td>
+          <td>新增子模块需在聚合层加一行</td>
+        </tr>
+        <tr>
+          <td><span class="chip green">office</span></td>
+          <td><code>services/office/</code> + <code>modules/{doc,slides}/</code></td>
+          <td>聚合层 + 2 子模块</td>
+          <td>platform_*</td>
+          <td>同 sources</td>
+        </tr>
+        <tr>
+          <td><span class="chip brand">code_exec</span></td>
+          <td><code>services/code_exec/</code></td>
+          <td>独立 + Docker 可选(无 Docker 走 host 兜底)</td>
+          <td>platform_*</td>
+          <td>无</td>
+        </tr>
+        <tr>
+          <td><span class="chip brand">browser</span></td>
+          <td><code>services/browser/</code></td>
+          <td>独立 + 真实实现需 desktop 集成</td>
+          <td>platform_* + 占位 host</td>
+          <td>desktop 集成时统一协调</td>
+        </tr>
+        <tr>
+          <td><span class="chip brand">settings</span></td>
+          <td><code>services/settings/</code></td>
+          <td>独立 + 聚合各服务的 schema</td>
+          <td>platform_settings + 调其他服务的 settings.py</td>
+          <td>无</td>
+        </tr>
+        <tr>
+          <td><span class="chip amber">gateway</span></td>
+          <td><code>services/gateway/</code></td>
+          <td>需 mount 各 service,但 gateway 自身可独立写</td>
+          <td>platform_* + 各 service 注册表</td>
+          <td>最后集成(等各 service 落定)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">2.2 前端单元(9 page + bridge + shell)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>单元</th>
+          <th>目录</th>
+          <th>文件数</th>
+          <th>体量</th>
+          <th>协调点</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="chip brand">chat</span></td>
+          <td><code>pages/chat/</code></td>
+          <td>5</td>
+          <td>~20 KB</td>
+          <td>chatStore / FloatingChat 共享</td>
+        </tr>
+        <tr>
+          <td><span class="chip brand">activity</span></td>
+          <td><code>pages/activity/</code></td>
+          <td>4</td>
+          <td>~12 KB</td>
+          <td>feed.ts 共享类型</td>
+        </tr>
+        <tr>
+          <td><span class="chip cyan">graph</span></td>
+          <td><code>pages/graph/</code></td>
+          <td>7</td>
+          <td>~25 KB</td>
+          <td>Three.js 渲染</td>
+        </tr>
+        <tr>
+          <td><span class="chip green">notes</span></td>
+          <td><code>pages/notes/</code></td>
+          <td>6</td>
+          <td>~16 KB</td>
+          <td>页面五件套范本</td>
+        </tr>
+        <tr>
+          <td><span class="chip cyan">overview</span></td>
+          <td><code>pages/overview/</code> + <code>cards/</code></td>
+          <td>8</td>
+          <td>~10 KB</td>
+          <td>cards 子目录</td>
+        </tr>
+        <tr>
+          <td><span class="chip violet">settings</span></td>
+          <td><code>pages/settings/</code></td>
+          <td>7</td>
+          <td>~18 KB</td>
+          <td>SettingField 通用组件</td>
+        </tr>
+        <tr>
+          <td><span class="chip amber">sources</span></td>
+          <td><code>pages/sources/</code></td>
+          <td>7</td>
+          <td>~20 KB</td>
+          <td>ImportDialog 模态</td>
+        </tr>
+        <tr>
+          <td><span class="chip rose">team</span></td>
+          <td><code>pages/team/</code></td>
+          <td>7</td>
+          <td>~19 KB</td>
+          <td>SpawnForm 模态</td>
+        </tr>
+        <tr>
+          <td><span class="chip brand">usage</span></td>
+          <td><code>pages/usage/</code></td>
+          <td>3</td>
+          <td>~8 KB</td>
+          <td>图表组件</td>
+        </tr>
+        <tr>
+          <td><span class="chip slate">bridge</span></td>
+          <td><code>bridge/</code></td>
+          <td>7</td>
+          <td>~12 KB</td>
+          <td>全应用共用,1-2 人专责</td>
+        </tr>
+        <tr>
+          <td><span class="chip dark">shell/widgets</span></td>
+          <td><code>shell/</code> + <code>widgets/</code></td>
+          <td>10</td>
+          <td>~50 KB</td>
+          <td>样设负责人统一演进</td>
+        </tr>
+        <tr>
+          <td><span class="chip dark">styles</span></td>
+          <td><code>styles/</code></td>
+          <td>3</td>
+          <td>~78 KB</td>
+          <td>样设负责,最先完成</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============== BOTTLENECK ============== -->
+  <section id="bottleneck">
+    <div class="section-title">
+      <span class="num">3</span>
+      <h2>③ 4 个接缝 / 2 个真正瓶颈</h2>
+      <span class="sub">独立开发的"必须约定"</span>
+    </div>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">3.1 4 个"接缝"(团队约定即解决)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>接缝</th>
+          <th>当前约定</th>
+          <th>独立开发时的风险</th>
+          <th>缓释</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>① capability 注册表冲突</td>
+          <td>name 强校验 <code>^[a-z][a-z0-9_]*$</code>;Registry.register 冲突抛 CONFLICT</td>
+          <td>两个开发者定义同名 capability 合并时冲突</td>
+          <td>约定 <b>namespace 前缀</b>(如 <code>notes__*</code>、<code>graph__*</code>);CI 检查重复</td>
+        </tr>
+        <tr>
+          <td>② 事件类型词汇表</td>
+          <td><code>DomainEvent</code> 11 字符串 + <code>RuntimeEvent</code> 11 字符串</td>
+          <td>新事件类型字符串拼写不一致</td>
+          <td>所有事件类型经 <code>platform_contracts</code>;测试覆盖 to_dict/from_dict</td>
+        </tr>
+        <tr>
+          <td>③ 设置项 schema</td>
+          <td>SettingDef key 强校验 <code>^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$</code></td>
+          <td>新 key 命名不一致(如 <code>notes.Sort</code> vs <code>notes.sort.default</code>)</td>
+          <td>沿用 <code>&lt;service&gt;.&lt;config&gt;</code> 二级格式;docstring 必填</td>
+        </tr>
+        <tr>
+          <td>④ 前端类型契约</td>
+          <td>由 <code>platform/contracts</code> 推导 TS 类型</td>
+          <td>前端 store 类型与后端 capability 返回不一致</td>
+          <td>前端所有类型从 <code>callCapability&lt;T&gt;()</code> 推断;后端改字段必须同步通知前端</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">3.2 2 个真正瓶颈(需要先解决)</h3>
+
+    <div class="card rose">
+      <h3>🔴 瓶颈 #1 · deploy/backend.py 跨服务 import</h3>
+      <p><code>deploy/backend.py:55-62</code> 在 <code>build()</code> 函数体内一次性 import 8 个服务的 <code>wire_xxx</code>。
+        这意味着"独立开发"必须从 <code>deploy/</code> 入手——任何 1 个服务未实现,<code>deploy.backend</code> 都不能跑。
+        <b>绕开方案</b>:开发时 <code>python -m services.&lt;domain&gt;</code> 直接跑单个服务;CI 用 <code>deploy/</code> 跑集成,但不强求每个 PR 都过集成。</p>
+    </div>
+
+    <div class="card amber">
+      <h3>🟡 瓶颈 #2 · CSS 锁定(唯一前置条件)</h3>
+      <p>前端 9 page 已具备完整业务逻辑,store/provider/hooks 全部就位;
+        <b>但视觉风格尚未定</b>。在样设未确定前,独立开发会遇到:
+        page 内部用临时类名(如 <code>chat-page</code>、<code>note-list__item</code>),后期样设落地要全部改写类名;
+        组件布局假设了"两栏/三栏"等模式,样设改变可能涉及组件树重构。</p>
+        <p><b>这就是为什么"样设先行"是必要的:</b>
+        把视觉风格 + 设计 token + 布局规则先固化到 <code>styles/</code> 与 <code>shell/</code>,page 只需要套用现成的 token 与布局组件即可。
+        没有样设先行的"独立开发"会出现两种糟糕情况:
+        ① 9 个 page 各自实现一套样式,后期整合时大量冲突;② 9 个 page 都按样设负责人的风格改,负责人失去话语权。</p>
+    </div>
+  </section>
+
+  <!-- ============== Q2 ============== -->
+  <section id="q2">
+    <div class="section-title">
+      <span class="num">4</span>
+      <h2>④ 能否先完成样设迁移?</h2>
+      <span class="sub">结论:能,而且是最优路径(也是唯一推荐路径)</span>
+    </div>
+    <p class="section-subtitle">
+      用户的方案"先完成前端整体样设的迁移,然后分模块独立完成每个模块的前后端"——
+      <b>这恰好是 Voyager 架构已经为这种工作流准备好的最优路径</b>。
+      bridge 边界、page 五件套、shell 容器、styles 3 文件 78 KB 都已经"在合适的位置等样设"。
+    </p>
+
+    <div class="good-banner">
+      <b>✅ 一句话结论</b>:
+      <b>样设先行是最优路径,不是可选项</b>。Voyager 前端的 78 KB 现有 styles + 50 KB shell/widgets 已建立"待填充"的容器,
+      只要把 RepoPilot 旧前端的"视觉风格"提取为 design tokens 并落进 <code>styles/design-system.css</code>,
+      9 个 page 几乎可以无修改套用;再分模块并行完成业务即可。
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">4.1 样设迁移的"接缝"已经存在</h3>
+    <div class="grid-2">
+      <div class="card cyan">
+        <h3>① <code>styles/design-system.css</code> 已 44 KB</h3>
+        <p>已有完整的设计系统主样式,包含色板、字体、间距、圆角、阴影、动效等基础 token。样设迁移的主要工作是<b>扩展与替换</b>这部分,不是从零写。</p>
+      </div>
+      <div class="card cyan">
+        <h3>② <code>styles/shell.css</code> 已 30 KB</h3>
+        <p>壳布局(导航栏、侧边栏、顶栏、内容区、悬浮窗)已建立完整样式,样设只影响"美学表达"不影响"骨架结构"。</p>
+      </div>
+      <div class="card green">
+        <h3>③ <code>shell/AppShell.tsx</code> + <code>shell/ServiceBadge.tsx</code> + <code>shell/Degraded.tsx</code> + <code>shell/useTheme.ts</code></h3>
+        <p>壳层 React 组件已具备,样设只影响 className 与 CSS 变量值。结构稳定,主题切换(<code>useTheme</code>)已实现 <code>settings.changed</code> 事件热切换。</p>
+      </div>
+      <div class="card green">
+        <h3>④ <code>widgets/</code> 已有 FloatingChat + PageProbe + 3 个 chat 共享组件</h3>
+        <p>共享组件已建立,样设不影响其 props 形态。</p>
+      </div>
+      <div class="card amber">
+        <h3>⑤ <code>main.tsx</code> 入口极简(22 行)</h3>
+        <p>仅 useTheme 钩子 + 3 个 styles 引入;改样设不影响 main.tsx 业务逻辑。</p>
+      </div>
+      <div class="card amber">
+        <h3>⑥ <code>App.tsx</code> 路由表极简(35 行)</h3>
+        <p>每个 page 一行 import + 一行 route;不改样设不影响路由。</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">4.2 样设迁移的边界</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>层级</th>
+          <th>是否在样设迁移范围</th>
+          <th>理由</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>CSS 变量 / token(色板、字体、间距、圆角、阴影、动效曲线)</td>
+          <td><span class="chip green">✓ 在</span></td>
+          <td>整个应用的视觉语言,改一处全局生效</td>
+        </tr>
+        <tr>
+          <td><code>styles/design-system.css</code> 通用组件样式(按钮、输入框、卡片、模态、列表、表格)</td>
+          <td><span class="chip green">✓ 在</span></td>
+          <td>9 page 共用,先定避免 9 套重复</td>
+        </tr>
+        <tr>
+          <td><code>styles/shell.css</code> 壳样式(sidebar / topbar / main / float-panel)</td>
+          <td><span class="chip green">✓ 在</span></td>
+          <td>AppShell 整体观感</td>
+        </tr>
+        <tr>
+          <td><code>styles/global.css</code> 全局 reset / body / 字体栈</td>
+          <td><span class="chip green">✓ 在</span></td>
+          <td>基础层,所有 page 依赖</td>
+        </tr>
+        <tr>
+          <td><code>shell/AppShell.tsx</code> 骨架</td>
+          <td><span class="chip amber">仅 className</span></td>
+          <td>结构不变,className 跟随 token</td>
+        </tr>
+        <tr>
+          <td><code>widgets/FloatingChat.tsx</code></td>
+          <td><span class="chip amber">仅 className + 内联样式</span></td>
+          <td>结构不变</td>
+        </tr>
+        <tr>
+          <td>page 内部的 <code>*.tsx</code> 组件</td>
+          <td><span class="chip rose">不在(只套用 token)</span></td>
+          <td>page 业务逻辑与样设解耦,只需套用 token</td>
+        </tr>
+        <tr>
+          <td>page 的 <code>store.ts / provider.ts / hooks.ts</code></td>
+          <td><span class="chip rose">完全不在</span></td>
+          <td>纯业务,与样设无关</td>
+        </tr>
+        <tr>
+          <td><code>bridge/</code></td>
+          <td><span class="chip rose">完全不在</span></td>
+          <td>纯能力调用,与样设无关</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout tip">
+      <b>关键洞察</b>:样设与业务"几乎完全解耦"——
+      <code>styles/</code> 与 <code>shell/</code> 的"骨架"已就位(占位类名 + 基础 token);
+      page 内部组件的"具体布局"由 page 自治,但要套用样设的 token(色板、间距、字号、圆角)。
+      <b>这就是"先样设,后业务"能成立的根本原因</b>。
+    </div>
+  </section>
+
+  <!-- ============== DESIGN TOKENS ============== -->
+  <section id="design-tokens">
+    <div class="section-title">
+      <span class="num">5</span>
+      <h2>⑤ 样设 → Design Token 提炼</h2>
+      <span class="sub">从 RepoPilot 旧前端提取可复用的视觉语言</span>
+    </div>
+    <p class="section-subtitle">
+      样设迁移不是"抄样式",是"<b>提取设计语言</b>"——
+      从 RepoPilot 的 styles/liquid-glass.css 提取色板、字体、间距、圆角、阴影、动效曲线、组件类名规则,
+      落地为 voyager/apps/web/src/styles/design-system.css 里的 CSS 变量与 utility class。
+    </p>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">5.1 提取的 7 大类 token</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>类别</th>
+          <th>token 例</th>
+          <th>当前</th>
+          <th>迁移策略</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>① 色板(brand / bg / text / state)</td>
+          <td><code>--brand-50..900</code> · <code>--bg-0/1/2</code> · <code>--text-0/1/2</code> · <code>--green/amber/rose/cyan/violet</code></td>
+          <td>已存在(voyager 自己定义)</td>
+          <td>与 RepoPilot 对齐;以"用户偏好"为准</td>
+        </tr>
+        <tr>
+          <td>② 字体栈</td>
+          <td><code>--font-sans</code> · <code>--font-mono</code></td>
+          <td>已部分定义</td>
+          <td>对齐 RepoPilot 偏好(微软雅黑 / JetBrains Mono)</td>
+        </tr>
+        <tr>
+          <td>③ 字号梯度</td>
+          <td><code>--text-xs/sm/base/lg/xl/2xl/3xl</code></td>
+          <td>缺失</td>
+          <td>新增</td>
+        </tr>
+        <tr>
+          <td>④ 间距梯度</td>
+          <td><code>--space-1..16</code></td>
+          <td>缺失</td>
+          <td>新增(4px 基础)</td>
+        </tr>
+        <tr>
+          <td>⑤ 圆角 / 阴影 / 边框</td>
+          <td><code>--radius-sm/md/lg</code> · <code>--shadow-sm/md/lg</code> · <code>--border-thin/thick</code></td>
+          <td>已有 radius 14px / shadow 12px</td>
+          <td>扩展为梯度</td>
+        </tr>
+        <tr>
+          <td>⑥ 动效曲线 / 时长</td>
+          <td><code>--ease-in/out/in-out</code> · <code>--duration-fast/normal/slow</code></td>
+          <td>缺失</td>
+          <td>新增</td>
+        </tr>
+        <tr>
+          <td>⑦ 布局 token</td>
+          <td><code>--sidebar-w</code> · <code>--topbar-h</code> · <code>--content-max-w</code> · <code>--float-panel-w/h</code></td>
+          <td>缺失</td>
+          <td>新增(壳骨架相关)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">5.2 通用组件样式(9 page 共用)</h3>
+    <div class="grid-3">
+      <div class="mod green">
+        <h4>基础</h4>
+        <p>.btn / .btn-primary / .btn-sm / .input / .textarea / .select / .checkbox / .radio / .toggle</p>
+      </div>
+      <div class="mod cyan">
+        <h4>容器</h4>
+        <p>.card / .card-soft / .glass-card / .empty-state / .loading-spinner / .error-banner / .degraded</p>
+      </div>
+      <div class="mod violet">
+        <h4>数据展示</h4>
+        <p>.list / .list-item / .list-item__primary / .list-item__secondary / .chip / .table / .table-row</p>
+      </div>
+      <div class="mod amber">
+        <h4>反馈</h4>
+        <p>.toast / .toast-success / .toast-error / .modal / .modal-mask / .dialog / .ask-dialog</p>
+      </div>
+      <div class="mod rose">
+        <h4>导航</h4>
+        <p>.nav-item / .nav-item.active / .nav-section / .tabs / .tab / .tab.active / .breadcrumb</p>
+      </div>
+      <div class="mod slate">
+        <h4>特殊</h4>
+        <p>.float-dot / .float-panel / .service-badge / .activity-row / .task-card / .markdown-body</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">5.3 样设迁移的最小投入</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>工作项</th>
+          <th>产出</th>
+          <th>估时</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>① 提取 RepoPilot 现有色板/字体/间距/圆角/阴影</td>
+          <td>design tokens 清单(spreadsheet / figma 风格)</td>
+          <td>0.5 天</td>
+        </tr>
+        <tr>
+          <td>② 落 <code>styles/design-system.css</code> CSS 变量层</td>
+          <td>~200 行 CSS(替换现有 44 KB 中的 token 段)</td>
+          <td>1-2 天</td>
+        </tr>
+        <tr>
+          <td>③ 落 <code>styles/shell.css</code> 壳样式</td>
+          <td>~150 行 CSS(替换现有 30 KB 中的壳段)</td>
+          <td>1 天</td>
+        </tr>
+        <tr>
+          <td>④ 提取通用组件样式(9 类)</td>
+          <td>~400 行 CSS(新增通用组件类)</td>
+          <td>2-3 天</td>
+        </tr>
+        <tr>
+          <td>⑤ 验证 dark/light/system 三主题</td>
+          <td>3 套变量集齐</td>
+          <td>0.5 天</td>
+        </tr>
+        <tr>
+          <td>⑥ 样设 Storybook / 组件展示页</td>
+          <td>展示所有通用组件的渲染(可选,加速后续 page 套用)</td>
+          <td>1-2 天(可选)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p><b>样设负责人投入</b>:1 人 · 5-8 天(全工作量)或 1 人 · 3-4 天(若不要 Storybook)</p>
+  </section>
+
+  <!-- ============== PHASES ============== -->
+  <section id="phases">
+    <div class="section-title">
+      <span class="num">6</span>
+      <h2>⑥ 五阶段路径</h2>
+      <span class="sub">样设先行 → 容器与共享组件 → 业务分模块并行 → 集成</span>
+    </div>
+
+    <h3 style="font-size:18px;margin:8px 0 12px">6.1 阶段 0 · 设计语言提炼(样设负责人 · 1 人 · 3-5 天)</h3>
+    <div class="card cyan">
+      <p><b>目标</b>:把 RepoPilot 旧前端的视觉语言提炼为 design tokens + 通用组件样式,落到 <code>apps/web/src/styles/</code>。</p>
+      <h3 style="font-size:14px;margin:8px 0">产出物</h3>
+      <ul style="font-size:13px;color:var(--text-1);padding-left:20px">
+        <li><code>styles/design-system.css</code> · CSS 变量(token)+ 通用组件样式 · 80-100 KB</li>
+        <li><code>styles/shell.css</code> · 壳样式(基于新 token)· 35-40 KB</li>
+        <li><code>styles/global.css</code> · reset + body 字体 · 4-5 KB</li>
+        <li>组件展示页(Storybook-like 静态页)· 验证所有 token 与组件渲染</li>
+      </ul>
+      <p><b>风险</b>:agent 自身 chrome(FloatingChat、AskDialog)需要特殊设计;全屏图谱画布(Three.js)与浅色 shell 风格可能有冲突,需在样设阶段预留"画布区"作为 dark 自定义域。</p>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">6.2 阶段 1 · 容器 + 共享组件(前端 · 1-2 人 · 3-5 天)</h3>
+    <div class="card green">
+      <p><b>目标</b>:把"所有 page 的容器"做完,样设落地。</p>
+      <h3 style="font-size:14px;margin:8px 0">工作项</h3>
+      <ul style="font-size:13px;color:var(--text-1);padding-left:20px">
+        <li><code>shell/AppShell.tsx</code> · 应用壳(侧边栏、顶栏、内容区、悬浮窗挂载点)· 应用阶段 0 token</li>
+        <li><code>shell/ServiceBadge.tsx</code> · 服务健康徽章 · 通用 chip 组件</li>
+        <li><code>shell/Degraded.tsx</code> · 服务降级态 · 通用错误卡</li>
+        <li><code>shell/useTheme.ts</code> · 主题热切换 · 已实现,只需在样设后验证</li>
+        <li><code>widgets/FloatingChat.tsx</code> · 悬浮窗 · 应用阶段 0 token</li>
+        <li><code>widgets/PageProbe.tsx</code> · 页面感知挂载 · 已有,无需改</li>
+        <li><code>widgets/probes.ts</code> · probe 注册表 · 已有</li>
+        <li><code>bridge/</code> · 7 个文件 · 1-2 人专责,样设后微调</li>
+        <li><code>main.tsx</code> + <code>App.tsx</code> · 入口与路由表 · 已就位,无需改</li>
+      </ul>
+      <p><b>完成后</b>:9 个 page 都可以"套用"现有 shell 与 widgets,只需要 page 内部组件适配新 token 即可。<b>这是"分模块独立"的真正起点。</b></p>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">6.3 阶段 2 · 业务分模块并行(后端 + 前端 · 7 个并行小组 · 20-30 工作日 / 组)</h3>
+    <div class="arch-wrap">
+      <svg viewBox="0 0 1200 540" xmlns="http://www.w3.org/2000/svg" style="font-family:monospace">
+        <defs>
+          <marker id="arr-p" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="#475569"/>
+          </marker>
+        </defs>
+
+        <rect x="40" y="20" width="240" height="80" rx="10" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="160" y="48" text-anchor="middle" font-size="13" fill="#1e3a8a" font-weight="700">阶段 1:容器 + 共享组件</text>
+        <text x="160" y="68" text-anchor="middle" font-size="11" fill="#475569">shell/ + bridge/ + styles/</text>
+        <text x="160" y="85" text-anchor="middle" font-size="11" fill="#475569">1-2 人 · 3-5 天</text>
+
+        <line x1="160" y1="100" x2="160" y2="120" stroke="#475569" stroke-width="1.5" marker-end="url(#arr-p)"/>
+
+        <text x="600" y="135" text-anchor="middle" font-size="13" fill="#475569" font-weight="700">阶段 2:9 个 page × 7 个 service 并行(后端 + 前端各 1 个负责人,合 1 模块)</text>
+
+        <line x1="160" y1="155" x2="160" y2="175" stroke="#475569" stroke-width="1.5" marker-end="url(#arr-p)"/>
+
+        <!-- 9 模块 -->
+        <g font-size="11" fill="#0e1a3a">
+          <rect x="20" y="175" width="130" height="80" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+          <text x="85" y="195" text-anchor="middle" font-weight="700">notes</text>
+          <text x="85" y="212" text-anchor="middle" font-size="10" fill="#475569">6 cap + 1 page</text>
+          <text x="85" y="227" text-anchor="middle" font-size="10" fill="#475569">3-5 天</text>
+
+          <rect x="160" y="175" width="130" height="80" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+          <text x="225" y="195" text-anchor="middle" font-weight="700">llm</text>
+          <text x="225" y="212" text-anchor="middle" font-size="10" fill="#475569">11 cap + 1 page</text>
+          <text x="225" y="227" text-anchor="middle" font-size="10" fill="#475569">5-7 天</text>
+
+          <rect x="300" y="175" width="130" height="80" rx="8" fill="#cffafe" stroke="#06b6d4" stroke-width="1.5"/>
+          <text x="365" y="195" text-anchor="middle" font-weight="700">graph</text>
+          <text x="365" y="212" text-anchor="middle" font-size="10" fill="#475569">19 cap + 1 page</text>
+          <text x="365" y="227" text-anchor="middle" font-size="10" fill="#475569">8-12 天</text>
+
+          <rect x="440" y="175" width="130" height="80" rx="8" fill="#cffafe" stroke="#06b6d4" stroke-width="1.5"/>
+          <text x="505" y="195" text-anchor="middle" font-weight="700">sources</text>
+          <text x="505" y="212" text-anchor="middle" font-size="10" fill="#475569">20 cap + 1 page</text>
+          <text x="505" y="227" text-anchor="middle" font-size="10" fill="#475569">8-12 天</text>
+
+          <rect x="580" y="175" width="130" height="80" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+          <text x="645" y="195" text-anchor="middle" font-weight="700">office</text>
+          <text x="645" y="212" text-anchor="middle" font-size="10" fill="#475569">10 cap + 1 page</text>
+          <text x="645" y="227" text-anchor="middle" font-size="10" fill="#475569">5-7 天</text>
+
+          <rect x="720" y="175" width="130" height="80" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+          <text x="785" y="195" text-anchor="middle" font-weight="700">code_exec</text>
+          <text x="785" y="212" text-anchor="middle" font-size="10" fill="#475569">3 cap + 0 page</text>
+          <text x="785" y="227" text-anchor="middle" font-size="10" fill="#475569">3-5 天</text>
+
+          <rect x="860" y="175" width="130" height="80" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+          <text x="925" y="195" text-anchor="middle" font-weight="700">browser</text>
+          <text x="925" y="212" text-anchor="middle" font-size="10" fill="#475569">5 cap + 0 page</text>
+          <text x="925" y="227" text-anchor="middle" font-size="10" fill="#475569">2-3 天(占位)</text>
+
+          <rect x="1000" y="175" width="130" height="80" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+          <text x="1065" y="195" text-anchor="middle" font-weight="700">settings</text>
+          <text x="1065" y="212" text-anchor="middle" font-size="10" fill="#475569">6 cap + 1 page</text>
+          <text x="1065" y="227" text-anchor="middle" font-size="10" fill="#475569">3-5 天</text>
+
+          <rect x="1140" y="175" width="50" height="80" rx="8" fill="#e0e7ff" stroke="#6366f1" stroke-width="1.5"/>
+          <text x="1165" y="195" text-anchor="middle" font-weight="700">团队</text>
+          <text x="1165" y="212" text-anchor="middle" font-size="10" fill="#475569">team</text>
+          <text x="1165" y="227" text-anchor="middle" font-size="10" fill="#475569">3-5 天</text>
+        </g>
+
+        <line x1="600" y1="265" x2="600" y2="285" stroke="#475569" stroke-width="1.5" marker-end="url(#arr-p)"/>
+
+        <rect x="40" y="290" width="1120" height="100" rx="10" fill="#ecfeff" stroke="#0891b2" stroke-width="1"/>
+        <text x="600" y="312" text-anchor="middle" font-size="13" fill="#155e75" font-weight="700">阶段 3:gateway 集成 + chat / activity / usage / overview / health 收尾</text>
+        <text x="600" y="335" text-anchor="middle" font-size="11" fill="#0e7490">gateway mount 各 service 注入;健康探测链路;活动流拼装;用量统计</text>
+        <text x="600" y="358" text-anchor="middle" font-size="11" fill="#0e7490">1-2 人 · 5-8 天</text>
+
+        <line x1="600" y1="400" x2="600" y2="420" stroke="#475569" stroke-width="1.5" marker-end="url(#arr-p)"/>
+
+        <rect x="40" y="420" width="1120" height="100" rx="10" fill="#1e293b" stroke="#0f172a" stroke-width="1"/>
+        <text x="600" y="445" text-anchor="middle" font-size="13" fill="#fff" font-weight="700">阶段 4:集成测试 / 端到端流程 / 上线前修</text>
+        <text x="600" y="468" text-anchor="middle" font-size="11" fill="#cbd5e1">chrome 体验层 Parity 补齐 / apps/desktop 落地 / 审计落库 / SECRET_KEY 校验 / trace_id 续传</text>
+        <text x="600" y="491" text-anchor="middle" font-size="11" fill="#cbd5e1">2-3 人 · 10-15 天</text>
+      </svg>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">6.4 阶段 3 · gateway 集成(1-2 人 · 5-8 天)</h3>
+    <div class="card green">
+      <p><b>目标</b>:把各 service 注入 gateway 启动链路,验证端到端可跑通。</p>
+      <ul style="font-size:13px;color:var(--text-1);padding-left:20px">
+        <li><code>deploy/backend.py</code> 接入所有 service 的 <code>wire_xxx</code></li>
+        <li><code>services/gateway/mounts.py</code> MountSpec 注入</li>
+        <li>健康探测链路:各 service 真实 <code>probe</code> 实现(不只回 UP)</li>
+        <li>chat / activity / usage / overview 收尾(总览 + 用量 + 活动 + 服务状态)</li>
+      </ul>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">6.5 阶段 4 · 集成测试 + 收尾(2-3 人 · 10-15 天)</h3>
+    <div class="card amber">
+      <p><b>目标</b>:所有模块就位后,补齐"全局性问题"——这些是之前审查发现必须修但分模块阶段不能并行修的项。</p>
+      <ul style="font-size:13px;color:var(--text-1);padding-left:20px">
+        <li>chrome 体验层 Parity 补齐(关闭弹窗、清空草稿、急停、collapse 等 12 项)</li>
+        <li><code>apps/desktop/</code> 落地(若时间允许)</li>
+        <li>审计落库(<code>platform/audit/</code>)</li>
+        <li>SECRET_KEY 长度校验</li>
+        <li>AGENT_MAIN trace_id 续传</li>
+        <li>deploy/backend.py 跨服务 import 的 CI 化决策(豁免/禁止)</li>
+        <li>graph/engines/python/engine.py 拆分与品牌名修复</li>
+        <li>端到端 Playwright 测试 / Vitest 单元测试补全</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============== GANTT ============== -->
+  <section id="gantt">
+    <div class="section-title">
+      <span class="num">7</span>
+      <h2>⑦ 甘特图与并行度</h2>
+      <span class="sub">总时长:6-8 周(峰值 5-7 人并行)</span>
+    </div>
+
+    <div class="arch-wrap">
+      <svg viewBox="0 0 1200 540" xmlns="http://www.w3.org/2000/svg" style="font-family:monospace">
+        <!-- 时间轴 -->
+        <g font-size="11" fill="#475569">
+          <text x="60" y="35">第 1 周</text>
+          <text x="180" y="35">第 2 周</text>
+          <text x="300" y="35">第 3 周</text>
+          <text x="420" y="35">第 4 周</text>
+          <text x="540" y="35">第 5 周</text>
+          <text x="660" y="35">第 6 周</text>
+          <text x="780" y="35">第 7 周</text>
+          <text x="900" y="35">第 8 周</text>
+        </g>
+        <line x1="50" y1="42" x2="1180" y2="42" stroke="#cbd5e1" stroke-width="1"/>
+
+        <!-- 阶段 0 样设 -->
+        <rect x="50" y="60" width="180" height="35" rx="4" fill="#fbbf24" opacity="0.85"/>
+        <text x="60" y="82" font-size="12" fill="#78350f" font-weight="600">阶段 0:样设</text>
+        <text x="200" y="82" font-size="10" fill="#78350f">3-5 天 · 1 人</text>
+
+        <!-- 阶段 1 容器 + 共享组件 -->
+        <rect x="240" y="60" width="180" height="35" rx="4" fill="#10b981" opacity="0.85"/>
+        <text x="250" y="82" font-size="12" fill="#fff" font-weight="600">阶段 1:容器 + 共享组件</text>
+        <text x="390" y="82" font-size="10" fill="#fff">3-5 天 · 1-2 人</text>
+
+        <!-- 阶段 2 业务并行 -->
+        <g>
+          <!-- notes -->
+          <rect x="430" y="115" width="100" height="20" rx="3" fill="#3b82f6" opacity="0.8"/>
+          <text x="435" y="129" font-size="10" fill="#fff" font-weight="600">notes (3-5d)</text>
+          <!-- llm -->
+          <rect x="430" y="140" width="140" height="20" rx="3" fill="#3b82f6" opacity="0.8"/>
+          <text x="435" y="154" font-size="10" fill="#fff" font-weight="600">llm (5-7d)</text>
+          <!-- graph -->
+          <rect x="430" y="165" width="220" height="20" rx="3" fill="#3b82f6" opacity="0.8"/>
+          <text x="435" y="179" font-size="10" fill="#fff" font-weight="600">graph (8-12d)</text>
+          <!-- sources -->
+          <rect x="430" y="190" width="220" height="20" rx="3" fill="#3b82f6" opacity="0.8"/>
+          <text x="435" y="204" font-size="10" fill="#fff" font-weight="600">sources (8-12d)</text>
+          <!-- office -->
+          <rect x="430" y="215" width="140" height="20" rx="3" fill="#3b82f6" opacity="0.8"/>
+          <text x="435" y="229" font-size="10" fill="#fff" font-weight="600">office (5-7d)</text>
+          <!-- code_exec -->
+          <rect x="430" y="240" width="100" height="20" rx="3" fill="#3b82f6" opacity="0.8"/>
+          <text x="435" y="254" font-size="10" fill="#fff" font-weight="600">code_exec (3-5d)</text>
+          <!-- browser -->
+          <rect x="430" y="265" width="80" height="20" rx="3" fill="#3b82f6" opacity="0.8"/>
+          <text x="435" y="279" font-size="10" fill="#fff" font-weight="600">browser (2-3d)</text>
+          <!-- settings -->
+          <rect x="430" y="290" width="100" height="20" rx="3" fill="#3b82f6" opacity="0.8"/>
+          <text x="435" y="304" font-size="10" fill="#fff" font-weight="600">settings (3-5d)</text>
+          <!-- chat / activity / overview / usage / health (无独立 service,只前端) -->
+          <rect x="430" y="315" width="80" height="20" rx="3" fill="#a78bfa" opacity="0.8"/>
+          <text x="435" y="329" font-size="10" fill="#fff" font-weight="600">chat+act (3-5d)</text>
+          <!-- team -->
+          <rect x="430" y="340" width="100" height="20" rx="3" fill="#a78bfa" opacity="0.8"/>
+          <text x="435" y="354" font-size="10" fill="#fff" font-weight="600">team (3-5d)</text>
+        </g>
+
+        <!-- 阶段 3 gateway 集成 -->
+        <rect x="660" y="115" width="160" height="35" rx="4" fill="#06b6d4" opacity="0.85"/>
+        <text x="670" y="137" font-size="12" fill="#fff" font-weight="600">阶段 3:gateway 集成</text>
+        <text x="790" y="137" font-size="10" fill="#fff">5-8 天 · 1-2 人</text>
+
+        <!-- 阶段 4 收尾 -->
+        <rect x="830" y="160" width="290" height="35" rx="4" fill="#1e293b" opacity="0.85"/>
+        <text x="840" y="182" font-size="12" fill="#fff" font-weight="600">阶段 4:集成 + chrome Parity 补齐 + 收尾</text>
+        <text x="1080" y="182" font-size="10" fill="#cbd5e1">10-15 天 · 2-3 人</text>
+
+        <!-- 风险与缓冲 -->
+        <rect x="50" y="400" width="1120" height="50" rx="6" fill="#fef2f2" stroke="#f43f5e" stroke-width="1"/>
+        <text x="60" y="422" font-size="13" fill="#b91c1c" font-weight="600">风险与缓冲</text>
+        <text x="60" y="442" font-size="11" fill="#7f1d1d">- 样设阶段被业务方反复推翻 · 预留 1 周弹性</text>
+
+        <!-- 资源配比 -->
+        <rect x="50" y="465" width="1120" height="60" rx="6" fill="#ecfeff" stroke="#0891b2" stroke-width="1"/>
+        <text x="60" y="487" font-size="13" fill="#155e75" font-weight="600">资源配比(峰值 5-7 人)</text>
+        <text x="60" y="507" font-size="11" fill="#0e7490">阶段 0: 样设 1 人</text>
+        <text x="350" y="507" font-size="11" fill="#0e7490">阶段 1: 容器 1-2 人 + 样设 1 人</text>
+        <text x="720" y="507" font-size="11" fill="#0e7490">阶段 2: 业务 7-8 人(每模块 1 人) + 容器 1 人 + 样设 1 人</text>
+      </svg>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">7.1 并行度分析</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>阶段</th>
+          <th>并行人数</th>
+          <th>关键约束</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>阶段 0:样设</td>
+          <td>1 人</td>
+          <td>独立,1 人专责</td>
+        </tr>
+        <tr>
+          <td>阶段 1:容器 + 共享组件</td>
+          <td>1-2 人</td>
+          <td>样设就位后启动;不与样设并行</td>
+        </tr>
+        <tr>
+          <td>阶段 2:业务分模块</td>
+          <td>5-7 人</td>
+          <td><b>峰值并行度</b>;每模块 1 人 + 1 协调人</td>
+        </tr>
+        <tr>
+          <td>阶段 3:gateway 集成</td>
+          <td>1-2 人</td>
+          <td>需要阶段 2 大部分完成</td>
+        </tr>
+        <tr>
+          <td>阶段 4:收尾</td>
+          <td>2-3 人</td>
+          <td>chrome Parity + 集成测试</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============== RISKS ============== -->
+  <section id="risks">
+    <div class="section-title">
+      <span class="num">8</span>
+      <h2>⑧ 风险与缓释</h2>
+      <span class="sub">10 个具体风险点 + 缓释方案</span>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:80px">风险</th>
+          <th>描述</th>
+          <th>缓释方案</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="sev critical">P0</span></td>
+          <td>样设被业务方反复推翻,阶段 0 周期失控</td>
+          <td>阶段 0 输出"样设 v1"后冻结 1 周,业务方只接受"有限度修改";期间开始阶段 1 容器</td>
+        </tr>
+        <tr>
+          <td><span class="sev high">P1</span></td>
+          <td>CSS 变量名设计不当,后期重构成本高</td>
+          <td>阶段 0 早期先与 1 个前端负责人对齐 design tokens 命名规范;在 PR review 阶段把控</td>
+        </tr>
+        <tr>
+          <td><span class="sev high">P1</span></td>
+          <td>page 内部组件假设了样设(如"两栏布局"),样设改后大量返工</td>
+          <td>阶段 1 容器层提供通用 layout 组件(Grid / Stack / Cluster / SidebarMain);page 必须用,不准自己造</td>
+        </tr>
+        <tr>
+          <td><span class="sev high">P1</span></td>
+          <td>capability 命名空间冲突(两人都定义 <code>create_note</code>)</td>
+          <td>约定 <code>&lt;service&gt;__&lt;capability&gt;</code> 桥接命名;CI 校验 <code>grep "from services.X"</code></td>
+        </tr>
+        <tr>
+          <td><span class="sev high">P1</span></td>
+          <td>前端 store 类型与后端 capability 返回字段不一致</td>
+          <td>阶段 0 同时输出 contract 表格;前端所有 <code>callCapability&lt;T&gt;()</code> 的 T 由后端契约包定义</td>
+        </tr>
+        <tr>
+          <td><span class="sev medium">P2</span></td>
+          <td>graph C 引擎需要 native 构建,新开发者上手难</td>
+          <td>graph 阶段 2 切到"Python 引擎优先"模式;C 引擎作可选优化;文档写明构建步骤</td>
+        </tr>
+        <tr>
+          <td><span class="sev medium">P2</span></td>
+          <td>聚合服务壳改动可能影响所有子模块</td>
+          <td>子模块 1 人,聚合层 1 人,改动必须先在 PR 描述影响面;CI 检查子模块互不 import</td>
+        </tr>
+        <tr>
+          <td><span class="sev medium">P2</span></td>
+          <td>事件类型字符串拼写不一致</td>
+          <td>所有 <code>DomainEvent.*</code> 经 <code>platform_contracts</code>;Python 端经 imports,前端经 bridge/events.ts 常量</td>
+        </tr>
+        <tr>
+          <td><span class="sev low">P3</span></td>
+          <td>每个 page 都有私有的 provider.ts,新页面忘注册 probe</td>
+          <td>PageProbe.tsx 静默跳过未注册路由;但 CI 可在 <code>src/pages/&lt;name&gt;/provider.ts</code> 存在性上做检查</td>
+        </tr>
+        <tr>
+          <td><span class="sev low">P3</span></td>
+          <td>样设负责人在阶段 2 太忙,被业务方拉去救火</td>
+          <td>阶段 2 的样设改动必须排队,不让样设负责人被业务变更打断</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============== SUMMARY ============== -->
+  <section id="summary">
+    <div class="section-title">
+      <span class="num">9</span>
+      <h2>⑨ 总结</h2>
+      <span class="sub">两个问题的最终答案 + 落地路径</span>
+    </div>
+
+    <div class="grid-2">
+      <div class="card green">
+        <h3>✅ 问题 1:能否每个模块独立开发?</h3>
+        <p><b>能,且已为这种工作流做好完整准备</b>。</p>
+        <ul style="font-size:13px;color:var(--text-1);padding-left:18px">
+          <li>横向 import 矩阵 4 项全 0(语言层强制)</li>
+          <li>每个 services/* 有完整七件套,可独立启动</li>
+          <li>每个聚合子模块自包含</li>
+          <li>每个前端 page 五件套,App.tsx 1 行/page</li>
+          <li>bridge 边界隔离 9 个 page 互不依赖</li>
+          <li>platform 7 包依赖方向严格向下</li>
+        </ul>
+        <p><b>7 大类 40+ 独立开发单元</b>,5-7 人峰值并行。</p>
+      </div>
+      <div class="card green">
+        <h3>✅ 问题 2:能否样设先行 + 分模块?</h3>
+        <p><b>能,而且是最优路径</b>。</p>
+        <ul style="font-size:13px;color:var(--text-1);padding-left:18px">
+          <li>78 KB 现有 styles + 50 KB shell/widgets 是"待填充容器"</li>
+          <li>样设与业务几乎完全解耦(bridge、store、provider 不变)</li>
+          <li>样设先行能避免 9 个 page 各自实现样式</li>
+          <li>样设 1 人 · 3-5 天即可完成 token + 通用组件</li>
+        </ul>
+        <p><b>5 阶段路径</b> · 6-8 周 · 5-7 人峰值并行。</p>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">9.1 推荐的"立即行动"清单</h3>
+    <div class="callout tip">
+      <b>本周内</b>(1-2 天):
+      <ol style="margin:8px 0;padding-left:20px">
+        <li>确认样设负责人 1 人</li>
+        <li>把 RepoPilot 旧前端的 styles/liquid-glass.css 完整复制到工作区,作为 design tokens 来源</li>
+        <li>建立 <code>apps/web/src/styles/design-tokens.css</code>(从 liquid-glass 提炼的 CSS 变量层)</li>
+      </ol>
+      <b>第 1 周</b>(3-5 天):
+      <ol style="margin:8px 0;padding-left:20px">
+        <li>完成 design-system.css 的 token + 通用组件样式</li>
+        <li>完成 shell.css 的壳样式(基于新 token)</li>
+        <li>产出一个"组件展示页"(Storybook-like)</li>
+      </ol>
+      <b>第 2 周</b>(3-5 天):
+      <ol style="margin:8px 0;padding-left:20px">
+        <li>AppShell + ServiceBadge + Degraded + FloatingChat 用新 token 重写</li>
+        <li>9 个 page 已有的类名(chat-page、note-list 等)与新 token 适配</li>
+        <li>Playwright 跑通所有 page 路由</li>
+      </ol>
+      <b>第 3-6 周</b>(并行):
+      <ol style="margin:8px 0;padding-left:20px">
+        <li>7 个模块小组并行(每组 1-2 人,合 1 后端 service + 1 前端 page)</li>
+        <li>阶段 3 gateway 集成(等大部分 service 落定)</li>
+      </ol>
+      <b>第 7-8 周</b>(收尾):
+      <ol style="margin:8px 0;padding-left:20px">
+        <li>chrome Parity 补齐 / 审计落库 / SECRET_KEY 校验 / trace_id 续传</li>
+        <li>端到端 Playwright + Vitest 全部通过</li>
+        <li>apps/desktop 落地(若时间允许)</li>
+      </ol>
+    </div>
+
+    <h3 style="font-size:18px;margin:24px 0 12px">9.2 关于"每个模块独立开发"的可证伪承诺</h3>
+    <div class="card cyan">
+      <p>如果担心"理论能独立,实际有依赖",可用以下 <b>3 个最小验证</b> 立刻检验:</p>
+      <ol style="font-size:13px;color:var(--text-1);padding-left:20px">
+        <li><b>克隆到新环境,只装 platform/* 7 个 uv workspace + services/notes</b>,运行 <code>python -m services.notes</code>;若 30 秒内启动,说明 notes 真的独立。</li>
+        <li><b>克隆到新环境,只装 platform/* 7 个 + 装 apps/web</b>,npm run build;若 30 秒内构建,说明前端不依赖任何具体 service。</li>
+        <li><b>删除 apps/web/src/pages/notes 整个目录</b>,npm run build;若其他 page 仍能构建,说明 page 完全独立。</li>
+      </ol>
+      <p>三个验证都能通过,独立开发承诺就是工程事实,不是纸面承诺。</p>
+    </div>
+
+    <div class="good-banner" style="margin-top:24px">
+      <b>📌 最终结论</b>:
+      Voyager 的架构设计已经为"分模块独立开发 + 样设先行"做好了<b>全部</b>准备。
+      横向 import 矩阵 0、bridge 边界隔离、page 五件套、聚合服务壳零逻辑、platform 依赖方向严格向下——这些不是"努力维持的纪律",是<b>语言层阻断</b>(空 <code>__init__.py</code> + 唯一包名 + capability 框架)。
+      样设先行 + 业务分模块并行是<b>推荐路径</b>,不是可选项;
+      没有样设先行的"独立开发"会出现 9 套重复样式冲突、负责人失语、后期重构成本激增。
+      5 阶段 6-8 周路径,峰值 5-7 人并行,<b>立即可启动</b>。
+    </div>
+  </section>
+
+  <footer>
+    <p>本报告基于 4 个并行只读 subagent 的全量证据 + 主会话补充核对</p>
+    <p>数据基于 2026-08-26 仓库快照 · 仅评估现状 · 未对任何文件做修改</p>
+    <p style="margin-top:8px;font-size:11px;color:#94a3b8">报告路径: <code>voyager/voyager-frontend-design-migration.html</code></p>
+  </footer>
+
+</div>
+</body>
+</html>
