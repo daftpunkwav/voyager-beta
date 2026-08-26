@@ -191,6 +191,20 @@ class TestBooksNews:
         await execute(registry, "remove_book", USER_CTX, {"book_id": book["id"]})
         assert await execute(registry, "list_books", USER_CTX, {}) == []
 
+    async def test_add_book_sanitizes_title_filename(self, deps, tmp_path) -> None:
+        """title 中的路径分隔符/保留字符不得让副本写逃逸 workspace/books。"""
+        d, _ = deps
+        src = tmp_path / "book.txt"
+        src.write_text("hello", encoding="utf-8")
+        book = await execute(registry, "add_book", USER_CTX,
+                             {"title": '../../evil "name"', "file_path": str(src)})
+        local = Path(book["local_path"])
+        assert local.parent == Path(d.workspace) / "books"  # 未逃逸
+        assert local.is_file()
+        with pytest.raises(ServiceError, match="清洗后为空"):
+            await execute(registry, "add_book", USER_CTX,
+                          {"title": "..", "file_path": str(src)})
+
     async def test_news_add_and_get(self, deps) -> None:
         item = await execute(registry, "add_news", USER_CTX,
                              {"title": "AI 周报", "content": "正文" * 200})

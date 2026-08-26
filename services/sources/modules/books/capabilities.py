@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +17,18 @@ registry = Registry(_DOMAIN)
 
 #: 可直接按"章节"切片阅读的文本格式;其余格式待解析管线(§8.4 AI 建图)
 _TEXT_FORMATS = (".txt", ".md", ".markdown")
+
+# 路径分隔符 / Windows 保留字符 / 控制字符一律替换,防 title 写逃逸 books 目录
+_UNSAFE_FILENAME_RE = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+
+
+def _safe_filename(title: str) -> str:
+    """把 title 清洗为安全文件名(去分隔符与保留字符,限长,去首尾点空格)。"""
+    name = _UNSAFE_FILENAME_RE.sub("_", title).strip(" .")[:120]
+    if not name:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           "title 清洗后为空:不能仅由路径分隔符/保留字符构成")
+    return name
 
 
 @dataclass
@@ -57,7 +70,8 @@ def add_book(title: str, file_path: str = "", author: str = "", note: str = "") 
         fmt = src.suffix.lower()
         dest_dir = Path(deps.workspace) / "books"
         dest_dir.mkdir(parents=True, exist_ok=True)
-        dest = dest_dir / f"{title}{fmt}"
+        # 目标文件名用清洗后的 title,防 "../x" 之类写逃逸 books 目录
+        dest = dest_dir / f"{_safe_filename(title)}{fmt}"
         shutil.copy2(src, dest)
         local = str(dest)
     bid = deps.store.add({"title": title, "author": author, "format": fmt,
