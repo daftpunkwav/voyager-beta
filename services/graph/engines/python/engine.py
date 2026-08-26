@@ -1,6 +1,7 @@
-"""Voyager 自研图谱引擎 —— 对齐原生 C 引擎工具面契约。"""
+"""图谱引擎 · Python 回退实现 —— 对齐原生 C 引擎工具面契约。"""
 from __future__ import annotations
 
+import logging
 import re
 import threading
 from pathlib import Path
@@ -11,6 +12,8 @@ from .store import GraphStore
 
 _CYPHER_ROW_CAP = 100_000
 _DEFAULT_SEARCH_LIMIT = 200
+
+log = logging.getLogger("graph.engine.python")
 
 _engine_singleton: GraphEngine | None = None
 _engine_lock = threading.Lock()
@@ -47,7 +50,10 @@ class GraphEngine:
                     try:
                         store.load(db)
                     except Exception:
-                        pass
+                        # 加载失败从空图继续,但必须留痕——静默吞掉会让用户
+                        # 面对莫名空图而无从排查
+                        log.warning("持久化图数据加载失败,项目 %s 从空图开始",
+                                    project, exc_info=True)
                 self._projects[project] = store
             return self._projects[project]
 

@@ -18,6 +18,7 @@ from urllib.parse import parse_qs, urlparse
 from .engine import get_engine
 
 _LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]"}
+_MAX_BODY = 10_000_000  # 请求体上限(10MB):防恶意超大 body 耗尽内存
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -78,6 +79,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         eng = Handler.eng
         length = int(self.headers.get("Content-Length") or 0)
+        if length > _MAX_BODY:
+            self._json(413, {"error": "payload_too_large"})
+            return
         raw = self.rfile.read(length) if length else b"{}"
         try:
             data = json.loads(raw.decode("utf-8"))

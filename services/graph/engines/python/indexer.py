@@ -14,7 +14,8 @@ import re
 from collections.abc import Iterable
 from pathlib import Path
 
-from .store import Edge, GraphStore, Node, force_layout_3d
+from .layout import force_layout_3d
+from .store import Edge, GraphStore, Node
 
 # Non-negatable safety core：与 C 引擎 discover.c is_safety_core_dir 对齐——
 # 仓库提交的 .engineignore 否定规则永远无法解除这些目录的跳过。
