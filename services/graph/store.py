@@ -51,6 +51,15 @@ _EDGE_COLS = ("id", "project", "src", "dst", "type", "attrs",
               "source", "actor", "updated_ts")
 
 
+def _cypher_ident(name: str) -> str:
+    """Cypher 标识符转义:反引号包裹,内部反引号加倍(官方转义规则)。
+
+    label/type 是开放词表(AI 建图允许新类型),导出时必须转义,
+    防止节点标签或关系类型逃逸出语句结构。
+    """
+    return "`" + name.replace("`", "``") + "`"
+
+
 def _node_id(project: str, label: str, qualified_name: str) -> str:
     return hashlib.sha1(f"{project}{label}{qualified_name}".encode()).hexdigest()[:16]
 
@@ -309,22 +318,28 @@ class GraphStore:
 
     def export_subgraph(self, project: str, node_id: str, *, depth: int = 2,
                         fmt: str = "json") -> dict[str, Any]:
-        """导出子图为 JSON/CYPHER。"""
+        """导出子图为 JSON/CYPHER。
+
+        Cypher 侧:标识符经 _cypher_ident 转义,字符串值用 json.dumps
+        (双引号字面量,反斜杠/引号/换行均被正确转义),不做手工拼接转义。
+        """
         sub = self.subgraph(project, node_id, depth)
         if fmt == "cypher":
             lines = []
             for n in sub["nodes"]:
-                name = n["name"].replace("'", "\\'")
-                qn = n["qualified_name"].replace("'", "\\'")
+                props = ", ".join(
+                    f"{k}: {json.dumps(v, ensure_ascii=False)}"
+                    for k, v in (("id", n["id"]), ("name", n["name"]),
+                                 ("qualified_name", n["qualified_name"]))
+                )
                 lines.append(
-                    f"CREATE (n:{n['label']} {{id: '{n['id']}',"
-                    f" name: '{name}',"
-                    f" qualified_name: '{qn}'}})",
+                    f"CREATE (n:{_cypher_ident(n['label'])} {{{props}}})"
                 )
             for e in sub["edges"]:
                 lines.append(
-                    f"MATCH (a {{id: '{e['src']}'}}), (b {{id: '{e['dst']}'}})"
-                    f" CREATE (a)-[:{e['type']}]->(b)",
+                    f"MATCH (a {{id: {json.dumps(e['src'])}}}),"
+                    f" (b {{id: {json.dumps(e['dst'])}}})"
+                    f" CREATE (a)-[:{_cypher_ident(e['type'])}]->(b)"
                 )
             sub["cypher"] = "\n".join(lines)
         return {"project": project, "format": fmt, **sub}

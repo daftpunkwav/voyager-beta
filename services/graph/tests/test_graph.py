@@ -192,3 +192,26 @@ class TestCodePipeline:
         assert out["cross_edges"] >= 1
         cross = d.store.query("cross-repo")
         assert cross["edges"][0]["type"] == "CROSS_REPO"
+
+
+class TestExport:
+    async def test_export_cypher_normal(self, deps) -> None:
+        d, _ = deps
+        n = d.store.upsert_node("py", "Concept", "概念A")
+        out = await execute(registry, "export_subgraph", USER_CTX,
+                            {"project": "py", "node_id": n["id"], "format": "cypher"})
+        assert "CREATE (n:`Concept` {" in out["cypher"]
+
+    async def test_export_cypher_escapes_identifiers_and_values(self, deps) -> None:
+        """恶意 label/type/引号值不得逃逸 Cypher 语句结构(注入防护)。"""
+        d, _ = deps
+        a = d.store.upsert_node("px", "Evil`Label", 'n"ame')
+        b = d.store.upsert_node("px", "Term", "ok")
+        d.store.upsert_edge("px", a["id"], b["id"], "BAD`)-[:X]->(y")
+        out = await execute(registry, "export_subgraph", USER_CTX,
+                            {"project": "px", "node_id": a["id"], "depth": 1,
+                             "format": "cypher"})
+        cy = out["cypher"]
+        assert "`Evil``Label`" in cy  # 标识符内反引号加倍
+        assert "[:`BAD``)-[:X]->(y`]" in cy  # 关系类型整体被反引号包裹
+        assert 'n\\"ame' in cy  # 值内双引号经 JSON 转义,不破坏字面量
