@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import socket
 from dataclasses import dataclass
@@ -41,21 +42,27 @@ def _require_deps() -> NewsDeps:
 
 
 def _assert_public_http_url(url: str) -> None:
-    """SSRF 防护:仅 http(s),且解析到的所有地址都必须是公网地址。
+    """SSRF 防护(同步部分):仅 http(s) 且主机名非空。
 
-    拒绝回环/内网(RFC1918)/链路本地(含云元数据 169.254.169.254)/保留段,
-    防止 agent 被注入后借 fetch_news 探测内网服务。
+    已知局限(TOCTOU):此处解析与 httpx 实际连接各解析一次 DNS,
+    恶意域可借 rebinding 先后返回不同 IP 绕过校验;本地单用户工具下
+    风险可接受,完整防护需 transport 级固定连接 IP,暂不引入。
     """
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
         raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
                            f"仅支持 http/https URL: {url}")
-    host = parsed.hostname
-    if not host:
+    if not parsed.hostname:
         raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, f"URL 缺少主机名: {url}")
-    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+
+
+async def _assert_public_host(host: str, port: int) -> None:
+    """DNS 解析与公网校验(loop.getaddrinfo 走线程池,不阻塞事件循环):
+    所有解析结果必须是全球可路由地址,拒绝回环/内网(RFC1918)/链路本地
+    (含云元数据 169.254.169.254)/保留段。"""
     try:
-        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+        infos = await asyncio.get_running_loop().getaddrinfo(
+            host, port, proto=socket.IPPROTO_TCP)
     except OSError as exc:
         raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
                            f"主机名无法解析: {host}") from exc
@@ -77,6 +84,9 @@ async def fetch_news(url: str, title: str = "") -> dict:
             # 逐跳跟随重定向,每跳重新过 SSRF 校验(防外网页面 302 → 内网)
             for _ in range(_MAX_REDIRECTS):
                 _assert_public_http_url(url)
+                parsed = urlparse(url)
+                await _assert_public_host(parsed.hostname,
+                                          parsed.port or (443 if parsed.scheme == "https" else 80))
                 resp = await client.get(url)
                 if resp.is_redirect and resp.has_redirect_location:
                     url = str(httpx.URL(url).join(resp.headers.get("location", "")))

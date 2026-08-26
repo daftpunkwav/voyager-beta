@@ -20,6 +20,10 @@ _TEXT_FORMATS = (".txt", ".md", ".markdown")
 
 # 路径分隔符 / Windows 保留字符 / 控制字符一律替换,防 title 写逃逸 books 目录
 _UNSAFE_FILENAME_RE = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+# Windows 保留设备名(不分扩展名):作文件名会让 copy 直接 OSError
+_RESERVED_NAMES = {"CON", "PRN", "AUX", "NUL",
+                   *(f"COM{i}" for i in range(1, 10)),
+                   *(f"LPT{i}" for i in range(1, 10))}
 
 
 def _safe_filename(title: str) -> str:
@@ -28,6 +32,8 @@ def _safe_filename(title: str) -> str:
     if not name:
         raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
                            "title 清洗后为空:不能仅由路径分隔符/保留字符构成")
+    if Path(name).stem.upper() in _RESERVED_NAMES:
+        name = f"book_{name}"
     return name
 
 

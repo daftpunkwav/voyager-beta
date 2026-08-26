@@ -20,9 +20,6 @@ from agent.tools.base import AgentTool
 
 AGENT_ACTOR = ActorRef(kind=ActorKind.AGENT, id="agent.main", scopes=("domain:*",))
 
-#: 兼容旧引用(deploy/_call);语义为 agent 主身的默认上下文
-AGENT_MAIN = ActorContext(actor=AGENT_ACTOR)
-
 
 def agent_context() -> ActorContext:
     """按当前链构造 agent 调用上下文:链上有 trace 则沿用,否则新建。"""

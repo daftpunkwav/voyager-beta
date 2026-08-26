@@ -9,6 +9,8 @@ web_fetch 真实可用(httpx);web_search 是诚实的占位:搜索需外接搜�
 
 from __future__ import annotations
 
+import httpx
+
 from agent.policy import Action, PolicyEngine
 from agent.tools.base import AgentTool
 
@@ -18,8 +20,6 @@ _MAX_REDIRECTS = 5
 
 def web_tools(policy: PolicyEngine | None = None) -> dict[str, AgentTool]:
     async def web_fetch(url: str, max_chars: int = _MAX_CHARS) -> str:
-        import httpx
-
         async with httpx.AsyncClient(timeout=15, follow_redirects=False) as client:
             for _ in range(_MAX_REDIRECTS):
                 if policy is not None:

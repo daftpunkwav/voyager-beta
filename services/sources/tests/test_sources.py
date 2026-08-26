@@ -221,6 +221,14 @@ class TestBooksNews:
             await execute(registry, "add_book", USER_CTX,
                           {"title": "..", "file_path": str(src)})
 
+    async def test_add_book_windows_reserved_name(self, deps, tmp_path) -> None:
+        """title=CON 等 Windows 保留设备名:加前缀落盘,不抛 500。"""
+        src = tmp_path / "b.txt"
+        src.write_text("x", encoding="utf-8")
+        book = await execute(registry, "add_book", USER_CTX,
+                             {"title": "CON", "file_path": str(src)})
+        assert Path(book["local_path"]).name.startswith("book_CON")
+
     async def test_news_add_and_get(self, deps) -> None:
         item = await execute(registry, "add_news", USER_CTX,
                              {"title": "AI 周报", "content": "正文" * 200})
