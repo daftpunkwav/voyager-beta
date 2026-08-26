@@ -45,6 +45,17 @@ def _require_deps() -> Deps:
     return _deps
 
 
+def _ensure_node_id(store: GraphStore, project: str, qn: str, *,
+                    source: str, actor: str) -> str:
+    """按 qualified_name 找节点 id;不存在则补占位 Term 节点(set_relationship 共用)。"""
+    for row in store.query(project, keyword=qn, limit=5)["nodes"]:
+        if row["qualified_name"] == qn:
+            return row["id"]
+    node = store.upsert_node(project, "Term", qn, qn, {"placeholder": True},
+                             source=source, actor=actor)
+    return node["id"]
+
+
 # ---------- 队列类 ----------
 
 @capability(registry, name="enqueue_index", description="源码索引入队(长任务;进度经 task.* 事件)",
@@ -99,17 +110,11 @@ def set_relationship(project: str, src: str, dst: str, type: str,
     actor_id = _actor.id if _actor else ""
     source = "ai" if (_actor and _actor.kind.value == "agent") else "manual"
 
-    def _ensure(qn: str) -> str:
-        for row in deps.store.query(project, keyword=qn, limit=5)["nodes"]:
-            if row["qualified_name"] == qn:
-                return row["id"]
-        node = deps.store.upsert_node(project, "Term", qn, qn,
-                                      {"placeholder": True}, source=source,
-                                      actor=actor_id)
-        return node["id"]
-
-    return deps.store.upsert_edge(project, _ensure(src), _ensure(dst), type, attrs,
-                                  source=source, actor=actor_id)
+    return deps.store.upsert_edge(
+        project,
+        _ensure_node_id(deps.store, project, src, source=source, actor=actor_id),
+        _ensure_node_id(deps.store, project, dst, source=source, actor=actor_id),
+        type, attrs, source=source, actor=actor_id)
 
 
 @capability(registry, name="graph_guide", description="AI 建图约定全文(agent 按需加载,§9.20)")
@@ -194,19 +199,11 @@ def set_relationships(project: str, relations: list[dict]) -> dict:
     for r in relations:
         src = r["src"]
         dst = r["dst"]
-
-        def _ensure(qn: str) -> str:
-            for row in deps.store.query(project, keyword=qn, limit=5)["nodes"]:
-                if row["qualified_name"] == qn:
-                    return row["id"]
-            node = deps.store.upsert_node(project, "Term", qn, qn,
-                                          {"placeholder": True},
-                                          source="ai", actor="agent.batch")
-            return node["id"]
-
         out.append(deps.store.upsert_edge(
-            project, _ensure(src), _ensure(dst), r["type"],
-            r.get("attrs"), source="ai", actor="agent.batch"))
+            project,
+            _ensure_node_id(deps.store, project, src, source="ai", actor="agent.batch"),
+            _ensure_node_id(deps.store, project, dst, source="ai", actor="agent.batch"),
+            r["type"], r.get("attrs"), source="ai", actor="agent.batch"))
     return {"project": project, "count": len(out), "edges": out}
 
 
