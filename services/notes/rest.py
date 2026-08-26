@@ -25,7 +25,11 @@ def create_app(data_dir: str | Path = _DEFAULT_DATA, bus: EventBus | None = None
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        if w.start:
+            await w.start()
         yield
+        if w.stop:
+            await w.stop()
         if w.close:
             w.close()
 
