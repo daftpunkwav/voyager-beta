@@ -43,10 +43,13 @@ export const NavIcons = {
   ),
   graph: (props: IconProps) => (
     <IconBase {...props}>
-      <circle cx="6" cy="6" r="2.5" />
-      <circle cx="18" cy="6" r="2.5" />
-      <circle cx="12" cy="18" r="2.5" />
-      <path d="M8 7l8 0M7.5 8L11 16M16.5 8L13 16" />
+      {/* 中心节点(实心) + 4 周围空心小圆 + 4 连线 — 网络拓扑感(非 3 圆点) */}
+      <circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none" />
+      <circle cx="4"  cy="4"  r="1.6" fill="none" />
+      <circle cx="20" cy="4"  r="1.6" fill="none" />
+      <circle cx="4"  cy="20" r="1.6" fill="none" />
+      <circle cx="20" cy="20" r="1.6" fill="none" />
+      <path d="M5.4 5.4L9.4 9.4M14.6 9.4L18.6 5.4M5.4 18.6L9.4 14.6M14.6 14.6L18.6 18.6" />
     </IconBase>
   ),
   activity: (props: IconProps) => (

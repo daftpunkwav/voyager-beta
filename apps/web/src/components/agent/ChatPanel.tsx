@@ -263,16 +263,17 @@ export function ChatPanel({
             <button
               type="button"
               className="chat-icon-btn"
-              title="更多"
+              title="更多操作"
               aria-label="更多操作"
               aria-haspopup="menu"
               aria-expanded={moreOpen}
               onClick={() => setMoreOpen((v) => !v)}
             >
+              {/* 垂直 3 点(kebab 菜单 ⋮,比水平 3 点更像"操作") */}
               <svg viewBox="0 0 24 24" fill="currentColor" width={16} height={16}>
-                <circle cx="5" cy="12" r="1.5" />
-                <circle cx="12" cy="12" r="1.5" />
-                <circle cx="19" cy="12" r="1.5" />
+                <circle cx="12" cy="5"  r="1.7" />
+                <circle cx="12" cy="12" r="1.7" />
+                <circle cx="12" cy="19" r="1.7" />
               </svg>
             </button>
             {moreOpen && (
