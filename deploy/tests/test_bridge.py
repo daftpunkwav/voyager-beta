@@ -1,9 +1,10 @@
-"""bridge 测试:注册表 → AgentTool 的名称、元数据与守卫链调用。"""
+"""bridge 测试:注册表 → AgentTool 的名称、元数据、守卫链调用与 trace 贯穿。"""
 
 import asyncio
 
-from platform_capability import Registry, capability
+from platform_capability import Registry, SqliteAuditSink, capability
 
+from agent.runtime.trace import reset_current_trace, set_current_trace
 from deploy.bridge import make_domain_tools
 from services.gateway.mounts import MountSpec
 
@@ -47,3 +48,18 @@ def test_multiple_mounts_no_name_collision() -> None:
     assert set(tools) == {"a__same", "b__same"}
     assert asyncio.run(tools["a__same"].handler()) == {"from": "a"}
     assert asyncio.run(tools["b__same"].handler()) == {"from": "b"}
+
+
+def test_handler_carries_current_trace(tmp_path) -> None:
+    """链上设置了 trace 时,agent 的能力调用沿用同一 trace(审计整链回放,§7.8)。"""
+    sink = SqliteAuditSink(tmp_path / "audit.db")
+    tools = make_domain_tools(_echo_mounts(), audit=[sink])
+    token = set_current_trace("trace-from-user-message")
+    try:
+        out = asyncio.run(tools["echo__ping"].handler(text="hi"))
+        assert out == {"pong": "hi"}
+    finally:
+        reset_current_trace(token)
+    rows = sink.recent(trace_id="trace-from-user-message")
+    assert len(rows) == 1 and rows[0]["capability"] == "ping"
+    sink.close()

@@ -14,14 +14,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from fastapi import FastAPI
-from platform_capability import Wiring, execute
+from platform_capability import SqliteAuditSink, Wiring, execute
 from platform_eventbus import EventBus, EventLog
 from platform_secrets import SecretStore
 from platform_settings import SettingsStore
 
 from agent.main import AgentApp, build_agent
 
-from .bridge import AGENT_MAIN, make_domain_tools
+from .bridge import agent_context, make_domain_tools
 from .llm_adapter import ServiceLLM
 
 ROOT = Path(__file__).parent.parent
@@ -65,11 +65,12 @@ def build(
     workspace = Path(workspace_dir) if workspace_dir else ROOT / "workspace"
     data_root.mkdir(parents=True, exist_ok=True)
 
-    # 共享基础设施:一条事件时间线、一个加密仓、一个设置存储
+    # 共享基础设施:一条事件时间线、一个加密仓、一个设置存储、一个审计库
     log = EventLog(data_root / "events.db")
     bus = EventBus(log)
     secrets = SecretStore(data_root / "secrets.db")
     settings_store = SettingsStore(data_root / "settings.db", bus)
+    audit = [SqliteAuditSink(data_root / "audit.db")]
     # gateway 自身设置项由部署入口注册(其模块注释约定,无 wiring 装配)
     settings_store.register_fresh(GATEWAY_SETTING_DEFS)
 
@@ -90,13 +91,14 @@ def build(
 
     # agent runtime:LLM 走 llm 服务能力,领域能力经桥注入,设置/事件与全系统共享
     async def _call(domain: str, name: str, args: dict) -> dict:
-        return await execute(wirings[domain].registry, name, AGENT_MAIN, args)
+        return await execute(wirings[domain].registry, name, agent_context(), args,
+                             audit=audit)
 
     agent = build_agent(
         data_dir=data_root / "agent", workspace_dir=workspace,
         llm=llm if llm is not None else ServiceLLM(_call),
         bus=bus, settings_store=settings_store,
-        extra_tools=make_domain_tools(mounts),
+        extra_tools=make_domain_tools(mounts, audit=audit),
     )
     mounts.append(MountSpec(domain="agent", registry=agent.registry,
                             probe=lambda: {"status": "up"}))
@@ -123,9 +125,11 @@ def build(
             agent.close()  # 共享 store/log 由本根关闭(owns_* 均为 False)
             secrets.close()
             settings_store.close()
+            for sink in audit:
+                sink.close()
             log.close()
 
-    app = gateway_create(mounts, bus=bus, lifespan=lifespan)
+    app = gateway_create(mounts, bus=bus, lifespan=lifespan, audit=audit)
     app.state.backend = Backend(
         app=app, agent=agent, wirings=wirings, bus=bus, log=log,
         secrets=secrets, settings_store=settings_store,

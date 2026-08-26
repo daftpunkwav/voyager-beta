@@ -179,5 +179,8 @@ async def execute(
     except ServiceError as exc:
         _record(sinks, entry(False, exc.body.code))
         raise
+    except Exception as exc:  # 非预期异常也落审计(INTERNAL),再原样上抛
+        _record(sinks, entry(False, "INTERNAL"))
+        raise
     _record(sinks, entry(True, ""))
     return result

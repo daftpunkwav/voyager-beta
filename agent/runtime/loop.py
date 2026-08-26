@@ -13,6 +13,8 @@ from collections.abc import Awaitable, Callable
 from platform_contracts import Event
 from platform_eventbus import CursorStore, EventBus
 
+from agent.runtime.trace import reset_current_trace, set_current_trace
+
 Handler = Callable[[Event], Awaitable[None]]
 
 log = logging.getLogger("agent.loop")
@@ -37,12 +39,19 @@ class EventLoop:
         self._stopped = True
 
     async def _dispatch(self, event: Event) -> None:
-        for pattern, handler in self._handlers.items():
-            if fnmatch.fnmatchcase(event.type, pattern):
-                try:
-                    await handler(event)
-                except Exception:  # 事件处理失败隔离,loop 继续
-                    log.exception("事件处理失败: %s", event.type)
+        # 事件 trace 放入 ContextVar:链内 capability 调用(deploy/bridge)自动同链(§7.8);
+        # 处理完复位,避免污染 loop 任务上下文中的后续事件
+        token = set_current_trace(event.trace_id) if event.trace_id else None
+        try:
+            for pattern, handler in self._handlers.items():
+                if fnmatch.fnmatchcase(event.type, pattern):
+                    try:
+                        await handler(event)
+                    except Exception:  # 事件处理失败隔离,loop 继续
+                        log.exception("事件处理失败: %s", event.type)
+        finally:
+            if token is not None:
+                reset_current_trace(token)
 
     async def run(self) -> None:
         if self._cursors is not None:

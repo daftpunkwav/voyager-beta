@@ -1,5 +1,6 @@
 """能力框架:一次定义 → REST + MCP 双生成;入口强制鉴权/限流/审计。"""
 
+from platform_capability.audit_db import SqliteAuditSink
 from platform_capability.define import Capability, capability, coerce_input
 from platform_capability.gen_mcp import build_server, build_tool_specs, dataclass_to_json_schema
 from platform_capability.gen_rest import build_router
@@ -27,6 +28,7 @@ __all__ = [
     "InMemoryAuditSink",
     "LocalAuth",
     "Registry",
+    "SqliteAuditSink",
     "Wiring",
     "build_router",
     "build_server",
