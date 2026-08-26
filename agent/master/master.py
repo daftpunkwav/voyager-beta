@@ -60,6 +60,8 @@ class Master:
         self._chat: SubagentInstance | None = None
         self._inbox: deque[str] = deque()
         self._lock = asyncio.Lock()
+        # 后台派单任务持强引用:防 GC 在完成前回收 Task 导致通报静默丢失
+        self._bg: set[asyncio.Task] = set()
 
     async def handle_user_message(self, text: str, *, trace_id: str = "") -> None:
         """用户消息入口(由事件循环分发)。"""
@@ -167,7 +169,9 @@ class Master:
                 if self._hooks is not None:
                     await self._hooks.fire("on_subagent_end", subagent=inst.id)
 
-        asyncio.create_task(_run())
+        task = asyncio.create_task(_run())
+        self._bg.add(task)
+        task.add_done_callback(self._bg.discard)
         return inst
 
     def _load_custom(self, name: str):

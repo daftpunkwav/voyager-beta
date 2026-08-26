@@ -57,14 +57,27 @@ class RepoStore:
         self._lock = threading.Lock()
 
     def add(self, repo: dict[str, Any]) -> str:
+        """登记/重导入仓库。
+
+        URL 冲突时只更新来源侧字段(owner/name/描述/星标/README/状态),
+        保留用户设置的 category/tags/progress/note——重导入不丢元数据;
+        RETURNING 返回存续行的 id(冲突时是旧行 id)。
+        """
         rid = repo.get("id") or uuid.uuid4().hex[:12]
         now = time.time()
         with self._lock:
-            self._conn.execute(
-                "INSERT OR REPLACE INTO repos (id, owner, name, url, description, stars,"
+            row = self._conn.execute(
+                "INSERT INTO repos (id, owner, name, url, description, stars,"
                 " language, category, tags, progress, note, local_path, readme, status,"
                 " error, source, added_ts, updated_ts)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT(url) DO UPDATE SET"
+                " owner=excluded.owner, name=excluded.name,"
+                " description=excluded.description, stars=excluded.stars,"
+                " language=excluded.language, readme=excluded.readme,"
+                " status=excluded.status, error=excluded.error,"
+                " updated_ts=excluded.updated_ts"
+                " RETURNING id",
                 (
                     rid, repo.get("owner", ""), repo["name"], repo["url"],
                     repo.get("description", ""), int(repo.get("stars", 0)),
@@ -75,9 +88,9 @@ class RepoStore:
                     repo.get("status", "importing"), repo.get("error", ""),
                     repo.get("source", "manual"), now, now,
                 ),
-            )
+            ).fetchone()
             self._conn.commit()
-        return rid
+        return str(row[0])
 
     def _fetch(self, where: str = "", params: tuple = (), cols=_SUMMARY_COLS,
                order: str = "added_ts DESC") -> list[dict[str, Any]]:

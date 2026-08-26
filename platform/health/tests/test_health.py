@@ -70,6 +70,19 @@ class TestMonitor:
         monitor, _ = rig
         assert monitor.status("ghost") is HealthStatus.UNKNOWN
 
+    async def test_start_idempotent_and_stop_awaits(self) -> None:
+        """start 重入不泄漏任务;stop 等待任务真正结束且可再次 start。"""
+        monitor = HealthMonitor()
+        monitor.register("x", lambda: HealthReport(service="x", status=HealthStatus.UP))
+        monitor.start(0.01)
+        first = monitor._task
+        monitor.start(0.01)  # 重入:不换新任务
+        assert monitor._task is first
+        await monitor.stop()
+        assert monitor._task is None and first.done()
+        monitor.start(0.01)  # stop 后可重启
+        await monitor.stop()
+
 
 class TestErrorHelpers:
     def test_unavailable(self) -> None:

@@ -37,6 +37,16 @@ class Deps:
 
 _deps: Deps | None = None
 
+#: fire-and-forget 任务必须持强引用:否则 GC 可能在完成前回收 Task,结果静默丢失
+_bg_tasks: set[asyncio.Task] = set()
+
+
+def _spawn(coro) -> asyncio.Task:
+    task = asyncio.create_task(coro)
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
+    return task
+
 
 def init_deps(deps: Deps) -> None:
     global _deps
@@ -150,8 +160,8 @@ def list_runtimes() -> list[dict[str, Any]]:
             description="执行代码片段;立即返回 exec_id,结果经 task.completed/failed 事件")
 async def run_snippet(runtime: str, code: str, _actor: ActorRef = None) -> JobRef:
     exec_id = uuid.uuid4().hex[:12]
-    # 立即触发异步执行,调用方不阻塞(§7.3)
-    asyncio.create_task(_run_code(exec_id, runtime, code))
+    # 立即触发异步执行,调用方不阻塞(§7.3);任务持引用防 GC 静默回收
+    _spawn(_run_code(exec_id, runtime, code))
     return JobRef(job_id=exec_id)
 
 
@@ -172,7 +182,7 @@ async def run_file(runtime: str, file_path: str, _actor: ActorRef = None) -> Job
         raise ServiceError(_DOMAIN, ErrorSuffix.NOT_FOUND, f"文件不存在: {file_path}")
     code = target.read_text(encoding="utf-8")
     exec_id = uuid.uuid4().hex[:12]
-    asyncio.create_task(_run_code(exec_id, runtime, code))
+    _spawn(_run_code(exec_id, runtime, code))
     return JobRef(job_id=exec_id)
 
 

@@ -96,6 +96,22 @@ class TestRepo:
             await execute(registry, "import_repo", USER_CTX,
                           {"url": "https://github.com/o/a"})
 
+    async def test_reimport_preserves_user_meta(self, deps) -> None:
+        """URL 冲突重导入只更新来源字段;分类/标签/进度/备注保留,id 不变。"""
+        d, _ = deps
+        rid1 = d.repo_store.add({"name": "a", "owner": "o", "url": "https://github.com/o/a",
+                                 "status": "failed", "readme": "旧"})
+        d.repo_store.set_meta(rid1, category="学习", tags=["x"], progress="done",
+                              note="我的笔记")
+        rid2 = d.repo_store.add({"name": "a", "owner": "o", "url": "https://github.com/o/a",
+                                 "status": "importing", "readme": "新",
+                                 "stars": 99})
+        assert rid2 == rid1  # 冲突时返回存续行 id
+        repo = d.repo_store.get(rid1)
+        assert repo["category"] == "学习" and repo["tags"] == ["x"]
+        assert repo["note"] == "我的笔记" and repo["readme"] == "新"
+        assert repo["stars"] == 99 and repo["status"] == "importing"
+
     async def test_sort_by_name_and_summary_hides_readme(self, deps) -> None:
         d, _ = deps
         for name in ("beta", "alpha", "gamma"):

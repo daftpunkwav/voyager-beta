@@ -14,6 +14,16 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
+def _stop_tree(proc: subprocess.Popen) -> None:
+    """终止进程树。Windows 下 shell=True 起的是 cmd.exe,node/npm 是其子进程,
+    仅 terminate() 会留孤儿;taskkill /T 连子进程一起杀。"""
+    if sys.platform == "win32":
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                       capture_output=True)
+    else:
+        proc.terminate()
+
+
 def main() -> None:
     import uvicorn
 
@@ -23,7 +33,7 @@ def main() -> None:
         uvicorn.run("deploy.backend:build", factory=True, host="127.0.0.1",
                     port=8000, reload=False)
     finally:
-        web.terminate()
+        _stop_tree(web)
 
 
 if __name__ == "__main__":

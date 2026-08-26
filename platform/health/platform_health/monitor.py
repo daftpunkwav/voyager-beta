@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 from collections.abc import Callable
+from contextlib import suppress
 from typing import Any
 
 from platform_contracts import (
@@ -70,7 +71,9 @@ class HealthMonitor:
         return dict(self._last)
 
     def start(self, interval: float = 5.0) -> None:
-        """后台周期探测(gateway 用)。"""
+        """后台周期探测(gateway 用)。重复调用是幂等的:不泄漏旧任务。"""
+        if self._task is not None and not self._task.done():
+            return
 
         async def _run() -> None:
             while True:
@@ -80,8 +83,11 @@ class HealthMonitor:
         self._task = asyncio.create_task(_run())
 
     async def stop(self) -> None:
+        """取消并等待探测任务结束(清理在 stop 返回前完成)。"""
         if self._task is not None:
             self._task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._task
             self._task = None
 
     def status(self, service: str) -> HealthStatus:

@@ -59,6 +59,12 @@ class TestCompressor:
         assert estimate_tokens(out) < estimate_tokens(msgs)
         assert any("已压缩" in str(m.get("content", "")) for m in out)  # 最旧工具结果被截断
 
+    def test_all_system_overflow_terminates(self) -> None:
+        """极端场景:超预算但无可剪枝的非 system 消息,必须正常返回而非死循环。"""
+        msgs = [{"role": "system", "content": "超长系统提示" * 500} for _ in range(9)]
+        out = compress(msgs, budget=100)
+        assert len(out) == 9  # system 永不压缩,但循环必须终止
+
 
 class TestPages:
     def test_update_and_render(self) -> None:

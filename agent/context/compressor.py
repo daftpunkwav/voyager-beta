@@ -31,8 +31,12 @@ def compress(
             return out
     # 第二刀:丢弃最旧的非 system 消息(保留最近 6 条)
     while len(out) > 8 and estimate_tokens(out) > budget:
+        removed = False
         for i, m in enumerate(out):
             if m.get("role") != "system":
                 del out[i]
+                removed = True
                 break
+        if not removed:
+            break  # 只剩 system 消息且仍超预算:无可剪枝对象,防死循环
     return out
