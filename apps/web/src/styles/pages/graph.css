@@ -572,6 +572,12 @@
   overflow: hidden;
 }
 
+/* 空状态/错误状态在图谱页垂直居中 */
+.graph-page-shell .graph-content:has(> .empty-state) {
+  justify-content: center;
+  align-items: center;
+}
+
 .graph-page-shell .graph-stage {
   flex: 1;
   height: auto !important;

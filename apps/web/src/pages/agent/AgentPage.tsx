@@ -76,20 +76,15 @@ export function AgentPage() {
     }
   });
 
+  // 折叠状态持久化到 localStorage;视觉类名直接绑定到 chat-layout 根节点,
+  // 不再查询已废弃的 .agent-shell,避免 AppShell 重构后 DOM 操作失效。
   useEffect(() => {
-    const shell = document.querySelector('.agent-shell');
-    shell?.classList.toggle('agent-shell--session-collapsed', sessionListCollapsed);
-    shell?.classList.toggle('agent-shell--context-collapsed', contextPanelCollapsed);
     try {
       localStorage.setItem('voyager_agent_session_collapsed', sessionListCollapsed ? '1' : '0');
       localStorage.setItem('voyager_agent_context_collapsed', contextPanelCollapsed ? '1' : '0');
     } catch {
       /* 隐私模式等场景下忽略 */
     }
-    return () => {
-      shell?.classList.remove('agent-shell--session-collapsed');
-      shell?.classList.remove('agent-shell--context-collapsed');
-    };
   }, [sessionListCollapsed, contextPanelCollapsed]);
 
   useEffect(() => {
@@ -355,7 +350,15 @@ export function AgentPage() {
   );
 
   return (
-    <div className="chat-layout">
+    <div
+      className={[
+        'chat-layout',
+        sessionListCollapsed ? 'session-collapsed' : '',
+        contextPanelCollapsed ? 'context-collapsed' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       {sessionList}
 
       <main className="chat-area">

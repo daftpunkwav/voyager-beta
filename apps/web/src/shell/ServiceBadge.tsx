@@ -36,9 +36,12 @@ export function ServiceBadges() {
 
   if (!loaded) {
     return (
-      <span className="topbar-crumb">
-        <span className="svc-badge svc-badge--unknown">…</span>
-      </span>
+      <div className="svc-badges" role="status" aria-label="服务健康加载中">
+        <span className="svc-badge svc-badge--loading" title="正在检查服务状态">
+          <span className="svc-badge__dot" aria-hidden />
+          <span className="svc-badge__label">服务</span>
+        </span>
+      </div>
     );
   }
 

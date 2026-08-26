@@ -17,12 +17,19 @@ function resolve(theme: string): 'light' | 'dark' {
 }
 
 export function applyTheme(theme: string): void {
-  document.documentElement.dataset.theme = resolve(theme);
+  const resolved = resolve(theme);
+  document.documentElement.dataset.theme = resolved;
+  document.documentElement.dataset.themeRequested = theme;
+}
+
+function readSystemPrefersDark(): boolean {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
 export function applyFontScale(scale: number): void {
-  // 全局缩放:zoom 连布局等比缩放,对 px 为单位的 token 体系零侵入
-  document.body.style.zoom = String(scale);
+  // 使用 CSS 变量实现全局字体缩放,避免 body.style.zoom 在部分浏览器/高分屏下
+  // 导致布局模糊、定位偏移及像素不对齐问题。
+  document.documentElement.style.setProperty('--font-scale', String(scale));
 }
 
 export function useTheme() {
@@ -31,7 +38,6 @@ export function useTheme() {
     callCapability<{ theme: string; font_scale: number }>('settings', 'get_theme')
       .then((t) => {
         if (alive && t) {
-          document.documentElement.dataset.themeRequested = t.theme;
           applyTheme(t.theme);
           applyFontScale(t.font_scale);
         }
@@ -47,6 +53,7 @@ export function useTheme() {
         document.documentElement.dataset.theme = media.matches ? 'dark' : 'light';
       }
     };
+    onSchemeChange();
     media.addEventListener('change', onSchemeChange);
 
     const off = subscribe(['settings.changed'], (event) => {

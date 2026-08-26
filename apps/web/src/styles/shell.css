@@ -5,38 +5,83 @@
   flex-direction: column;
   min-height: 100vh;
   min-width: 0;
+  position: relative;
 }
 
 /* ---------- 服务徽章条 ---------- */
+.svc-strip {
+  position: sticky;
+  top: var(--topbar-h, 56px);
+  z-index: calc(var(--z-glass, 50) - 1);
+  height: 38px;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.50);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: inset 0 -1px 0 0 rgba(255, 255, 255, 0.28);
+}
+[data-theme="dark"] .svc-strip {
+  background: rgba(28, 28, 30, 0.50);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 -1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
 .svc-badges {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex: 1;
   justify-content: flex-end;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.svc-badges::-webkit-scrollbar { display: none; }
+
 .svc-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 3px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   font-family: var(--font-mono);
-  background: var(--bg-200);
+  background: rgba(255, 255, 255, 0.55);
   color: var(--text-700);
-  border: 1px solid var(--bg-300);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease), transform 0.15s var(--ease);
+}
+[data-theme="dark"] .svc-badge {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
 }
 .svc-badge__dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: var(--bg-400);
+  transition: background 0.2s var(--ease);
 }
-.svc-badge--up .svc-badge__dot { background: var(--success); }
-.svc-badge--down { background: var(--error-surface); color: var(--error); border-color: var(--error); }
+.svc-badge--up .svc-badge__dot { background: var(--success); box-shadow: 0 0 0 3px rgba(52, 199, 89, 0.18); }
+.svc-badge--down { background: var(--error-surface); color: var(--error); border-color: rgba(255, 59, 48, 0.25); }
 .svc-badge--down .svc-badge__dot { background: var(--error); }
+.svc-badge--loading .svc-badge__dot {
+  background: var(--warning);
+  animation: svc-pulse 1.4s ease-in-out infinite;
+}
+@keyframes svc-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
 
 /* ---------- 降级态 ---------- */
 .degraded {
@@ -191,8 +236,64 @@
 
 /* ---------- Agent Chat ---------- */
 /* 聊天页占据整个视口高度:主列定高,消息区内部滚动,页面级不滚 */
-.main:has(.chat-page) { height: 100vh; min-height: 0; }
+.main:has(.chat-layout) { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
+.app:has(.chat-layout) { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
+.content:has(.chat-layout) {
+  padding: 0;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.main:has(.chat-layout) > .content { flex: 1; min-height: 0; }
+.chat-layout { height: 100%; min-height: 0; }
+
+/* 笔记页新版 .notes-shell 占满视口(旧 .notes-page 选择器也保留兼容) */
+.main:has(.notes-shell) { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
+.app:has(.notes-shell) { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
+.content:has(.notes-shell) {
+  padding: 0;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.main:has(.notes-shell) > .content { flex: 1; min-height: 0; }
+
+/* 团队页占满视口，三栏布局内部滚动 */
+.main:has(.team-page) { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
+.app:has(.team-page) { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
+.content:has(.team-page) {
+  padding: 0;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.main:has(.team-page) > .content { flex: 1; min-height: 0; }
+.team-page {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: clamp(16px, 2.5vw, 32px);
+}
+
+/* 保留旧类名兜底 */
+.main:has(.chat-page) { height: 100vh; height: 100dvh; min-height: 0; }
 .content:has(.chat-page) {
+  max-width: none;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.main:has(.notes-page) { height: 100vh; height: 100dvh; min-height: 0; }
+.content:has(.notes-page) {
   max-width: none;
   overflow: hidden;
   display: flex;
