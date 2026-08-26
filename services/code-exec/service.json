@@ -1,3 +1,0 @@
-{"name": "code-exec", "version": "0.1.0", "protocol": "0.1.0", "port": 8050,
- "capabilities": [], "subscribes": [],
- "publishes": ["task.progress", "task.completed", "task.failed"], "status": "skeleton"}
