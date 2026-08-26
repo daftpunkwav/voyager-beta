@@ -355,7 +355,7 @@ export function AgentPage() {
   );
 
   return (
-    <>
+    <div className="chat-layout">
       {sessionList}
 
       <main className="chat-area">
@@ -403,6 +403,6 @@ export function AgentPage() {
         }}
         onCancel={() => setBatchDeleteIds(null)}
       />
-    </>
+    </div>
   );
 }

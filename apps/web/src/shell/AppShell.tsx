@@ -1,6 +1,11 @@
 /** Voyager 应用壳:液态玻璃导航(Sidebar + Topbar)
- * + 路由感知 activePage + Agent Chat 路由附加 agent-shell 类
- * + 常驻 ServiceBadges 条 + PageProbe + FloatingChat(chat 路由时 FloatingChat 隐藏)。 */
+ * + 路由感知 activePage(给 Sidebar 用)
+ * + 常驻 ServiceBadges 条 + PageProbe + FloatingChat(chat 路由时 FloatingChat 隐藏)。
+ *
+ * 关键修复(vs. 之前版本):移除给 .app 加 .agent-shell 的逻辑。
+ * 旧实现让 .app 被 4 列 grid 覆盖,主列只剩 280px,导致 Topbar 压缩到 280px
+ * 且滚出视口(y=-805)。现在 .app 永远保持 2 列布局(Sidebar + main),
+ * AgentPage 内部用 .chat-layout 自管理 3 栏布局。 */
 
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar, type SidebarPageKey } from '@/components/layout/Sidebar';
@@ -27,20 +32,18 @@ function resolveActivePage(pathname: string): SidebarPageKey {
 }
 
 /** 标准应用壳:Sidebar + Topbar(搜索/主题/通知/avatar) + <Outlet/>
- * + 服务状态条(右下角)+ Agent 路由挂 .agent-shell 类让 AgentPage 切换 grid。 */
+ * + 服务状态条 + PageProbe + FloatingChat。 */
 export function AppShell() {
   const { pathname } = useLocation();
   const activePage = resolveActivePage(pathname);
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
   const onChat = pathname === '/' || pathname.startsWith('/chat');
-  const isAgentRoute = onChat;
 
   return (
     <div
       className={[
         'app',
         sidebarCollapsed ? 'sidebar-collapsed' : '',
-        isAgentRoute ? 'agent-shell' : '',
       ]
         .filter(Boolean)
         .join(' ')}
