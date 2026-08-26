@@ -1,16 +1,52 @@
 """code-exec 执行器:容器优先,无 docker 时回退宿主进程。
 
 产物目录挂载 workspace/sandbox/;网络默认关闭。一次性执行,不持久环境状态(§8.5)。
+运行时配置来自设置(数据侧),执行前一律过白名单校验,防配置注入执行参数。
 """
 
 from __future__ import annotations
 
 import asyncio
+import re
 import shutil
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from platform_contracts import ErrorSuffix, ServiceError
+
+_DOMAIN = "code-exec"
+
+# 镜像名/命令 token 白名单:覆盖 docker 引用与常见参数字符,
+# 显式排除空格与 ;|$`&()<> 等 shell/注入元字符。
+_IMAGE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@:-]*$")
+_CMD_TOKEN_RE = re.compile(r"^[A-Za-z0-9._/@:=,+-]+$")
+_EXT_RE = re.compile(r"^\.[A-Za-z0-9]{1,10}$")
+
+# 宿主回退仅放行已知解释器;自定义运行时必须走容器。
+_HOST_INTERPRETERS: dict[str, list[str]] = {
+    "python": ["python"],
+    "node": ["node"],
+    "shell": ["bash"],
+}
+
+
+def _validate_runtime(runtime: dict[str, Any]) -> None:
+    """校验运行时配置字段;任一非法即拒绝执行(INVALID_INPUT)。"""
+    image = str(runtime.get("image") or "")
+    if not _IMAGE_RE.match(image):
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           f"非法运行时镜像名: {image!r}")
+    cmd = runtime.get("cmd")
+    if (not isinstance(cmd, list) or not cmd
+            or not all(isinstance(c, str) and _CMD_TOKEN_RE.match(c) for c in cmd)):
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           f"非法运行时命令清单: {cmd!r}")
+    ext = str(runtime.get("file_ext") or "")
+    if not _EXT_RE.match(ext):
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           f"非法文件后缀: {ext!r}")
 
 
 @dataclass
@@ -41,6 +77,7 @@ async def run_in_runtime(
     - 否则在 use_host_fallback=True 时于宿主起一个受限子进程(开发/测试用),
       同时 stderr 打印一条警告,提醒生产环境应启用容器。
     """
+    _validate_runtime(runtime)
     exec_id = uuid.uuid4().hex[:12]
     artifact_dir = workspace / "sandbox" / "artifacts" / exec_id
     artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -115,16 +152,15 @@ async def _run_host(
     *,
     timeout: int,
 ) -> RunResult:
-    interpreter = runtime["id"]  # python / node / shell
-    if interpreter == "python":
-        args = ["python", str(src)]
-    elif interpreter == "node":
-        args = ["node", str(src)]
-    elif interpreter == "shell":
-        args = ["bash", str(src)]
-    else:
-        # 通用 fallback:尝试第一个 cmd
-        args = runtime.get("cmd", []) + [str(src)]
+    interpreter = str(runtime.get("id") or "")
+    args = _HOST_INTERPRETERS.get(interpreter)
+    if args is None:
+        raise ServiceError(
+            _DOMAIN, ErrorSuffix.INVALID_INPUT,
+            f"宿主回退仅支持 {'/'.join(_HOST_INTERPRETERS)} 运行时"
+            f"(自定义运行时需 docker): {interpreter}",
+        )
+    args = [*args, str(src)]
 
     proc = await asyncio.create_subprocess_exec(
         *args,

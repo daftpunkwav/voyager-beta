@@ -11,15 +11,6 @@ from platform_settings import SettingsStore
 from .capabilities import DEFS, Deps, init_deps, registry
 from .store import ExecutionStore
 
-_DEFAULT_RUNTIMES = [
-    {"id": "python", "name": "Python 3", "image": "python:3.11-slim",
-     "file_ext": ".py", "cmd": ["python"]},
-    {"id": "node", "name": "Node.js 20", "image": "node:20-slim",
-     "file_ext": ".js", "cmd": ["node"]},
-    {"id": "shell", "name": "Shell (bash)", "image": "bash:5.2",
-     "file_ext": ".sh", "cmd": ["bash"]},
-]
-
 
 def wire(
     data_dir: str | Path,

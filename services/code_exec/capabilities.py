@@ -103,14 +103,22 @@ async def _run_code(exec_id: str, runtime_id: str, code: str) -> dict[str, Any]:
     runtime = _find_runtime(runtime_id)
     deps.store.create(exec_id, runtime_id, kind="snippet")
     await _emit_progress(exec_id, 0.0)
-    result = await run_in_runtime(
-        runtime, code,
-        timeout=cfg["timeout"],
-        memory_mb=cfg["memory_mb"],
-        network=cfg["network"],
-        use_host_fallback=cfg["use_host"],
-        workspace=deps.workspace,
-    )
+    try:
+        result = await run_in_runtime(
+            runtime, code,
+            timeout=cfg["timeout"],
+            memory_mb=cfg["memory_mb"],
+            network=cfg["network"],
+            use_host_fallback=cfg["use_host"],
+            workspace=deps.workspace,
+        )
+    except Exception as exc:  # noqa: BLE001  # 后台任务:配置/校验错误也必须落库并告知,不静默崩溃
+        error = f"{type(exc).__name__}: {exc}"
+        deps.store.finish(exec_id, "failed", -1, "", error[:500], "")
+        await _emit_failed(exec_id, error[:300])
+        return {"exec_id": exec_id, "runtime": runtime_id, "status": "failed",
+                "exit_code": -1, "stdout": "", "stderr": error[:500],
+                "artifact_dir": ""}
     deps.store.finish(
         exec_id, result.status, result.exit_code,
         result.stdout, result.stderr, result.artifact_dir,
@@ -151,15 +159,16 @@ async def run_snippet(runtime: str, code: str, _actor: ActorRef = None) -> JobRe
             description="读取 workspace/sandbox/ 下的代码文件并执行;返回 exec_id")
 async def run_file(runtime: str, file_path: str, _actor: ActorRef = None) -> JobRef:
     deps = _require_deps()
-    target = deps.workspace / "sandbox" / file_path
+    sandbox = (deps.workspace / "sandbox").resolve()
+    target = (deps.workspace / "sandbox" / file_path).resolve()
     try:
-        target.relative_to(deps.workspace / "sandbox")
+        target.relative_to(sandbox)
     except ValueError as exc:
         raise ServiceError(
             _DOMAIN, ErrorSuffix.INVALID_INPUT,
             "file_path 必须位于 workspace/sandbox/ 下",
         ) from exc
-    if not target.exists():
+    if not target.is_file():
         raise ServiceError(_DOMAIN, ErrorSuffix.NOT_FOUND, f"文件不存在: {file_path}")
     code = target.read_text(encoding="utf-8")
     exec_id = uuid.uuid4().hex[:12]
