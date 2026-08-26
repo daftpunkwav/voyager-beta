@@ -102,3 +102,8 @@ services/*/data/
 
 # 开发阶段执行文档(过程性产物,随迭代过时,不入库)
 docs/phases/
+
+# —— 迁移期备份(RepoPilot 旧 page / widget / shell 在探索阶段保留,不入库)——
+apps/web/src/_archived_*
+apps/web/src/**/_archived_*
+apps/web/src/_legacy_*

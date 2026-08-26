@@ -1,107 +1,91 @@
-/** 服务状态页(本阶段唯一调试页):/health 聚合 + 能力直调面板(链路验收用)。 */
+/** 服务状态 — 实时健康探测(由 gateway /health 聚合)。
+ *
+ * 入口走 /health 端点(各 service probe + overall 状态)。
+ * 展示每服务的状态徽章 + 最近状态变化时间。
+ */
 
-import { useCallback, useEffect, useState } from 'react';
-import { callCapability, ServiceError } from '@/bridge/client';
-import { Degraded } from '@/shell/Degraded';
+import { useEffect, useState } from 'react';
+import { GlassCard } from '@/widgets/GlassCard';
+import { LoadingSpinner } from '@/widgets/LoadingSpinner';
+import { EmptyState } from '@/widgets/EmptyState';
 
-interface HealthBody {
-  status: string;
-  services: Record<string, { status: string; detail?: Record<string, unknown> }>;
+interface HealthRecord {
+  service: string;
+  status: 'up' | 'down' | 'degraded' | 'unknown';
+  detail?: string;
+  ts?: number;
+}
+
+interface HealthPayload {
+  overall?: 'up' | 'down' | 'degraded' | 'unknown';
+  services?: HealthRecord[];
 }
 
 export function HealthPage() {
-  const [health, setHealth] = useState<HealthBody | null>(null);
-  const [error, setError] = useState<{ code: string; message: string; hint: string } | null>(
-    null,
-  );
+  const [payload, setPayload] = useState<HealthPayload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(() => {
-    setError(null);
-    fetch('/health')
-      .then((r) => r.json())
-      .then(setHealth)
-      .catch(() =>
-        setError({ code: 'NETWORK', message: '后端不可达', hint: '请确认后端已启动(python deploy/dev.py)' }),
-      );
+  useEffect(() => {
+    let alive = true;
+    const fetchHealth = async () => {
+      try {
+        const resp = await fetch('/api/activity/feed?kind=service.health.changed');
+        // 真实端点是 /api/activity/feed 的事件流;聚合状态在 /health
+        // 这里直接调 gateway /health(由 servicebadge 转发)
+        const healthResp = await fetch('/health');
+        if (!healthResp.ok) throw new Error(`HTTP ${healthResp.status}`);
+        const body = (await healthResp.json()) as HealthPayload;
+        if (!alive) return;
+        setPayload(body);
+      } catch (err) {
+        if (alive) setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (alive) setLoading(false);
+      }
+    };
+    void fetchHealth();
+    const t = window.setInterval(fetchHealth, 15000);
+    return () => {
+      alive = false;
+      window.clearInterval(t);
+    };
   }, []);
 
-  useEffect(refresh, [refresh]);
-
   return (
-    <section>
+    <div className="health-page">
       <h1 className="h2">服务状态</h1>
-      <p className="muted small">聚合健康探测;能力直调面板验证 web → gateway → 服务链路。</p>
-
-      {error ? (
-        <Degraded code={error.code} message={error.message} hint={error.hint} onRetry={refresh} />
-      ) : health ? (
-        <div className="health-grid" style={{ margin: '16px 0 32px' }}>
-          {Object.entries(health.services).map(([domain, s]) => (
-            <div className="health-card" key={domain}>
-              <div className="mono small" style={{ fontWeight: 600 }}>{domain}</div>
-              <div className={`health-card__status health-card__status--${s.status}`}>
-                {s.status === 'up' ? '●' : '●'} {s.status}
-              </div>
-            </div>
-          ))}
-        </div>
+      {loading ? (
+        <LoadingSpinner label="加载健康状态中…" />
+      ) : error ? (
+        <EmptyState title="无法获取状态" message={error} />
+      ) : !payload ? (
+        <EmptyState title="无数据" />
       ) : (
-        <div className="loading-spinner">
-          <div className="spinner" />
-        </div>
+        <>
+          <GlassCard className={`health-overall health-overall--${payload.overall ?? 'unknown'}`}>
+            <span className="label">整体</span>
+            <span className="value">{payload.overall ?? 'unknown'}</span>
+          </GlassCard>
+          <h2 className="h3">服务</h2>
+          <div className="health-grid">
+            {(payload.services ?? []).map((s) => (
+              <GlassCard key={s.service} className={`health-card health-card--${s.status}`}>
+                <div className="health-card__head">
+                  <span className="health-card__name mono">{s.service}</span>
+                  <span className={`chip health-chip--${s.status}`}>{s.status}</span>
+                </div>
+                {s.detail ? <p className="muted small">{s.detail}</p> : null}
+                {s.ts ? (
+                  <p className="small mono">最近探测:{new Date(s.ts * 1000).toLocaleString()}</p>
+                ) : null}
+              </GlassCard>
+            ))}
+          </div>
+        </>
       )}
-
-      <h2 className="h3">能力直调</h2>
-      <CapabilityDebugger />
-    </section>
-  );
-}
-
-function CapabilityDebugger() {
-  const [domain, setDomain] = useState('notes');
-  const [name, setName] = useState('create_note');
-  const [argsText, setArgsText] = useState('{\n  "title": "链路测试"\n}');
-  const [result, setResult] = useState<string>('');
-  const [busy, setBusy] = useState(false);
-
-  const run = async () => {
-    setBusy(true);
-    setResult('');
-    try {
-      let args: Record<string, unknown>;
-      try {
-        args = JSON.parse(argsText || '{}');
-      } catch {
-        throw new ServiceError('INVALID_JSON', '入参不是合法 JSON');
-      }
-      const out = await callCapability(domain, name, args);
-      setResult(JSON.stringify(out, null, 2));
-    } catch (err) {
-      const e = err as ServiceError;
-      setResult(`[${e.code}] ${e.message}${e.hint ? `\n提示: ${e.hint}` : ''}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="debug-panel" style={{ marginTop: 12 }}>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="domain" />
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="capability" />
-      </div>
-      <textarea
-        rows={5}
-        value={argsText}
-        onChange={(e) => setArgsText(e.target.value)}
-        placeholder="JSON 入参"
-      />
-      <div>
-        <button type="button" className="btn btn-primary" onClick={run} disabled={busy}>
-          {busy ? '执行中…' : '调用'}
-        </button>
-      </div>
-      {result ? <pre>{result}</pre> : null}
     </div>
   );
 }
+
+export default HealthPage;

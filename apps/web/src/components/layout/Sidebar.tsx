@@ -1,0 +1,139 @@
+import { Link, NavLink } from 'react-router-dom';
+import { useAuthStore } from '@/stores/authStore';
+import { useProjectStats } from '@/hooks/useProjects';
+import { useAllNotes } from '@/hooks/useNotes';
+import { NavIcons } from '@/components/icons/NavIcons';
+import { userInitials } from '@/utils/user';
+import { useUIStore } from '@/stores/uiStore';
+
+/** 导航分组:Agent / 领域 / 系统(随阶段点亮,未开放的不上导航)。 */
+const NAV_ITEMS = [
+  // —— Agent 主线 ——
+  { key: 'chat', label: '对话', path: '/', badge: 'AI' as const, group: 'agent' },
+  { key: 'team', label: '团队', path: '/team', badge: null, group: 'agent' },
+  // —— 领域 ——
+  { key: 'notes', label: '笔记', path: '/notes', badge: 'notes' as const, group: 'domain' },
+  { key: 'sources', label: '资源库', path: '/sources', badge: 'count' as const, group: 'domain' },
+  { key: 'graph', label: '图谱', path: '/graph', badge: null, group: 'domain' },
+  // —— 系统 ——
+  { key: 'overview', label: '总览', path: '/overview', badge: null, group: 'system' },
+  { key: 'health', label: '服务状态', path: '/system/health', badge: null, group: 'system' },
+  { key: 'activity', label: '活动', path: '/activity', badge: null, group: 'system' },
+  { key: 'usage', label: '用量', path: '/usage', badge: null, group: 'system' },
+  { key: 'settings', label: '设置', path: '/settings', badge: null, group: 'system' },
+] as const;
+
+export type SidebarPageKey =
+  | (typeof NAV_ITEMS)[number]['key']
+  | 'source-detail'
+  | 'session-detail';
+
+interface SidebarProps {
+  /** 当前高亮页(项目详情 / 聊天详情回退到所属主项) */
+  activePage?: SidebarPageKey;
+}
+
+export function Sidebar({ activePage }: SidebarProps) {
+  const user = useAuthStore((s) => s.user);
+  const { data: stats } = useProjectStats();
+  const { data: notes } = useAllNotes();
+  const initials = userInitials(user?.username);
+  const collapsed = useUIStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+
+  // 按 group 分组渲染
+  const groups: Array<{ label: string; keys: string[] }> = [
+    { label: 'Agent', keys: ['chat', 'team'] },
+    { label: '领域', keys: ['notes', 'sources', 'graph'] },
+    { label: '系统', keys: ['overview', 'health', 'activity', 'usage', 'settings'] },
+  ];
+
+  return (
+    <aside className={`sidebar${collapsed ? ' is-collapsed' : ''}`}>
+      <div className="sidebar-brand">
+        <div className="sidebar-logo" title="Voyager">V</div>
+        {!collapsed && (
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+            <span className="sidebar-name">Voyager</span>
+            <span style={{ fontSize: 10, color: 'var(--text-400)', letterSpacing: '0.06em' }}>
+              v1.0.0
+            </span>
+          </div>
+        )}
+        <button
+          type="button"
+          className="sidebar-collapse-btn"
+          title={collapsed ? '展开导航' : '折叠导航'}
+          aria-label={collapsed ? '展开导航' : '折叠导航'}
+          aria-expanded={!collapsed}
+          onClick={toggleSidebar}
+        >
+          {collapsed ? '⟩' : '⟨'}
+        </button>
+      </div>
+
+      {groups.map((g) => {
+        const items = NAV_ITEMS.filter((it) => g.keys.includes(it.key));
+        if (items.length === 0) return null;
+        return (
+          <nav className="sidebar-section" key={g.label}>
+            {!collapsed && <div className="label">{g.label}</div>}
+            {items.map((item) => {
+              const Icon = (NavIcons as Record<string, (p: unknown) => React.ReactElement>)[item.key];
+              const isFallback =
+                (activePage === 'source-detail' && item.key === 'sources') ||
+                (activePage === 'session-detail' && item.key === 'chat');
+              return (
+                <NavLink
+                  key={item.key}
+                  to={item.path}
+                  end={item.path === '/'}
+                  title={item.label}
+                  className={({ isActive }) => {
+                    const active = isActive || isFallback;
+                    const classes = ['nav-item'];
+                    if (active) classes.push('active');
+                    if (item.badge === 'AI') classes.push('ai-badge');
+                    return classes.join(' ');
+                  }}
+                  data-nav-key={item.key}
+                >
+                  {Icon ? <Icon /> : null}
+                  {!collapsed && <span>{item.label}</span>}
+                  {!collapsed && item.badge === 'AI' && <span className="nav-badge">AI</span>}
+                  {!collapsed && item.badge === 'count' && stats && (
+                    <span className="nav-badge">{stats.total}</span>
+                  )}
+                  {!collapsed && item.badge === 'notes' && notes && (
+                    <span className="nav-badge">{notes.length}</span>
+                  )}
+                </NavLink>
+              );
+            })}
+          </nav>
+        );
+      })}
+
+      <div className="sidebar-footer">
+        <Link
+          className="nav-item"
+          to="/team"
+          title={user?.username ?? '访客'}
+          style={{ padding: '8px 10px' }}
+        >
+          <div className="avatar" style={{ width: 28, height: 28, fontSize: 11 }}>
+            {initials}
+          </div>
+          {!collapsed && (
+            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: 12, fontWeight: 600 }}>{user?.username ?? '访客'}</span>
+              <span style={{ fontSize: 10, color: 'var(--text-400)' }}>
+                Pro · {stats?.total ?? 0} / ∞
+              </span>
+            </div>
+          )}
+        </Link>
+      </div>
+    </aside>
+  );
+}

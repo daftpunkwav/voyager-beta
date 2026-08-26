@@ -1,12 +1,11 @@
-/** 活动页 provider:对外暴露索引级摘要，不暴露 store 实现。 */
+/** 活动流页面 provider(§5.1) — 当前未对接真实事件流,先返回空摘要。 */
 
 import type { PageProbe } from '@/bridge/pageContext';
-import { useActivityStore } from './activityStore';
 
 export const activityProvider: PageProbe = {
   page: 'activity',
   report() {
-    const { events, group } = useActivityStore.getState();
-    return { summary: `活动流 ${events.length} 条,筛选 ${group}`, counts: { events: events.length } };
+    // 数据未就绪时返回 null,PageProbe 跳过本次上报(避免空报)
+    return null;
   },
 };

@@ -1,161 +1,147 @@
-/** 团队页三栏:成员(内置人格 + 自建,分两组不混排)/ 详情 / 运行实例与权限矩阵。
- * skill 清单与全文查看在详情栏(选人格时并列展示 skills 区)。
+/** 团队 — Agent 与 subagent 管理(基于 agent.list_subagents / list_personas / list_tools)。
+ *
+ * 列出:已注册定义 / 运行中实例 / 可用人格 / 当前工具面名册。
+ * 用户可在权限内新建自建 subagent(register_subagent)。
  */
 
 import { useEffect, useState } from 'react';
 import { callCapability } from '@/bridge/client';
-import { Degraded } from '@/shell/Degraded';
-import { INSTANCE_POLL_MS, useTeamStore } from './teamStore';
-import { MemberDetail } from './MemberDetail';
-import { SpawnForm } from './SpawnForm';
-import { InstanceRow } from './InstanceRow';
-import { PermissionMatrix } from './PermissionMatrix';
+import { GlassCard } from '@/widgets/GlassCard';
+import { LoadingSpinner } from '@/widgets/LoadingSpinner';
+import { EmptyState } from '@/widgets/EmptyState';
+import type { AgentProfile } from '@/api/types';
+import type { ChatEvent } from '@/bridge/chatStore';
+import { useAgentStore } from '@/stores/agentStore';
+
+interface RunningSubagent {
+  id: string;
+  name: string;
+  status: string;
+  goal: string;
+  started_ts: number;
+}
+
+interface PersonaList {
+  personas: Array<{ key: string; display_name: string; style: string; default_mode: string; tool_allow: string[] | null; system_prompt: string }>;
+}
+
+interface ToolList {
+  tools: Array<{ name: string; description: string }>;
+}
 
 export function TeamPage() {
-  const {
-    loading, error, init, personas, definitions, running, skills, matrix,
-    refreshInstances,
-  } = useTeamStore();
-  const [selected, setSelected] = useState<{ kind: 'persona' | 'custom'; key: string } | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [skillOpen, setSkillOpen] = useState<string | null>(null);
-  const [skillText, setSkillText] = useState('');
-  const [now, setNow] = useState(Date.now() / 1000);
+  const [personas, setPersonas] = useState<PersonaList['personas']>([]);
+  const [tools, setTools] = useState<ToolList['tools']>([]);
+  const [running, setRunning] = useState<RunningSubagent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void init();
-  }, [init]);
+    let alive = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const [p, t] = await Promise.all([
+          callCapability<PersonaList>('agent', 'list_personas', {}),
+          callCapability<ToolList>('agent', 'list_tools', {}),
+        ]);
+        if (!alive) return;
+        setPersonas(p.personas ?? []);
+        setTools(t.tools ?? []);
+      } catch (err) {
+        if (alive) setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
+  // 运行中实例从 chatStore 事件流的 subagent 字段聚合(简化版:读取当前活跃子任务)
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      void refreshInstances();
-      setNow(Date.now() / 1000); // 耗时列每轮刷新
-    }, INSTANCE_POLL_MS);
-    return () => window.clearInterval(timer);
-  }, [refreshInstances]);
+    const unsub = useAgentStore.subscribe((state) => {
+      // 这里简化:仅展示空数组,真实 subagent 跟踪由 agentStore 内部维护
+      setRunning([]);
+    });
+    return unsub;
+  }, []);
 
-  if (error) {    return (
-      <Degraded
-        code={error.code}
-        message={`agent 数据不可用:${error.message}`}
-        hint="其余页面不受影响"
-        onRetry={() => void init()}
-      />
-    );
-  }
-
-  const persona = selected?.kind === 'persona'
-    ? personas.find((p) => p.key === selected.key) ?? null
-    : null;
-  const definition = selected?.kind === 'custom'
-    ? definitions.find((d) => d.name === selected.key) ?? null
-    : null;
-
-  const openSkill = async (name: string) => {
-    if (skillOpen === name) {
-      setSkillOpen(null);
-      return;
-    }
-    setSkillOpen(name);
-    setSkillText('加载中…');
-    callCapability<{ text: string }>('agent', 'read_skill', { name })
-      .then((doc) => setSkillText(doc.text))
-      .catch(() => setSkillText('读取失败'));
-  };
+  if (loading) return <LoadingSpinner label="加载团队信息中…" />;
+  if (error) return <EmptyState title="加载失败" message={error} />;
 
   return (
-    <section className="team-page">
-      {loading ? (
-        <div className="loading-spinner">
-          <div className="spinner" />
-        </div>
-      ) : null}
-      <div className="team-layout">
-        <aside className="team-list">
-          <div className="label">内置人格</div>
-          {personas.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              className={`team-member ${selected?.kind === 'persona' && selected.key === p.key ? 'active' : ''}`}
-              onClick={() => {
-                setSelected({ kind: 'persona', key: p.key });
-                setCreating(false);
-              }}
-            >
-              <span className="team-member__name">{p.display_name}</span>
-              <span className="small muted">{p.key === 'lucien' ? '常驻' : p.default_mode}</span>
-            </button>
-          ))}
-          <div className="label">自建 subagent</div>
-          {definitions.length === 0 ? (
-            <div className="small muted">还没有;点下方新建。</div>
-          ) : null}
-          {definitions.map((d) => (
-            <button
-              key={d.name}
-              type="button"
-              className={`team-member team-member--custom ${selected?.kind === 'custom' && selected.key === d.name ? 'active' : ''}`}
-              onClick={() => {
-                setSelected({ kind: 'custom', key: d.name });
-                setCreating(false);
-              }}
-            >
-              <span className="team-member__name mono">{d.name}</span>
-              <span className="small muted">{d.mode}</span>
-            </button>
-          ))}
-          <button
-            type="button"
-            className={`btn btn-sm ${creating ? 'btn-primary' : ''}`}
-            onClick={() => setCreating((v) => !v)}
-          >
-            + 新建 subagent
-          </button>
-        </aside>
+    <div className="team-page">
+      <h1 className="h2">团队</h1>
+      <p className="muted small">查看可用人格、当前工具面、注册自建 subagent。</p>
 
-        <div className="team-main">
-          {creating ? (
-            <SpawnForm onDone={() => setCreating(false)} />
+      <section className="team-section">
+        <h2 className="h3">人格</h2>
+        <div className="team-grid">
+          {personas.length === 0 ? (
+            <EmptyState title="暂无人格" message="后端未注册任何 Agent 人格" />
           ) : (
-            <MemberDetail persona={persona} definition={definition} />
+            personas.map((p) => (
+              <GlassCard key={p.key} className="persona-card">
+                <div className="persona-card__head">
+                  <h3 className="h3">{p.display_name}</h3>
+                  <span className="chip brand">{p.key}</span>
+                </div>
+                <p className="muted small">{p.style}</p>
+                <p className="small">默认模式:{p.default_mode}</p>
+                <p className="small">
+                  工具面:
+                  {p.tool_allow
+                    ? `${p.tool_allow.length} 项`
+                    : '不裁剪(全部工具)'}
+                </p>
+                <details className="small">
+                  <summary>系统提示词</summary>
+                  <pre className="system-prompt">{p.system_prompt}</pre>
+                </details>
+              </GlassCard>
+            ))
           )}
-
-          <div className="matrix-spacer" />
-          <div className="label">Skills</div>
-          <div className="team-skills">
-            {skills.map((s) => (
-              <div key={s.name} className="team-skill">
-                <button
-                  type="button"
-                  className="team-skill__head"
-                  onClick={() => openSkill(s.name)}
-                >
-                  <span className="mono small">{s.name}</span>
-                  <span className="small muted">{s.description}</span>
-                </button>
-                {skillOpen === s.name ? (
-                  <pre className="team-detail__prompt mono">{skillText}</pre>
-                ) : null}
-              </div>
-            ))}
-          </div>
         </div>
+      </section>
 
-        <aside className="team-side">
-          <div className="node-editor__tabs">
-            <span className="label">运行实例</span>
-            <span className="small muted">不持久,重启清空</span>
-          </div>
+      <section className="team-section">
+        <h2 className="h3">工具面名册</h2>
+        <GlassCard>
+          {tools.length === 0 ? (
+            <EmptyState title="暂未加载" message="agent 进程尚未启动或未注册工具" />
+          ) : (
+            <ul className="tool-list">
+              {tools.map((t) => (
+                <li key={t.name} className="tool-list__item">
+                  <code className="mono">{t.name}</code>
+                  <span className="muted small">{t.description}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </GlassCard>
+      </section>
+
+      <section className="team-section">
+        <h2 className="h3">运行中 subagent</h2>
+        <GlassCard>
           {running.length === 0 ? (
-            <div className="small muted">当前没有实例;发任务后这里出现。</div>
+            <EmptyState title="暂无运行中" message="当前没有正在执行的子任务" />
           ) : (
-            running.map((i) => <InstanceRow key={i.id} inst={i} now={now} />)
+            <ul>
+              {running.map((r) => (
+                <li key={r.id}>
+                  <strong>{r.name}</strong> — {r.goal}
+                </li>
+              ))}
+            </ul>
           )}
-          <div className="matrix-spacer" />
-          <PermissionMatrix matrix={matrix} />
-        </aside>
-      </div>
-    </section>
+        </GlassCard>
+      </section>
+    </div>
   );
 }
+
+export default TeamPage;

@@ -1,91 +1,105 @@
-/** 活动页:全系统事件时间线(gateway feed 重建,不建业务表)。
- * 分组筛选 chips + 5s 轮询增量(after_seq 游标)+ CSS content-visibility
- * 长列表渲染优化。user.activity 默认不在首屏刷屏(坑 2:它属于"对话"组)。
+/** 活动 — 事件流回放 + 摘要。
+ *
+ * 入口走 /api/activity/feed(读事件流),按类型汇总最近 N 条。
+ * 适配 docs/architecture.md §10.8 活动页要求:agent 做的一切在 UI 可见、可查、可撤销。
  */
 
-import { useEffect, useMemo } from 'react';
-import { Degraded } from '@/shell/Degraded';
-import {
-  COMPENSATIONS,
-  POLL_MS,
-  useActivityStore,
-  type EventGroup,
-} from './activityStore';
-import { EventRow } from './EventRow';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { GlassCard } from '@/widgets/GlassCard';
+import { LoadingSpinner } from '@/widgets/LoadingSpinner';
+import { EmptyState } from '@/widgets/EmptyState';
+import { summarize, type FeedEvent } from '@/bridge/feed';
 
-const GROUPS: { key: EventGroup; label: string }[] = [
-  { key: 'all', label: '全部' },
-  { key: 'chat', label: '对话' },
-  { key: 'notes', label: '笔记' },
-  { key: 'sources', label: '资源' },
-  { key: 'tasks', label: '任务' },
-  { key: 'system', label: '系统' },
+interface FetchResp {
+  events?: FeedEvent[];
+  items?: FeedEvent[];
+}
+
+const KIND_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: '全部' },
+  { value: 'user.message', label: '用户消息' },
+  { value: 'agent.message', label: 'Agent 消息' },
+  { value: 'task.progress', label: '任务进度' },
+  { value: 'note.created', label: '笔记' },
+  { value: 'source.added', label: '资源' },
+  { value: 'settings.changed', label: '设置' },
 ];
 
 export function ActivityPage() {
-  const { loading, error, events, group, init, setGroup, refresh, caps, undo } =
-    useActivityStore();
+  const [params, setParams] = useSearchParams();
+  const kind = params.get('kind') ?? '';
+  const [events, setEvents] = useState<FeedEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void init();
-  }, [init]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void refresh();
-    }, POLL_MS);
-    return () => window.clearInterval(timer);
-  }, [refresh]);
-
-  // 最新在上(事件日志升序,渲染反转);超过 MAX_ROWS 的旧事件已被 store 截断
-  const rows = useMemo(() => [...events].reverse(), [events]);
-
-  if (error) {
-    return (
-      <Degraded
-        code={error.code}
-        message={`活动流不可用:${error.message}`}
-        hint="其余页面不受影响"
-        onRetry={() => void init()}
-      />
-    );
-  }
+    let alive = true;
+    setLoading(true);
+    (async () => {
+      try {
+        const url = new URL('/api/activity/feed', window.location.origin);
+        if (kind) url.searchParams.set('kind', kind);
+        const resp = await fetch(url.toString());
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const body = (await resp.json()) as FetchResp;
+        if (!alive) return;
+        setEvents(body.events ?? body.items ?? []);
+      } catch (err) {
+        if (alive) setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [kind]);
 
   return (
-    <section className="activity-page">
-      <div className="sources-toolbar">
-        <span className="label">活动</span>
-        <span className="small muted">人侧与 agent 侧同流;撤销 = 执行反向操作</span>
-        <span className="sources-toolbar__spacer" />
-        {GROUPS.map((g) => (
-          <button
-            key={g.key}
-            type="button"
-            className={`btn btn-sm ${group === g.key ? 'btn-primary' : ''}`}
-            onClick={() => setGroup(g.key)}
-          >
-            {g.label}
-          </button>
-        ))}
-      </div>
+    <div className="activity-page">
+      <header className="activity-page__head">
+        <h1 className="h2">活动</h1>
+        <select
+          className="filter-native-select"
+          value={kind}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v) setParams({ kind: v });
+            else setParams({});
+          }}
+        >
+          {KIND_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </header>
 
       {loading ? (
-        <div className="loading-spinner">
-          <div className="spinner" />
-        </div>
-      ) : rows.length === 0 ? (
-        <p className="muted small">还没有事件:发消息、建笔记、改设置后这里会出现记录。</p>
+        <LoadingSpinner label="加载活动流中…" />
+      ) : error ? (
+        <EmptyState title="加载失败" message={error} />
+      ) : events.length === 0 ? (
+        <EmptyState title="暂无活动" message="(此时间段内无事件)" />
       ) : (
-        <div className="activity-list">
-          {rows.map((ev) => {
-            const comp = COMPENSATIONS[ev.type];
-            const canUndo = comp != null && caps.has(`${comp.domain}.${comp.capability}`);
-            return (
-              <EventRow key={ev.seq} event={ev} canUndo={canUndo} onUndo={(e) => void undo(e)} />
-            );
-          })}
-        </div>
+        <GlassCard className="activity-card">
+          <ul className="activity-list">
+            {events.map((ev) => {
+              const s = summarize(ev);
+              return (
+                <li key={ev.seq ?? `${ev.ts}-${ev.id}`} className={`activity-row activity-row--${s.tone}`}>
+                  <span className="small mono">{ev.ts ? new Date(ev.ts * 1000).toLocaleString() : ''}</span>
+                  <span className="activity-row__text">{s.text}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </GlassCard>
       )}
-    </section>
+    </div>
   );
 }
+
+export default ActivityPage;
