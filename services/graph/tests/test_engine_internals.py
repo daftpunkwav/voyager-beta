@@ -1,10 +1,8 @@
 """GraphEngine 搜索/查询/追踪/架构面的表征测试(C2 mixin 拆分前后必须等价)。"""
 
 import tempfile
-from pathlib import Path
 
 from services.graph.engines.python.engine import GraphEngine
-from services.graph.engines.python.indexer import index_repository
 
 
 def _engine_with_repo(files: dict[str, str], project: str = "demo") -> GraphEngine:

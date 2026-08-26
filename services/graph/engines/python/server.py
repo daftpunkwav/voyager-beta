@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from .engine import get_engine
+from .engine import GraphEngine
 
 _LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]"}
 _MAX_BODY = 10_000_000  # 请求体上限(10MB):防恶意超大 body 耗尽内存
@@ -132,7 +132,7 @@ def main() -> None:
     # GRAPH_* 是应用层配置契约,由启动器(start-graph-engine.ps1/.sh)翻译。
     root = os.environ.get("ENGINE_ALLOWED_ROOT")
     port = int(os.environ.get("ENGINE_PORT") or "9750")
-    Handler.eng = get_engine(data_root=root)
+    Handler.eng = GraphEngine(data_root=root)
     Handler.allowed_root = root
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     print(f"graph-engine listening on 127.0.0.1:{port}", flush=True)
