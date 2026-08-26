@@ -20,6 +20,7 @@
  *  - 此层仅为过渡,不在架构铁律范围内;新 page 禁止引用,
  *    必须直接用 @/bridge/client 的 callCapability。
  *  - secret 边界(API key 等)只允许 USER actor 写,本层不绕开(直接转发到能力层)。
+ *  - getApi() 单例在 app 启动时懒初始化,旧 store / hook 仍调 getApi()(经桥接,功能等价)。
  */
 
 import { callCapability, ServiceError } from './client';

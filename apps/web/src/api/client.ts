@@ -8,7 +8,11 @@
  *
  * 配套:
  *  - 旧 api/types 走 ./types
- *  - 旧 api/real/http.ts 走 ./real/http-legacy
+ *  - 旧 api/real/http.ts 已删除;旧 import 改指本文件,getApi() / clearLegacyTokenStorage 已 re-export。
+ *
+ * 重要:`getApi()` 不违反"一份 Action 模型"(铁律 2),
+ * 因为 legacyApi.ts 内部 84 个方法全部走 callCapability;
+ * 新代码仍应优先用 `callCapability`,语义更明确、不绕桥接层。
  */
 
 export {

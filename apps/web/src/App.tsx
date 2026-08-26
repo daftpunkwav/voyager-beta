@@ -1,33 +1,35 @@
-/** 路由表(中性命名):
- *   /                  AgentPage    —— Agent Chat 主页
- *   /chat/:sessionId   AgentPage    —— 特定会话(同一组件,按 useParams 切换)
- *   /team              TeamPage      —— 团队/Persona
- *   /notes             NotesPage
- *   /sources           ProjectsPage  —— 资源库(原项目库)
- *   /sources/:id       ProjectDetailPage
- *   /graph             GraphPage
- *   /code-graph/:id    CodeGraphPage
- *   /overview          OverviewPage  —— 总览(原首页,挪到导航栏)
- *   /activity          ActivityPage  —— 活动流
- *   /system/health     HealthPage    —— 服务健康
- *   /usage             UsagePage
- *   /settings          SettingsPage
+/** 路由表(中性命名,按域分目录):
+ *   /                  pages/agent/AgentPage         —— Agent Chat 主页
+ *   /chat/:sessionId   pages/agent/AgentPage         —— 特定会话(同一组件,按 useParams 切换)
+ *   /team              pages/team/TeamPage            —— 团队/Persona
+ *   /notes             pages/notes/NotesPage
+ *   /sources           pages/sources/ProjectsPage     —— 资源库(原项目库)
+ *   /sources/:id       pages/sources/ProjectDetailPage
+ *   /graph             pages/graph/GraphPage
+ *   /code-graph/:id    pages/code-graph/CodeGraphPage
+ *   /overview          pages/overview/OverviewPage    —— 总览(原首页,挪到导航栏)
+ *   /activity          pages/activity/ActivityPage    —— 活动流
+ *   /system/health     pages/health/HealthPage        —— 服务健康
+ *   /usage             pages/usage/UsagePage
+ *   /settings          pages/settings/SettingsPage
+ *
+ * 每个 page 目录自包含(§10.1 页面即模块);跨 page 共享只经 bridge/contracts/基础 UI。
  */
 
 import { Route, Routes } from 'react-router-dom';
 import { AppShell } from '@/shell/AppShell';
-import { AgentPage } from '@/pages/AgentPage';
+import { AgentPage } from '@/pages/agent/AgentPage';
 import { TeamPage } from '@/pages/team/TeamPage';
-import { NotesPage } from '@/pages/NotesPage';
-import { ProjectsPage } from '@/pages/ProjectsPage';
-import { ProjectDetailPage } from '@/pages/ProjectDetailPage';
-import { GraphPage } from '@/pages/GraphPage';
-import { CodeGraphPage } from '@/pages/CodeGraphPage';
-import { OverviewPage } from '@/pages/OverviewPage';
+import { NotesPage } from '@/pages/notes/NotesPage';
+import { ProjectsPage } from '@/pages/sources/ProjectsPage';
+import { ProjectDetailPage } from '@/pages/sources/ProjectDetailPage';
+import { GraphPage } from '@/pages/graph/GraphPage';
+import { CodeGraphPage } from '@/pages/code-graph/CodeGraphPage';
+import { OverviewPage } from '@/pages/overview/OverviewPage';
 import { ActivityPage } from '@/pages/activity/ActivityPage';
-import { HealthPage } from '@/pages/HealthPage';
-import { UsagePage } from '@/pages/UsagePage';
-import { SettingsPage } from '@/pages/SettingsPage';
+import { HealthPage } from '@/pages/health/HealthPage';
+import { UsagePage } from '@/pages/usage/UsagePage';
+import { SettingsPage } from '@/pages/settings/SettingsPage';
 
 export function App() {
   return (

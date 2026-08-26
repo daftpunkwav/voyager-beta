@@ -73,6 +73,28 @@ export default [
       ],
     },
   },
+  // §10.1 页面即模块:page 目录之间互不 import;共享只经 bridge/contracts/基础 UI。
+  // 旧 page 标 @ts-nocheck 跳过本规则;新 page / 重构后的 page 受强制。
+  {
+    files: ['src/pages/**/*.tsx'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@/pages/*'],
+              message: '页面之间互不 import(§10.1 铁律 1);共享物只能经 bridge/contracts/基础 UI 包。',
+            },
+            {
+              group: ['@/api/real', '@/api/real/*'],
+              message: '@/api/real 已删除;旧调用应改用 getApi()(经 legacyApi 桥接)或 callCapability(新代码)。',
+            },
+          ],
+        },
+      ],
+    },
+  },
   // 兼容层 + R3F / Three 场景豁免区:
   //  - bridge/legacyApi.ts 与 api/types.ts 需 any(legacyApi 边界归一化);
   //  - 旧 async generator 在新事件流下不 yield,允许 require-yield 关闭;
