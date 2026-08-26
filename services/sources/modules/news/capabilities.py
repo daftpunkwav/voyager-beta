@@ -1,11 +1,18 @@
-"""news 子模块能力(§8.2):fetch_news / list_news / get_news / add_news / remove_news。"""
+"""news 子模块能力(§8.2):fetch_news / list_news / get_news / add_news / remove_news。
+
+fetch_news 的 SSRF 防护采用「解析-钉住」模式:每跳在本模块内做唯一一次
+DNS 解析并校验全部结果为公网地址,然后直接连接该 IP(TLS 以原域名做
+SNI 与证书校验,Host 头保持原域名)。后续连接使用 IP 字面量,不再发生
+第二次解析——从而消除「先校验后连接各解析一次」的 DNS rebinding 窗口。
+"""
 
 from __future__ import annotations
 
 import asyncio
 import ipaddress
 import socket
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
 import httpx
@@ -20,11 +27,65 @@ registry = Registry(_DOMAIN)
 
 _MAX_REDIRECTS = 3
 
+#: resolver 类型:(host, port) -> 解析到的全部 IP 字符串;测试注入替身保证离线
+ResolverFn = Callable[[str, int], Awaitable[list[str]]]
+
+_NEWS_ACTOR = ActorRef(kind=ActorKind.SYSTEM, id="sources.news")
+
+
+async def _default_resolver(host: str, port: int) -> list[str]:
+    """默认解析器(loop.getaddrinfo 走线程池,不阻塞事件循环);去重保序。"""
+    infos = await asyncio.get_running_loop().getaddrinfo(
+        host, port, proto=socket.IPPROTO_TCP)
+    seen: list[str] = []
+    for info in infos:
+        ip = str(ipaddress.ip_address(info[4][0]))
+        if ip not in seen:
+            seen.append(ip)
+    return seen
+
+
+def _literal_ips(host: str) -> list[str] | None:
+    """host 本身是 IP 字面量时直接返回(不经过解析器;钉住即它自身)。"""
+    try:
+        return [str(ipaddress.ip_address(host))]
+    except ValueError:
+        return None
+
+
+def _assert_pinnable(url: str) -> tuple[urlparse.ParseResult, list[str]]:
+    """语法层 + 地址层校验。仅 http(s)、主机名非空、所有地址全球可路由。
+
+    拒绝回环/内网(RFC1918)/链路本地(含云元数据 169.254.169.254)/保留段。
+    返回 (解析结果, 候选 IP 列表)。
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           f"仅支持 http/https URL: {url}")
+    host = parsed.hostname
+    if not host:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, f"URL 缺少主机名: {url}")
+    ips = _literal_ips(host)
+    if ips is None:
+        # 非字面量主机名在 fetch_news 内经 resolver 解析;此函数只做语法与字面量判断,
+        # 以便单测在不触网的情况下复用语法检查
+        return parsed, []
+    for ip in ips:
+        if not ipaddress.ip_address(ip).is_global:
+            raise ServiceError(
+                _DOMAIN, ErrorSuffix.FORBIDDEN,
+                f"目标不在公网范围: {host}({ip})",
+                hint="内网/回环/链路本地地址被 SSRF 防护拒绝",
+            )
+    return parsed, ips
+
 
 @dataclass
 class NewsDeps:
     store: NewsStore
     bus: EventBus | None
+    resolve: ResolverFn = field(default=_default_resolver)
 
 
 _deps: NewsDeps | None = None
@@ -41,39 +102,26 @@ def _require_deps() -> NewsDeps:
     return _deps
 
 
-def _assert_public_http_url(url: str) -> None:
-    """SSRF 防护(同步部分):仅 http(s) 且主机名非空。
+async def _fetch_pinned(client: httpx.AsyncClient, url: str) -> httpx.Response:
+    """抓一跳:单次解析 → 全部公网校验 → 直接请求校验过的 IP。
 
-    已知局限(TOCTOU):此处解析与 httpx 实际连接各解析一次 DNS,
-    恶意域可借 rebinding 先后返回不同 IP 绕过校验;本地单用户工具下
-    风险可接受,完整防护需 transport 级固定连接 IP,暂不引入。
+    https 场景把原域名放进 sni_hostname 扩展(httpx/httpcore 约定),
+    证书按原域名验证;Host 头保持原域名,服务端路由不受 IP 改写影响。
     """
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https"):
-        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
-                           f"仅支持 http/https URL: {url}")
-    if not parsed.hostname:
-        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, f"URL 缺少主机名: {url}")
-
-
-async def _assert_public_host(host: str, port: int) -> None:
-    """DNS 解析与公网校验(loop.getaddrinfo 走线程池,不阻塞事件循环):
-    所有解析结果必须是全球可路由地址,拒绝回环/内网(RFC1918)/链路本地
-    (含云元数据 169.254.169.254)/保留段。"""
-    try:
-        infos = await asyncio.get_running_loop().getaddrinfo(
-            host, port, proto=socket.IPPROTO_TCP)
-    except OSError as exc:
-        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
-                           f"主机名无法解析: {host}") from exc
-    for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
-        if not ip.is_global:
-            raise ServiceError(
-                _DOMAIN, ErrorSuffix.FORBIDDEN,
-                f"目标不在公网范围: {host}({ip})",
-                hint="内网/回环/链路本地地址被 SSRF 防护拒绝",
-            )
+    deps = _require_deps()
+    parsed, literal = _assert_pinnable(url)
+    host = parsed.hostname
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    ips = literal if literal else await deps.resolve(host, port)
+    if not ips:
+        raise ServiceError(_DOMAIN, ErrorSuffix.UNAVAILABLE,
+                           f"域名解析不到任何地址: {host}")
+    chosen = ips[0]
+    request = client.build_request("GET", httpx.URL(url).copy_with(host=chosen))
+    request.headers["host"] = parsed.netloc  # 域名(含非默认端口)原样透传
+    if parsed.scheme == "https":
+        request.extensions["sni_hostname"] = host
+    return await client.send(request)
 
 
 @capability(registry, name="fetch_news", description="抓取 URL 存为新闻条目(摘要级正文)", cost=3)
@@ -81,13 +129,9 @@ async def fetch_news(url: str, title: str = "") -> dict:
     deps = _require_deps()
     try:
         async with httpx.AsyncClient(timeout=20.0, follow_redirects=False) as client:
-            # 逐跳跟随重定向,每跳重新过 SSRF 校验(防外网页面 302 → 内网)
+            # 逐跳跟随重定向;每跳都重新走解析-校验-钉住流程(防外网页 302 → 内网)
             for _ in range(_MAX_REDIRECTS):
-                _assert_public_http_url(url)
-                parsed = urlparse(url)
-                await _assert_public_host(parsed.hostname,
-                                          parsed.port or (443 if parsed.scheme == "https" else 80))
-                resp = await client.get(url)
+                resp = await _fetch_pinned(client, url)
                 if resp.is_redirect and resp.has_redirect_location:
                     url = str(httpx.URL(url).join(resp.headers.get("location", "")))
                     continue
@@ -104,7 +148,7 @@ async def fetch_news(url: str, title: str = "") -> dict:
     if deps.bus is not None:
         await deps.bus.publish(Event(
             type="source.ready",
-            actor=ActorRef(kind=ActorKind.SYSTEM, id="sources.news"),
+            actor=_NEWS_ACTOR,
             payload={"source_id": nid, "kind": "news", "title": title or page_title}))
     return deps.store.get(nid)
 
