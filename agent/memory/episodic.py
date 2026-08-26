@@ -57,10 +57,14 @@ class EpisodicMemory:
         return [_row(r) for r in self._conn.execute(sql, params).fetchall()]
 
     def search(self, keyword: str, limit: int = 10) -> list[dict[str, Any]]:
+        """关键词检索:%/_ 按 ESCAPE 规则转义为字面量(搜 "100%" 不匹配 "1000")。"""
+        escaped = keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
         rows = self._conn.execute(
             "SELECT id, ts, run_id, kind, summary, detail FROM episodes"
-            " WHERE summary LIKE ? OR detail LIKE ? ORDER BY id DESC LIMIT ?",
-            (f"%{keyword}%", f"%{keyword}%", limit),
+            " WHERE summary LIKE ? ESCAPE '\\' OR detail LIKE ? ESCAPE '\\'"
+            " ORDER BY id DESC LIMIT ?",
+            (pattern, pattern, limit),
         ).fetchall()
         return [_row(r) for r in rows]
 

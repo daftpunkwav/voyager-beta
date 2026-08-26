@@ -161,9 +161,9 @@ class Master:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001  # run_turn 已落状态;这里只通报
-                await self._reply(f"❌ {inst.name} 失败:{type(exc).__name__}: {exc}")
+                await self._reply(f"[失败] {inst.name}:{type(exc).__name__}: {exc}")
             else:
-                await self._reply(f"✅ {inst.name} 完成:{result[:200]}")
+                await self._reply(f"[完成] {inst.name}:{result[:200]}")
             finally:
                 self._digests.upsert(inst)
                 if self._hooks is not None:

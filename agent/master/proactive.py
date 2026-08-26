@@ -90,7 +90,7 @@ class ProactiveEngine:
             if self._followups_sent >= self.budget.follow_up_max or not self.can_send():
                 return
             self._followups_sent += 1
-            await self._send("怎么不回我?还在忙吗?🙂", trace_id=trace_id)
+            await self._send("怎么不回我?还在忙吗?有需要随时说一声。", trace_id=trace_id)
             self.schedule_followup(delay_s=delay_s * 2, trace_id=trace_id)
 
         self._followup_timer = self._scheduler.call_later(

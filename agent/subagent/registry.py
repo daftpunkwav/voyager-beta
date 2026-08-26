@@ -32,11 +32,12 @@ class SubagentDef:
     def __post_init__(self) -> None:
         if not _NAME_RE.match(self.name):
             raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, f"名称须为小写 snake_case: {self.name}")
-        if self.mode not in Mode._value2member_map_:
+        valid_modes = {m.value for m in Mode}
+        if self.mode not in valid_modes:
             raise ServiceError(
                 _DOMAIN,
                 ErrorSuffix.INVALID_INPUT,
-                f"未知模式: {self.mode}(可选: {sorted(Mode._value2member_map_)})",
+                f"未知模式: {self.mode}(可选: {sorted(valid_modes)})",
             )
         # json 往返后 list 归一化为 tuple(frozen dataclass 走 object.__setattr__)
         object.__setattr__(self, "scopes", tuple(self.scopes))

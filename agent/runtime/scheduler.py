@@ -13,12 +13,13 @@ class Scheduler:
 
     def __init__(self, max_concurrent: int = 3) -> None:
         self._sem = asyncio.Semaphore(max_concurrent)
+        self._max_concurrent = max_concurrent  # 观测用;不翻 Semaphore 私有属性
         self._tasks: dict[str, asyncio.Task] = {}
         self._timers: dict[str, asyncio.Task] = {}
 
     @property
     def max_concurrent(self) -> int:
-        return self._sem._value  # 仅用于测试断言与观测
+        return self._max_concurrent
 
     async def run(self, name: str, coro: Awaitable[Any]) -> Any:
         """在并发上限内运行命名任务。"""

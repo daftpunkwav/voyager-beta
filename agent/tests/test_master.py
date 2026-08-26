@@ -74,7 +74,7 @@ class TestDispatch:
         inst = await app.master.dispatch_task("为 langgraph 建索引", name="index")
         await asyncio.sleep(0.05)
         assert inst.status == RunStatus.COMPLETED
-        assert any("✅" in t and "index" in t for t in _replies(app))
+        assert any("[完成]" in t and "index" in t for t in _replies(app))
         app.memory.close()
 
     async def test_lucien_forced_react(self, tmp_path) -> None:

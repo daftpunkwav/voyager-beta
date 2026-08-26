@@ -64,8 +64,11 @@ class SemanticMemory:
             conds.append("relation = ?")
             params.append(relation)
         if keyword:
-            conds.append("(subject LIKE ? OR object LIKE ?)")
-            params.extend([f"%{keyword}%", f"%{keyword}%"])
+            # %/_ 按 ESCAPE 规则转义为字面量
+            escaped = keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{escaped}%"
+            conds.append("(subject LIKE ? ESCAPE '\\' OR object LIKE ? ESCAPE '\\')")
+            params.extend([pattern, pattern])
         if conds:
             sql += " WHERE " + " AND ".join(conds)
         sql += " ORDER BY id DESC LIMIT ?"
