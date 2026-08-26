@@ -1125,9 +1125,14 @@ def _index_env_file(
     for m in ENV_ASSIGN_RE.finditer(text):
         key, val = m.group(1), m.group(2)
         qn = f"env.{key}"
-        if qn in qn_to_id:
-            continue
         nid = _nid(store.project, qn)
+        existing_id = qn_to_id.get(qn)
+        if existing_id is not None:
+            # 节点可能已被 usage 分支先行创建(无值信息):回填取值预览
+            existing = store.nodes.get(existing_id)
+            if existing is not None and "value_preview" not in (existing.attrs or {}):
+                existing.attrs = {**existing.attrs, "value_preview": val[:80]}
+            continue
         store.add_node(
             Node(
                 id=nid,
