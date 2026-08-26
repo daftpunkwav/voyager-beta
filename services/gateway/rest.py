@@ -16,7 +16,6 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from platform_actor import LocalTokenIssuer
 from platform_contracts import (
     LOCAL_USER,
     HealthReport,

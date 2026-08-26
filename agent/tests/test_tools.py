@@ -1,6 +1,5 @@
 """工具带与工作目录测试:fs jail、能力面裁剪、L1/L2 确认通道(§9.4/§9.9/§9.10)。"""
 
-import asyncio
 
 import pytest
 
