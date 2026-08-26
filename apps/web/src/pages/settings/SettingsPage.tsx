@@ -10,6 +10,8 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { LlmSettingsSection } from '@/components/settings/LlmSettingsSection';
 import { AgentSettingsSection } from '@/components/settings/AgentSettingsSection';
+import { EmptyState } from '@/components/common/EmptyState';
+import { useSettingsStore } from '@/stores/settingsStore';
 
 type Section = 'appearance' | 'github' | 'llm' | 'agent' | 'data' | 'about';
 
@@ -25,6 +27,8 @@ const NAV: { id: Section; label: string; icon: string }[] = [
 export function SettingsPage() {
   const { settings, isLoading, updateSettings, saveLlmApiKey, testLLM, isTestingLLM, testResult } =
     useSettings();
+  const error = useSettingsStore((s) => s.error);
+  const loadSettings = useSettingsStore((s) => s.loadSettings);
   const { theme, setTheme, fontScale, setFontScale } = useTheme();
   const { data: accounts = [], refetch: refetchAccounts } = useGithubAccounts();
   const addToast = useUIStore((s) => s.addToast);
@@ -33,7 +37,30 @@ export function SettingsPage() {
   const [ghPat, setGhPat] = useState('');
   const [unbindId, setUnbindId] = useState<string | null>(null);
 
-  if (isLoading || !settings) return <LoadingSpinner />;
+  // 修复 v2:之前是 `if (isLoading || !settings)` — 当后端 500 时
+  // isLoading=false 但 settings 仍为 null,导致页面永远停在 LoadingSpinner
+  // 卡死(用户无法看到内容/降级 UI)。
+  if (isLoading && !settings) {
+    return <LoadingSpinner />;
+  }
+  if (!settings) {
+    // 后端不可达,显示降级 + 重试入口(避免白屏)
+    return (
+      <EmptyState
+        title="无法加载设置"
+        description={error ?? '后端服务未启动或不可达。请检查 gateway 是否运行后重试。'}
+        action={
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void loadSettings()}
+          >
+            重试
+          </button>
+        }
+      />
+    );
+  }
 
   const bindGithub = async () => {
     try {
