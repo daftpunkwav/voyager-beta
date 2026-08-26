@@ -8,9 +8,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { create } from 'zustand';
 import { subscribe } from '@/bridge/stream';
-import { useChatStore } from '@/pages/chat/chatStore';
-import { MessageList, TaskCards } from '@/pages/chat/MessageList';
-import { AskDialog } from '@/pages/chat/AskDialog';
+import { useChatStore } from '@/bridge/chatStore';
+import { MessageList, TaskCards } from '@/widgets/chat/MessageList';
+import { AskDialog } from '@/widgets/chat/AskDialog';
 
 interface FloatingState {
   open: boolean;

@@ -2,8 +2,7 @@
 
 import { useCard } from '../OverviewPage';
 import { CardShell } from './CardShell';
-import { summarize } from '@/pages/activity/EventRow';
-import type { FeedEvent } from '@/pages/activity/activityStore';
+import { type FeedEvent, summarize } from '@/bridge/feed';
 
 export function ActivityCard() {
   const card = useCard<FeedEvent[]>(async () => {

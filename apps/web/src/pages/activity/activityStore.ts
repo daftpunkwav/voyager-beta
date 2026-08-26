@@ -7,16 +7,9 @@
 
 import { create } from 'zustand';
 import { callCapability } from '@/bridge/client';
+import { type FeedEvent } from '@/bridge/feed';
 
-export interface FeedEvent {
-  seq: number;
-  id: string;
-  type: string;
-  actor: { kind: string; id: string };
-  payload: Record<string, unknown>;
-  ts: number;
-  trace_id: string;
-}
+export { type FeedEvent } from '@/bridge/feed';
 
 export type EventGroup = 'all' | 'chat' | 'notes' | 'sources' | 'tasks' | 'system';
 
