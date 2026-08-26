@@ -367,3 +367,14 @@ class TestRenderAndEditSupport:
         with pytest.raises(ServiceError):
             await execute(registry, "rename_tag", USER_CTX,
                           {"old": 'a"b', "new": "c"})
+
+
+class TestRegistryCard:
+    def test_service_json_matches_registry(self) -> None:
+        """模块卡能力清单必须与注册表一致(单一事实来源,§8.1)。"""
+        import json as _json
+        from pathlib import Path as _Path
+
+        card = _json.loads(
+            (_Path(__file__).parent.parent / "service.json").read_text(encoding="utf-8"))
+        assert sorted(card["capabilities"]) == registry.names()
