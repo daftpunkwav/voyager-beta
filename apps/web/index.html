@@ -18,8 +18,11 @@
       - font-src 'self' fonts.gstatic.com data:   woff2 + 内嵌字体
       - img-src 'self' data: https:   头像/图标/外链
       - connect-src 'self' ws: wss: http://127.0.0.1:8000   同源 + WebSocket(SSE) + dev 后端
-      - frame-ancestors 'none'   防 clickjacking
       - base-uri 'self'   防 base href 劫持
+      - form-action 'self'   防 form 跨域提交
+      - frame-ancestors 必须从 HTTP header 设置(meta 标签被浏览器忽略,W3C 规范);
+        dev 在 vite.config.ts 的 server.headers 注入;prod 由 gateway 在响应头加
+        'Content-Security-Policy: ...; frame-ancestors \"none\"'。
     -->
     <meta
       http-equiv="Content-Security-Policy"
@@ -30,7 +33,6 @@
         font-src 'self' https://fonts.gstatic.com data:;
         img-src 'self' data: https:;
         connect-src 'self' ws: wss: http://127.0.0.1:8000;
-        frame-ancestors 'none';
         base-uri 'self';
         form-action 'self';
       "

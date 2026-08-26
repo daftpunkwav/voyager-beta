@@ -24,6 +24,21 @@ export default defineConfig({
     host: '127.0.0.1',
     port: Number(process.env.VITE_PORT) || 5173,
     strictPort: true,
+    // §4.2 dev 注入完整 CSP(含 frame-ancestors,meta 不支持);
+    // 生产由 gateway / 反代在响应头注入。
+    headers: {
+      'Content-Security-Policy': [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com data:",
+        "img-src 'self' data: https:",
+        "connect-src 'self' ws: wss: http://127.0.0.1:8000",
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+      ].join('; '),
+    },
     proxy: {
       // /health 不在 /api 前缀下,单独代理(服务徽章条与状态页依赖)
       '/api': { target: BACKEND, changeOrigin: true },
