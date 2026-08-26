@@ -2,6 +2,8 @@
 
 import asyncio
 
+import pytest
+
 from agent.runtime.scheduler import Scheduler
 from agent.runtime.state import CheckpointStore, RunState, RunStatus
 
@@ -83,3 +85,12 @@ class TestCheckpoint:
     def test_status_alive_semantics(self) -> None:
         assert RunStatus.RUNNING.alive and RunStatus.WAITING_INPUT.alive
         assert not RunStatus.COMPLETED.alive and not RunStatus.FAILED.alive
+
+    def test_run_id_traversal_rejected(self, tmp_path) -> None:
+        """run_id 直接拼路径:../../ 之类必须被拒绝,不得穿越出 checkpoints 目录。"""
+        store = CheckpointStore(tmp_path / "checkpoints")
+        for bad in ("../../etc/passwd", "a/b", "..", ""):
+            with pytest.raises(ValueError, match="非法 run_id"):
+                store.load(bad)
+            with pytest.raises(ValueError, match="非法 run_id"):
+                store.delete(bad)

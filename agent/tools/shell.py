@@ -1,16 +1,35 @@
-"""命令执行工具(经 policy,L2 默认确认;§9.9 shell 维)。"""
+"""命令执行工具(经 policy,L2 默认确认;§9.9 shell 维)。
+
+L2 确认是主闸门;此处在执行前再硬拦一眼破坏性命令——即使确认通道
+被绕过(无 confirm 的子任务/未来重构),也不放行整机级不可逆操作。
+"""
 
 from __future__ import annotations
 
 import asyncio
+import re
 
 from agent.tools.base import AgentTool
 
 _MAX_OUTPUT = 10_000
 
+# 明确的整机破坏命令(黑名单是最后防线,不做通用解析;正常开发命令不会命中)
+_DESTRUCTIVE_RE = re.compile(
+    r"\bmkfs(\.\w+)?\b"                      # 格式化文件系统
+    r"|\bdd\b[^|;&]*of=/dev/(sd|nvme|vd)"     # dd 直写磁盘设备
+    r"|\b(shutdown|halt|reboot|poweroff)\b"   # 关机/重启
+    r"|\brm\b[^|;&]*\s-{1,2}[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*\s+/(/{0,1})(\s|$)"  # rm -rf /
+    r"|\bformat\s+[a-z]:"                     # Windows 格式化盘符
+    r"|\bdiskpart\b",
+    re.IGNORECASE,
+)
+
 
 def shell_tools() -> dict[str, AgentTool]:
     async def run_shell(command: str, timeout: float = 30.0) -> str:
+        if _DESTRUCTIVE_RE.search(command):
+            return ("[已拒绝] 命令含整机级破坏操作(格式化/关机/根递归删除),"
+                    "已被策略硬拦截;如确需执行请在系统终端手动操作")
         proc = await asyncio.create_subprocess_shell(
             command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
         )

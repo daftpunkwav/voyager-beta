@@ -212,6 +212,18 @@ class TestBooksNews:
         full = await execute(registry, "get_news", AGENT_CTX, {"news_id": item["id"]})
         assert len(full["content"]) > len(item["summary"])
 
+    async def test_fetch_news_ssrf_guard(self, deps) -> None:
+        """回环/链路本地/非 http 协议一律拒绝,不发起请求。"""
+        with pytest.raises(ServiceError, match="不在公网范围"):
+            await execute(registry, "fetch_news", AGENT_CTX,
+                          {"url": "http://127.0.0.1:8123/api/project-health"})
+        with pytest.raises(ServiceError, match="不在公网范围"):
+            await execute(registry, "fetch_news", AGENT_CTX,
+                          {"url": "http://169.254.169.254/latest/meta-data"})
+        with pytest.raises(ServiceError, match="http/https"):
+            await execute(registry, "fetch_news", AGENT_CTX,
+                          {"url": "file:///etc/passwd"})
+
 
 class TestAggregate:
     def test_registry_merges_all_modules(self) -> None:

@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
+import ipaddress
+import socket
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 import httpx
 from platform_capability import Registry, capability
-from platform_contracts import ErrorSuffix, ServiceError
+from platform_contracts import ActorKind, ActorRef, ErrorSuffix, Event, ServiceError
 from platform_eventbus import EventBus
 
 from .store import NewsStore, html_to_text
 
 _DOMAIN = "sources"
 registry = Registry(_DOMAIN)
+
+_MAX_REDIRECTS = 3
 
 
 @dataclass
@@ -35,13 +40,51 @@ def _require_deps() -> NewsDeps:
     return _deps
 
 
+def _assert_public_http_url(url: str) -> None:
+    """SSRF 防护:仅 http(s),且解析到的所有地址都必须是公网地址。
+
+    拒绝回环/内网(RFC1918)/链路本地(含云元数据 169.254.169.254)/保留段,
+    防止 agent 被注入后借 fetch_news 探测内网服务。
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           f"仅支持 http/https URL: {url}")
+    host = parsed.hostname
+    if not host:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, f"URL 缺少主机名: {url}")
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+    except OSError as exc:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           f"主机名无法解析: {host}") from exc
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if not ip.is_global:
+            raise ServiceError(
+                _DOMAIN, ErrorSuffix.FORBIDDEN,
+                f"目标不在公网范围: {host}({ip})",
+                hint="内网/回环/链路本地地址被 SSRF 防护拒绝",
+            )
+
+
 @capability(registry, name="fetch_news", description="抓取 URL 存为新闻条目(摘要级正文)", cost=3)
 async def fetch_news(url: str, title: str = "") -> dict:
     deps = _require_deps()
     try:
-        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
-            resp = await client.get(url)
+        async with httpx.AsyncClient(timeout=20.0, follow_redirects=False) as client:
+            # 逐跳跟随重定向,每跳重新过 SSRF 校验(防外网页面 302 → 内网)
+            for _ in range(_MAX_REDIRECTS):
+                _assert_public_http_url(url)
+                resp = await client.get(url)
+                if resp.is_redirect and resp.has_redirect_location:
+                    url = str(httpx.URL(url).join(resp.headers.get("location", "")))
+                    continue
+                break
             resp.raise_for_status()
+    except ServiceError:
+        raise
     except Exception as exc:
         raise ServiceError(_DOMAIN, ErrorSuffix.UNAVAILABLE,
                            f"抓取失败: {type(exc).__name__}: {exc}") from exc
@@ -49,7 +92,6 @@ async def fetch_news(url: str, title: str = "") -> dict:
     nid = deps.store.add({"title": title or page_title or url, "url": url,
                           "summary": text[:300], "content": text})
     if deps.bus is not None:
-        from platform_contracts import ActorKind, ActorRef, Event
         await deps.bus.publish(Event(
             type="source.ready",
             actor=ActorRef(kind=ActorKind.SYSTEM, id="sources.news"),

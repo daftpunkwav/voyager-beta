@@ -29,6 +29,18 @@ class TestNetwork:
         d = engine.decide(Action(dimension="network", target="https://example.com"))
         assert d.allow and d.level == Level.L1_NOTIFY
 
+    def test_userinfo_url_judged_by_real_host(self) -> None:
+        """userinfo 形如 https://github.com@evil.com/ 的 URL 实连 evil.com,必须拒绝;
+        反向 https://evil.com@github.com/ 实连 github.com(host 解析只看 @ 之后)。"""
+        engine = PolicyEngine(network=NetworkPolicy(mode="whitelist", domains=("github.com",)))
+        d = engine.decide(Action(dimension="network", target="https://github.com@evil.com/x"))
+        assert not d.allow and "evil.com" in d.reason
+        assert engine.decide(Action(dimension="network", target="https://evil.com@github.com/x")).allow
+
+    def test_port_does_not_break_match(self) -> None:
+        engine = PolicyEngine(network=NetworkPolicy(mode="whitelist", domains=("github.com",)))
+        assert engine.decide(Action(dimension="network", target="https://github.com:8443/x")).allow
+
 
 class TestFs:
     def test_inside_jail(self, tmp_path) -> None:

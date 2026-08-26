@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 from agent.policy.levels import Level
 
@@ -89,7 +90,11 @@ class PolicyEngine:
     def _decide_network(self, action: Action) -> Decision:
         if self.network.mode == NET_OFF:
             return Decision(False, reason="网络权限:关闭(设置里可改为白名单/全开)")
-        host = action.target.split("/")[2] if "://" in action.target else action.target
+        # urlparse.hostname:去端口/去 userinfo(https://evil.com@github.com/ 实连 evil.com)
+        # 并统一小写;裸域名(无 scheme)按原样处理
+        host = (urlparse(action.target).hostname or "") if "://" in action.target \
+            else action.target
+        host = host.lower()
         if self.network.mode == NET_ALL:
             return Decision(True, Level.L1_NOTIFY, "网络全开")
         if any(host == d or host.endswith("." + d) for d in self.network.domains):

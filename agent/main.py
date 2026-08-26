@@ -131,7 +131,7 @@ def build_agent(
     for group in (
         fs_tools([workspace]),
         shell_tools(),
-        web_tools(),
+        web_tools(policy),
         ask_user_tool(asker),
         reach_out_tool(bus),
         load_skill_tool(on_demand),

@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any
+
+# run_id 直接拼进文件路径,必须是纯安全字符(防 ../../ 穿越到 checkpoints 之外)
+_RUN_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def _safe_run_id(run_id: str) -> str:
+    if not _RUN_ID_RE.match(run_id):
+        raise ValueError(f"非法 run_id: {run_id!r}(仅允许字母/数字/下划线/连字符)")
+    return run_id
 
 
 class RunStatus(str, Enum):
@@ -74,12 +84,12 @@ class CheckpointStore:
         self._root.mkdir(parents=True, exist_ok=True)
 
     def save(self, state: RunState) -> Path:
-        path = self._root / f"{state.run_id}.json"
+        path = self._root / f"{_safe_run_id(state.run_id)}.json"
         path.write_text(json.dumps(state.to_dict(), ensure_ascii=False), encoding="utf-8")
         return path
 
     def load(self, run_id: str) -> RunState:
-        path = self._root / f"{run_id}.json"
+        path = self._root / f"{_safe_run_id(run_id)}.json"
         return RunState.from_dict(json.loads(path.read_text(encoding="utf-8")))
 
     def list_alive(self) -> list[RunState]:
@@ -91,4 +101,4 @@ class CheckpointStore:
         return out
 
     def delete(self, run_id: str) -> None:
-        (self._root / f"{run_id}.json").unlink(missing_ok=True)
+        (self._root / f"{_safe_run_id(run_id)}.json").unlink(missing_ok=True)

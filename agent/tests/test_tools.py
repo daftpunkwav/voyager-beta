@@ -1,10 +1,13 @@
 """工具带与工作目录测试:fs jail、能力面裁剪、L1/L2 确认通道(§9.4/§9.9/§9.10)。"""
 
+import asyncio
+
 import pytest
 
 from agent.llm import ToolCall
 from agent.policy import FsPolicy, PolicyEngine
 from agent.tools import Toolbelt, ensure_workdir, fs_tools
+from agent.tools.shell import shell_tools
 
 
 @pytest.fixture()
@@ -95,3 +98,19 @@ class TestConfirmFlow:
     async def test_unknown_tool(self, workdir) -> None:
         out = await _belt(workdir).call(ToolCall("1", "nope", {}))
         assert "[未知工具]" in out
+
+
+class TestShellGuard:
+    async def test_destructive_commands_blocked(self) -> None:
+        """整机级破坏命令在执行前被硬拦截(即使 L2 确认通道缺失)。"""
+        run_shell = shell_tools()["run_shell"].handler
+        for cmd in ("mkfs.ext4 /dev/sda1", "dd if=a of=/dev/sda",
+                    "shutdown now", "rm -rf /", "format C: /q"):
+            out = await run_shell(cmd, timeout=2)
+            assert "[已拒绝]" in out, cmd
+
+    async def test_normal_command_not_blocked(self) -> None:
+        run_shell = shell_tools()["run_shell"].handler
+        out = await run_shell("echo rm -rf data/ && echo ok", timeout=5)
+        # rm -rf data/(非根路径)不命中黑名单;echo 正常执行
+        assert "已拒绝" not in out and "ok" in out
