@@ -30,9 +30,9 @@ export function HealthPage() {
     let alive = true;
     const fetchHealth = async () => {
       try {
-        await fetch('/api/activity/feed?kind=service.health.changed');
-        // 真实端点是 /api/activity/feed 的事件流;聚合状态在 /health
-        // 这里直接调 gateway /health(由 servicebadge 转发)
+        // §4.2.16 健康检查:直接 fetch gateway /health 端点;
+        // 该端点不是 capability(只读健康摘要,无副作用),由 vite proxy 转发到 8000。
+        // 若未来需鉴权,改为 callCapability('system', 'get_health', {})。
         const healthResp = await fetch('/health');
         if (!healthResp.ok) throw new Error(`HTTP ${healthResp.status}`);
         const body = (await healthResp.json()) as HealthPayload;

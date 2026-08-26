@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App } from '@/App';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { useTheme } from '@/shell/useTheme';
 import { initActivityReport } from '@/bridge/activity';
 
@@ -26,16 +27,49 @@ const queryClient = new QueryClient({
   },
 });
 
+/** 顶层降级 UI:全应用崩溃时显示,避免白屏;用户可刷新或回首页。
+ * 签名匹配 ErrorBoundary.fallback: (error, reset) => ReactNode */
+function RootErrorFallback(_error: Error, reset: () => void) {
+  return (
+    <div
+      role="alert"
+      style={{
+        padding: 32,
+        fontFamily: 'system-ui, sans-serif',
+        color: '#3a3a3c',
+      }}
+    >
+      <h2 style={{ marginTop: 0 }}>应用出现未捕获错误</h2>
+      <p>请刷新页面或点击下方按钮重试。详细信息请查看浏览器控制台。</p>
+      <button
+        type="button"
+        onClick={reset}
+        style={{
+          padding: '8px 16px',
+          borderRadius: 8,
+          border: '1px solid #c7c7cc',
+          background: '#fff',
+          cursor: 'pointer',
+        }}
+      >
+        重试
+      </button>
+    </div>
+  );
+}
+
 function Root() {
   useTheme();
   void initActivityReport();
   return (
     <StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </QueryClientProvider>
+      <ErrorBoundary fallback={RootErrorFallback}>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </QueryClientProvider>
+      </ErrorBoundary>
     </StrictMode>
   );
 }
