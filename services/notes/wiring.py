@@ -26,7 +26,7 @@ def wire(
     if settings_store is not None:
         settings_store.register_fresh(DEFS)
     store = NoteStore(Path(data_dir) / "notes.db")
-    init_deps(Deps(store=store, bus=bus))
+    init_deps(Deps(store=store, bus=bus, settings=settings_store))
     return Wiring(
         registry=registry,
         probe=lambda: {"status": "up"},

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from platform_capability import Registry, capability
 from platform_contracts import ActorKind, ActorRef, ErrorSuffix, Event, ServiceError
 from platform_eventbus import EventBus
+from platform_settings import SettingsStore
 
 from .store import NoteStore
 
@@ -18,11 +19,14 @@ _DOMAIN = "notes"
 _ACTOR = ActorRef(kind=ActorKind.SYSTEM, id="notes.service")
 registry = Registry(_DOMAIN)
 
+_SORT_COL = {"updated": "updated_ts", "created": "created_ts", "title": "title"}
+
 
 @dataclass
 class Deps:
     store: NoteStore
     bus: EventBus | None
+    settings: SettingsStore | None = None  # 排序等偏好读取;独立运行可不装配
 
 
 _deps: Deps | None = None
@@ -86,8 +90,13 @@ async def delete_note(note_id: str) -> dict:
 
 
 @capability(registry, name="list_notes", description="笔记摘要列表(标题/标签/摘要,不含全文)")
-def list_notes(source_id: str | None = None, tag: str = "", limit: int = 100) -> list[dict]:
-    return _require_deps().store.list(source_id=source_id, tag=tag, limit=limit)
+def list_notes(source_id: str | None = None, tag: str = "", limit: int = 100,
+               sort: str = "") -> list[dict]:
+    """sort 缺省时读 notes.sort.default 设置;仍无效则按更新时间倒序。"""
+    deps = _require_deps()
+    key = sort or (deps.settings.get("notes.sort.default") if deps.settings else "")
+    order = _SORT_COL.get(key, "updated_ts")
+    return deps.store.list(source_id=source_id, tag=tag, limit=limit, order=order)
 
 
 @capability(registry, name="get_note", description="按需取笔记全文")

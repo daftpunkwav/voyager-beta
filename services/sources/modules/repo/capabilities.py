@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from platform_capability import Registry, capability
-from platform_contracts import ActorKind, ActorRef, ErrorSuffix, JobRef, ServiceError
+from platform_contracts import ActorKind, ActorRef, ErrorSuffix, Event, JobRef, ServiceError
 from platform_eventbus import EventBus
 from platform_secrets import SecretStore
 
@@ -22,6 +23,7 @@ _DOMAIN = "sources"
 registry = Registry(_DOMAIN)
 
 _TOKEN_KEY = "sources.github.token"
+_REPO_ACTOR = ActorRef(kind=ActorKind.SYSTEM, id="sources.repo")
 
 
 @dataclass
@@ -30,7 +32,7 @@ class RepoDeps:
     secrets: SecretStore
     bus: EventBus | None
     queue: asyncio.Queue  # clone 任务:repo_id
-    workspace: Any  # Path,clone 目的地根(workspace/repo/)
+    workspace: Path  # clone 目的地根(workspace/repo/)
 
 
 _deps: RepoDeps | None = None
@@ -72,11 +74,8 @@ async def import_repo(url: str, category: str = "", clone: bool = True) -> JobRe
     rid = deps.store.add({**info, "category": category, "readme": readme,
                           "status": "importing", "source": "github"})
     if deps.bus is not None:
-        from platform_contracts import ActorKind as _AK
-        from platform_contracts import ActorRef as _AR
-        from platform_contracts import Event
         await deps.bus.publish(Event(
-            type="source.added", actor=_AR(kind=_AK.SYSTEM, id="sources.repo"),
+            type="source.added", actor=_REPO_ACTOR,
             payload={"source_id": rid, "kind": "repo", "name": f"{owner}/{name}"}))
     if clone:
         deps.queue.put_nowait(rid)

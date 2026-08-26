@@ -7,6 +7,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from urllib.parse import urlparse
+
+from platform_contracts import ErrorSuffix, ServiceError
 
 
 @dataclass
@@ -67,11 +70,8 @@ async def screenshot(session_id: str, *, allowed_domains: list[str],
 
 
 def _check_domain(url: str, allowed_domains: list[str]) -> None:
-    from platform_contracts import ErrorSuffix, ServiceError
-
     if not allowed_domains:
         return
-    from urllib.parse import urlparse
     netloc = urlparse(url).netloc
     if not any(netloc == d or netloc.endswith(f".{d}") for d in allowed_domains):
         raise ServiceError(

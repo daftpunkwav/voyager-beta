@@ -157,7 +157,8 @@ def list_runtimes() -> list[dict[str, Any]]:
 
 
 @capability(registry, name="run_snippet",
-            description="执行代码片段;立即返回 exec_id,结果经 task.completed/failed 事件")
+            description="执行代码片段;立即返回 exec_id,结果经 task.completed/failed 事件",
+            long_running=True)
 async def run_snippet(runtime: str, code: str, _actor: ActorRef = None) -> JobRef:
     exec_id = uuid.uuid4().hex[:12]
     # 立即触发异步执行,调用方不阻塞(§7.3);任务持引用防 GC 静默回收
@@ -166,7 +167,8 @@ async def run_snippet(runtime: str, code: str, _actor: ActorRef = None) -> JobRe
 
 
 @capability(registry, name="run_file",
-            description="读取 workspace/sandbox/ 下的代码文件并执行;返回 exec_id")
+            description="读取 workspace/sandbox/ 下的代码文件并执行;返回 exec_id",
+            long_running=True)
 async def run_file(runtime: str, file_path: str, _actor: ActorRef = None) -> JobRef:
     deps = _require_deps()
     sandbox = (deps.workspace / "sandbox").resolve()

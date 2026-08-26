@@ -62,7 +62,7 @@ def _session_dir() -> Path:
     return d
 
 
-async def _result_dict(result) -> dict[str, Any]:
+def _result_dict(result) -> dict[str, Any]:
     return {
         "ok": result.ok,
         "url": result.url,
@@ -81,14 +81,14 @@ async def navigate_url(url: str) -> dict[str, Any]:
     deps.store.touch(sid, url)
     result = await navigate(sid, url, headless=_headless(),
                             allowed_domains=_allowed_domains())
-    return await _result_dict(result)
+    return _result_dict(result)
 
 
 @capability(registry, name="click", description="点击页面元素(CSS selector)")
 async def click_element(session_id: str, selector: str) -> dict[str, Any]:
     _require_deps().store.touch(session_id)
     result = await click(session_id, selector, allowed_domains=_allowed_domains())
-    return await _result_dict(result)
+    return _result_dict(result)
 
 
 @capability(registry, name="type", description="在元素中输入文本")
@@ -96,14 +96,14 @@ async def type_element(session_id: str, selector: str, text: str) -> dict[str, A
     _require_deps().store.touch(session_id)
     result = await type_text(session_id, selector, text,
                              allowed_domains=_allowed_domains())
-    return await _result_dict(result)
+    return _result_dict(result)
 
 
 @capability(registry, name="read", description="读取当前页面可见文本")
 async def read(session_id: str) -> dict[str, Any]:
     _require_deps().store.touch(session_id)
     result = await read_page(session_id, allowed_domains=_allowed_domains())
-    return await _result_dict(result)
+    return _result_dict(result)
 
 
 @capability(registry, name="screenshot", description="截图并返回保存路径")
@@ -112,7 +112,7 @@ async def take_screenshot(session_id: str) -> dict[str, Any]:
     deps.store.touch(session_id)
     result = await screenshot(session_id, allowed_domains=_allowed_domains(),
                               workspace_dir=str(deps.workspace))
-    return await _result_dict(result)
+    return _result_dict(result)
 
 
 __all__ = ["DEFS", "Deps", "init_deps", "registry"]

@@ -34,6 +34,7 @@ _ALL_COLS = ("id", "title", "content", "tags", "source_id", "node_id",
              "created_ts", "updated_ts")
 
 _EXCERPT_LEN = 120
+_SORTABLE = {"updated_ts", "created_ts", "title"}
 
 
 class NoteStore:
@@ -64,8 +65,9 @@ class NoteStore:
         return _row(_ALL_COLS, row) if row else None
 
     def list(self, *, source_id: str | None = None, tag: str = "",
-             limit: int = 100) -> list[dict[str, Any]]:
-        """摘要列表:正文截为 excerpt,不回全量(§9.20)。"""
+             limit: int = 100, order: str = "updated_ts") -> list[dict[str, Any]]:
+        """摘要列表:正文截为 excerpt,不回全量(§9.20);排序列走白名单。"""
+        col = order if order in _SORTABLE else "updated_ts"
         sql = ("SELECT id, title, tags, source_id, node_id, created_ts, updated_ts,"
                f" substr(content, 1, {_EXCERPT_LEN}) AS excerpt FROM notes")
         conds, params = [], []
@@ -77,7 +79,9 @@ class NoteStore:
             params.append(f'%"{tag}"%')
         if conds:
             sql += " WHERE " + " AND ".join(conds)
-        sql += " ORDER BY updated_ts DESC LIMIT ?"
+        # title 语义上取升序,时间列取倒序
+        direction = "ASC" if col == "title" else "DESC"
+        sql += f" ORDER BY {col} {direction} LIMIT ?"
         params.append(limit)
         return [_row(_SUMMARY_COLS, r) for r in self._conn.execute(sql, params)]
 
