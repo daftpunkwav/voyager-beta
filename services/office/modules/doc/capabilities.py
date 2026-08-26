@@ -89,6 +89,7 @@ async def delete_doc(doc_id: str) -> dict[str, Any]:
     deps = _require_deps()
     doc = _require_doc(doc_id)
     deps.store.delete(doc_id)
+    await _emit("doc.deleted", doc_id, title=doc["title"])
     return {"deleted": doc_id, "title": doc["title"]}
 
 

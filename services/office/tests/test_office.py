@@ -53,6 +53,13 @@ class TestDoc:
         })
         assert len(updated["blocks"]) == 1
 
+    async def test_delete_doc_emits_event(self, deps) -> None:
+        _, log = deps
+        doc = await execute(registry, "create_doc", USER_CTX, {"title": "t"})
+        await execute(registry, "delete_doc", USER_CTX, {"doc_id": doc["id"]})
+        types = [e.type for _, e in log.read_after()]
+        assert "doc.created" in types and "doc.deleted" in types  # 对齐 note.deleted 语义
+
 
 class TestSlides:
     async def test_create_and_add_slide(self, deps) -> None:
@@ -62,6 +69,12 @@ class TestSlides:
             "deck_id": deck["id"], "slide": {"title": "Slide 1"},
         })
         assert len(updated["blocks"]) == 1
+
+    async def test_delete_deck_emits_event(self, deps) -> None:
+        _, log = deps
+        deck = await execute(registry, "create_deck", USER_CTX, {"title": "D"})
+        await execute(registry, "delete_deck", USER_CTX, {"deck_id": deck["id"]})
+        assert "doc.deleted" in [e.type for _, e in log.read_after()]
 
 
 class TestRest:
