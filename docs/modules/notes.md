@@ -1,12 +1,21 @@
 # notes 模块卡
 
-- **职责**:Markdown 笔记的创建、编辑、关联。不做:富文本(未来子类型)。
+- **职责**:Markdown 笔记的创建、编辑、关联与附件图片。不做:富文本(未来子类型)。
 - **架构锚点**:§8.3
-- **能力**(已实现 6):`create_note / update_note / delete_note(不可逆)/
-  list_notes(摘要,excerpt 120 字)/ get_note(按需全文)/ link_note(关联资源与图谱节点)`
-- **事件**:发布 `note.created / note.edited / note.deleted`(修订:旧版无删除事件,
-  活动页撤销需要)
-- **设置项**:`notes.sort.default / notes.list.page_size / notes.editor.autosave_s`
-- **数据**:笔记表,独立命名空间;list 只回摘要,正文按需(§9.20)
+- **能力**(已实现 22):`create_note / update_note / delete_note(软删入回收站)/
+  list_notes(摘要,excerpt 120 字;state/sort/tag/query 过滤)/ get_note(按需全文)/
+  link_note(关联资源与图谱节点)/ restore_note / purge_note(不可逆,连带清附件)/
+  empty_trash / list_tags / rename_tag / get_backlinks / notes_stats /
+  list_versions / read_version / restore_version(内容变更自动快照)/
+  get_note_toc(跳过代码围栏)/ resolve_links([[内链]] 解析)/
+  edit_note_range(字符偏移原子编辑)/ import_note(front-matter 导入)/
+  export_note(front-matter 导出)/ add_asset(图片附件,attachment:// 引用,
+  workspace/ 内 file_path、扩展白名单、notes.assets.max_mb 上限)`
+- **事件**:发布 `note.created / note.edited / note.deleted / note.restored / note.purged`
+- **设置项**:`notes.sort.default / notes.list.page_size / notes.editor.autosave_s /
+  notes.trash.retention_days / notes.history.per_note / notes.export.dir / notes.assets.max_mb`
+- **数据**:notes.db(笔记/版本/双链)+ assets.db(note_assets)独立命名空间;
+  附件文件落 workspace/notes-assets/<asset_id><ext>(内容寻址,永不覆盖,
+  immutable 缓存路由 `GET /api/notes/assets/{id}`)
 - **依赖**:platform
-- **状态**:已实现(6 测试)
+- **状态**:已实现 v0.4.0(37 测试;registry 与 service.json 一致性有专项测试)
