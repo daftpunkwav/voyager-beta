@@ -167,10 +167,10 @@ export function ProjectsPage() {
 
   return (
     <>
-      <div className={`page-head ${PROJECTS_OUTER_GLASS_OVERVIEW}`}>
+      <div className="page-head">
         <div>
           <h1>我的项目库</h1>
-          <div className="subtitle">{subtitle}</div>
+          <p className="subtitle">{subtitle}</p>
         </div>
         <div className="actions">
           <button

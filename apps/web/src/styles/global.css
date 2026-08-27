@@ -30,14 +30,15 @@ a {
 .repo-card,
 .note-item,
 .session-item,
-.health-card {
+.health-card,
+.persona-card {
   animation: voyagerItemFadeIn var(--dur-base) var(--ease-apple) both;
 }
-.list > *:nth-child(2), .repo-card:nth-child(2), .note-item:nth-child(2), .session-item:nth-child(2), .health-card:nth-child(2) { animation-delay: 40ms; }
-.list > *:nth-child(3), .repo-card:nth-child(3), .note-item:nth-child(3), .session-item:nth-child(3), .health-card:nth-child(3) { animation-delay: 80ms; }
-.list > *:nth-child(4), .repo-card:nth-child(4), .note-item:nth-child(4), .session-item:nth-child(4), .health-card:nth-child(4) { animation-delay: 120ms; }
-.list > *:nth-child(5), .repo-card:nth-child(5), .note-item:nth-child(5), .session-item:nth-child(5), .health-card:nth-child(5) { animation-delay: 160ms; }
-.list > *:nth-child(6), .repo-card:nth-child(6), .note-item:nth-child(6), .session-item:nth-child(6), .health-card:nth-child(6) { animation-delay: 200ms; }
+.list > *:nth-child(2), .repo-card:nth-child(2), .note-item:nth-child(2), .session-item:nth-child(2), .health-card:nth-child(2), .persona-card:nth-child(2) { animation-delay: 40ms; }
+.list > *:nth-child(3), .repo-card:nth-child(3), .note-item:nth-child(3), .session-item:nth-child(3), .health-card:nth-child(3), .persona-card:nth-child(3) { animation-delay: 80ms; }
+.list > *:nth-child(4), .repo-card:nth-child(4), .note-item:nth-child(4), .session-item:nth-child(4), .health-card:nth-child(4), .persona-card:nth-child(4) { animation-delay: 120ms; }
+.list > *:nth-child(5), .repo-card:nth-child(5), .note-item:nth-child(5), .session-item:nth-child(5), .health-card:nth-child(5), .persona-card:nth-child(5) { animation-delay: 160ms; }
+.list > *:nth-child(6), .repo-card:nth-child(6), .note-item:nth-child(6), .session-item:nth-child(6), .health-card:nth-child(6), .persona-card:nth-child(6) { animation-delay: 200ms; }
 
 /* ---------- Loading Spinner · 页面居中 ---------- */
 .loading-spinner {
