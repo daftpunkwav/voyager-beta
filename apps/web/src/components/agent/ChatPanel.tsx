@@ -377,11 +377,6 @@ export function ChatPanel({
           </div>
         )}
         {error && <div className="error-banner">{error}</div>}
-        {agentDown && (
-          <div className="error-banner" data-testid="agent-down-banner">
-            Agent 服务不可用：{(profilesQ.error as Error)?.message || '请检查后端服务'}
-          </div>
-        )}
         <div ref={bottomRef} />
       </div>
 

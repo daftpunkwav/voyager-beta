@@ -309,6 +309,10 @@
       color: var(--brand-600);
       font-weight: 600;
     }
+    /* 暗色下 brand-600 深蓝在深底上对比不足,提亮为 brand-300 */
+    [data-theme='dark'] .quick-actions .btn.quick-action-brand {
+      color: var(--brand-300);
+    }
 
     /* 总览外层 panel · Hero / Agent 卡 / 进度 / 活动 / 推荐 / 笔记 */
     .overview-hero-glass.glass-card--overview-outer,

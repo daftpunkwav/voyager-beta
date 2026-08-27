@@ -280,7 +280,10 @@
 }
 
 .empty-notes {
-  display: grid; place-items: center;
+  display: grid;
+  place-items: center;
+  /* 关键:阻止 align-content:stretch 把 4 行元素均分整个高度(否则标题与描述被拉开巨缝隙) */
+  align-content: center;
   height: 100%;
   text-align: center;
   color: var(--text-500);
