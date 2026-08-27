@@ -91,7 +91,7 @@ export function Topbar() {
           @{user.github_login}
         </span>
       )}
-      <button type="button" className="topbar-action" title="主题切换" onClick={toggleTheme}>
+      <button type="button" className="topbar-action" title="主题切换" aria-label="切换主题" onClick={toggleTheme}>
         {isDark ? (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={16} height={16}>
             <circle cx="12" cy="12" r="4" />
@@ -103,14 +103,14 @@ export function Topbar() {
           </svg>
         )}
       </button>
-      <button type="button" className="topbar-action" title="通知" style={{ position: 'relative' }}>
+      <button type="button" className="topbar-action" title="通知" aria-label="通知" style={{ position: 'relative' }}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={16} height={16}>
           <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.7 21a2 2 0 0 1-3.4 0" />
         </svg>
         <span className="dot" />
       </button>
-      <button type="button" className="topbar-action" title="帮助">
+      <button type="button" className="topbar-action" title="帮助" aria-label="帮助">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={16} height={16}>
           <circle cx="12" cy="12" r="9" />
           <path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2.5 2-2.5 3.5" />
@@ -121,6 +121,7 @@ export function Topbar() {
         type="button"
         className="topbar-action"
         title="个人"
+        aria-label="个人中心"
         style={{ display: 'grid', placeItems: 'center' }}
         onClick={() => navigate('/team')}
       >

@@ -10,7 +10,7 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
-    // —— 迁移期:RepoPilot 风格代码大量 implicit any,临时降级 strict;
+    // —— 迁移期:上游迁入代码大量 implicit any,临时降级 strict;
     //   新 page / hook / store 仍按 strict 写(见各 .ts/.tsx 顶部 'use strict' 注释)。——
     "strict": false,
     "noImplicitAny": false,

@@ -8,12 +8,20 @@ import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
+import type { Options as SanitizeOptions } from 'rehype-sanitize';
 import { type ChatMessage, useChatStore } from '@/stores/chatStore';
 
-/**
- * Markdown 安全性:react-markdown 未启用 rehype-raw,原始 HTML 一律转义为文本
- * (无注入面);消毒依赖留待未来引入 raw html 能力时启用。
- */
+/** 允许 highlight.js 注入的 class,与 MarkdownRenderer 同一防线(纵深防御) */
+const sanitizeSchema: SanitizeOptions = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    code: [...(defaultSchema.attributes?.code ?? []), ['className']],
+    span: [...(defaultSchema.attributes?.span ?? []), ['className']],
+    pre: [...(defaultSchema.attributes?.pre ?? []), ['className']],
+  },
+};
 export function MessageList() {
   const messages = useChatStore((s) => s.messages);
   const thinking = useChatStore((s) => s.thinking);
@@ -60,7 +68,10 @@ function Bubble({ msg }: { msg: ChatMessage }) {
     <div className={cls}>
       {msg.proactive ? <span className="chat-proactive-tag">主动</span> : null}
       <div className="chat-md">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeHighlight, [rehypeSanitize, sanitizeSchema]]}
+        >
           {msg.content}
         </ReactMarkdown>
       </div>

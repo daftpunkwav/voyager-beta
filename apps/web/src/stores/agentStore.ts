@@ -239,8 +239,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           ),
         }));
       }
-    } catch {
-      // 绑定失败不阻断对话
+    } catch (err) {
+      // 绑定失败不阻断对话,但要留痕(后续轮次上下文会缺项目上下文)
+      console.warn('[agentStore] 会话-项目绑定失败:', err);
     }
 
     const controller = new AbortController();

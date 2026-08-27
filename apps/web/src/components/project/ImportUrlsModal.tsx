@@ -157,8 +157,9 @@ export function ImportUrlsModal({ open, onClose }: ImportUrlsModalProps) {
             url: v.url,
           });
           ok += 1;
-        } catch {
-          /* skip dup */
+        } catch (err) {
+          // 失败明细留痕:重复/网络错/校验错都被计入"成功 N 条"之外的沉默区
+          console.warn('[ImportUrlsModal] 条目导入失败:', v.url, err);
         }
       }
       addToast({ type: ok > 0 ? 'success' : 'error', message: `成功 ${ok} 条` });
