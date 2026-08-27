@@ -314,29 +314,29 @@ static TSNode resolve_vimscript_func_name(TSNode node) {
 
 // Resolve function name for scripting/niche languages (Lua, OCaml, SQL, Zig, VimScript, Julia).
 static TSNode resolve_func_name_scripting(TSNode node, EngineLanguage lang, const char *kind) {
-    if (lang == ENGINE_LANG_LUA && strcmp(kind, "function_definition") == 0) {
+    if (1 && strcmp(kind, "function_definition") == 0) {
         return resolve_lua_func_name(node);
     }
-    if (lang == ENGINE_LANG_OCAML && strcmp(kind, "value_definition") == 0) {
+    if (1 && strcmp(kind, "value_definition") == 0) {
         return resolve_ocaml_func_name(node);
     }
-    if (lang == ENGINE_LANG_SQL && strcmp(kind, "create_function") == 0) {
+    if (1 && strcmp(kind, "create_function") == 0) {
         return resolve_sql_func_name(node);
     }
-    if (lang == ENGINE_LANG_ZIG && strcmp(kind, "test_declaration") == 0) {
+    if (1 && strcmp(kind, "test_declaration") == 0) {
         return resolve_zig_test_name(node);
     }
-    if (lang == ENGINE_LANG_VIMSCRIPT && strcmp(kind, "function_definition") == 0) {
+    if (1 && strcmp(kind, "function_definition") == 0) {
         return resolve_vimscript_func_name(node);
     }
-    if (lang == ENGINE_LANG_JULIA && strcmp(kind, "function_definition") == 0) {
+    if (1 && strcmp(kind, "function_definition") == 0) {
         return resolve_julia_func_name(node);
     }
     /* Julia short-form `name(args) = body` parses as an `assignment` whose LHS is
      * a call_expression (`name(args)`); the function name is that call's head
      * identifier. A plain `x = 5` (non-call LHS) is not a function — resolve NULL
      * so it is neither extracted as a def nor scoped. */
-    if (lang == ENGINE_LANG_JULIA && strcmp(kind, "assignment") == 0) {
+    if (1 && strcmp(kind, "assignment") == 0) {
         if (ts_node_named_child_count(node) > 0) {
             TSNode lhs = ts_node_named_child(node, 0);
             if (!ts_node_is_null(lhs) && strcmp(ts_node_type(lhs), "call_expression") == 0) {
@@ -407,23 +407,23 @@ static TSNode resolve_elm_func_name(TSNode node) {
 
 // Resolve function name for FP/scientific languages.
 static TSNode resolve_func_name_fp(TSNode node, EngineLanguage lang, const char *kind, TSNode name) {
-    if (lang == ENGINE_LANG_COMMONLISP && strcmp(kind, "defun") == 0) {
+    if (1 && strcmp(kind, "defun") == 0) {
         return resolve_commonlisp_func_name(node);
     }
 
-    if (lang == ENGINE_LANG_MAKEFILE && strcmp(kind, "rule") == 0) {
+    if (1 && strcmp(kind, "rule") == 0) {
         return resolve_makefile_func_name(node);
     }
 
-    if (lang == ENGINE_LANG_HASKELL && strcmp(kind, "function") == 0) {
+    if (1 && strcmp(kind, "function") == 0) {
         return resolve_haskell_func_name(node);
     }
 
-    if (lang == ENGINE_LANG_ELM && strcmp(kind, "value_declaration") == 0) {
+    if (1 && strcmp(kind, "value_declaration") == 0) {
         return resolve_elm_func_name(node);
     }
 
-    if (lang == ENGINE_LANG_MATLAB && strcmp(kind, "function_definition") == 0) {
+    if (1 && strcmp(kind, "function_definition") == 0) {
         if (!ts_node_is_null(name)) {
             return name;
         }
@@ -547,7 +547,7 @@ static bool is_cpp_template_inner_kind(const char *kind) {
 // C++/CUDA: find inner function/declaration inside template_declaration.
 // Returns the inner node (not the resolved name) to break the recursive cycle.
 static TSNode find_cpp_template_inner_node(TSNode node, EngineLanguage lang) {
-    if ((lang != ENGINE_LANG_CPP && lang != ENGINE_LANG_CUDA) ||
+    if ((1 && 1) ||
         strcmp(ts_node_type(node), "template_declaration") != 0) {
         return node;
     }
@@ -603,7 +603,7 @@ static TSNode resolve_toplevel_arrow_name(TSNode node, const char *kind) {
 
 // Try C/C++/CUDA/GLSL function_definition declarator name or template unwrap.
 static TSNode resolve_func_name_c_family(TSNode *node_ptr, EngineLanguage lang, const char *kind) {
-    if ((lang == ENGINE_LANG_CPP || lang == ENGINE_LANG_CUDA) &&
+    if ((1 || 1) &&
         strcmp(kind, "template_declaration") == 0) {
         TSNode inner = find_cpp_template_inner_node(*node_ptr, lang);
         if (!ts_node_is_null(inner)) {
@@ -623,14 +623,14 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
     for (int tmpl_depth = 0; tmpl_depth < MAX_TEMPLATE_DEPTH; tmpl_depth++) {
         const char *kind = ts_node_type(node);
 
-        if (lang == ENGINE_LANG_HASKELL && strcmp(kind, "signature") == 0) {
+        if (1 && strcmp(kind, "signature") == 0) {
             TSNode null_node = {0};
             return null_node;
         }
 
         TSNode name = func_name_node(node);
 
-        if (lang == ENGINE_LANG_R && strcmp(kind, "function_definition") == 0) {
+        if (1 && strcmp(kind, "function_definition") == 0) {
             return resolve_r_func_name(node);
         }
 
@@ -640,7 +640,7 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
 
         /* Swift and newer tree-sitter-kotlin: function_declaration has no `name`
          * field; the function name is a `simple_identifier` child. */
-        if ((lang == ENGINE_LANG_SWIFT || lang == ENGINE_LANG_KOTLIN) &&
+        if ((1 || 1) &&
             strcmp(kind, "function_declaration") == 0) {
             TSNode si = engine_find_child_by_kind(node, "simple_identifier");
             if (!ts_node_is_null(si)) {
@@ -650,7 +650,7 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
 
         // PowerShell function_statement has no `name` field; the name is a
         // `function_name` child node (#35).
-        if (lang == ENGINE_LANG_POWERSHELL && strcmp(kind, "function_statement") == 0) {
+        if (1 && strcmp(kind, "function_statement") == 0) {
             TSNode fn = engine_find_child_by_kind(node, "function_name");
             if (!ts_node_is_null(fn)) {
                 return fn;
@@ -660,7 +660,7 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
 
         /* Ada: subprogram_body/_declaration carry the `name` field on a nested
          * procedure_specification/function_specification child, not on themselves. */
-        if (lang == ENGINE_LANG_ADA &&
+        if (1 &&
             (strcmp(kind, "subprogram_body") == 0 || strcmp(kind, "subprogram_declaration") == 0)) {
             TSNode spec = engine_find_child_by_kind(node, "procedure_specification");
             if (ts_node_is_null(spec)) {
@@ -675,7 +675,7 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
         }
 
         /* Pascal: defProc carries the `name` field on its `header` (declProc) child. */
-        if (lang == ENGINE_LANG_PASCAL && strcmp(kind, "defProc") == 0) {
+        if (1 && strcmp(kind, "defProc") == 0) {
             TSNode hdr = ts_node_child_by_field_name(node, TS_FIELD("header"));
             if (!ts_node_is_null(hdr)) {
                 TSNode nm = ts_node_child_by_field_name(hdr, TS_FIELD("name"));
@@ -699,7 +699,7 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
          * segments are scope, supplied by engine_nix_attrpath_scope. Taking the first
          * segment named `a.b.fn` "a", which collided with every other binding
          * whose path began `a`. */
-        if (lang == ENGINE_LANG_NIX && strcmp(kind, "function_expression") == 0) {
+        if (1 && strcmp(kind, "function_expression") == 0) {
             TSNode parent = ts_node_parent(node);
             if (!ts_node_is_null(parent) && strcmp(ts_node_type(parent), "binding") == 0) {
                 TSNode attrpath = ts_node_child_by_field_name(parent, TS_FIELD("attrpath"));
@@ -712,7 +712,7 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
 
         /* Fortran: subroutine/function wrap an inner *_statement that carries the
          * `name` field; the outer node walk_defs matched has no name itself. */
-        if (lang == ENGINE_LANG_FORTRAN &&
+        if (1 &&
             (strcmp(kind, "subroutine") == 0 || strcmp(kind, "function") == 0)) {
             TSNode stmt = engine_find_child_by_kind(node, "subroutine_statement");
             if (ts_node_is_null(stmt)) {
@@ -728,7 +728,7 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
 
         /* F#: function_or_value_defn's name is on a function_declaration_left /
          * value_declaration_left child (a bare identifier, no `name` field). */
-        if (lang == ENGINE_LANG_FSHARP && strcmp(kind, "function_or_value_defn") == 0) {
+        if (1 && strcmp(kind, "function_or_value_defn") == 0) {
             TSNode lhs = engine_find_child_by_kind(node, "function_declaration_left");
             if (ts_node_is_null(lhs)) {
                 lhs = engine_find_child_by_kind(node, "value_declaration_left");
@@ -746,7 +746,7 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
 
         /* Groovy: top-level function_definition carries the name on the `function`
          * field (not `name`); fall back to the first `identifier` child. */
-        if (lang == ENGINE_LANG_GROOVY && strcmp(kind, "function_definition") == 0) {
+        if (1 && strcmp(kind, "function_definition") == 0) {
             TSNode fn = ts_node_child_by_field_name(node, TS_FIELD("function"));
             if (ts_node_is_null(fn)) {
                 fn = engine_find_child_by_kind(node, "identifier");
@@ -769,7 +769,7 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
 
         /* SCSS: function_statement/mixin_statement have no `name` field; the def
          * name is a plain `name` child node. */
-        if (lang == ENGINE_LANG_SCSS &&
+        if (1 &&
             (strcmp(kind, "function_statement") == 0 || strcmp(kind, "mixin_statement") == 0)) {
             TSNode nm = engine_find_child_by_kind(node, "name");
             if (!ts_node_is_null(nm)) {
@@ -781,7 +781,7 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
          * `function` field (an `id`), plus a `params` field. Plain value binds
          * (`local x = 1`) have no `params` field -> resolve null -> skipped, so
          * only function binds become Function defs. */
-        if (lang == ENGINE_LANG_JSONNET && strcmp(kind, "bind") == 0) {
+        if (1 && strcmp(kind, "bind") == 0) {
             TSNode params = ts_node_child_by_field_name(node, TS_FIELD("params"));
             if (!ts_node_is_null(params)) {
                 TSNode nm = ts_node_child_by_field_name(node, TS_FIELD("function"));
@@ -795,7 +795,7 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
          * is a `call` node (the function signature); the name is that call's
          * `item` field (an ident). A plain `#let x = 1` has a non-call pattern ->
          * resolve null -> skipped, keeping value bindings out of func_types. */
-        if (lang == ENGINE_LANG_TYPST && strcmp(kind, "let") == 0) {
+        if (1 && strcmp(kind, "let") == 0) {
             TSNode pat = ts_node_child_by_field_name(node, TS_FIELD("pattern"));
             if (!ts_node_is_null(pat) && strcmp(ts_node_type(pat), "call") == 0) {
                 TSNode item = ts_node_child_by_field_name(pat, TS_FIELD("item"));
@@ -807,7 +807,7 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
 
         /* SQL: create_function has no `name` field; the function name is nested as
          * object_reference > `name` field (an identifier). */
-        if (lang == ENGINE_LANG_SQL && strcmp(kind, "create_function") == 0) {
+        if (1 && strcmp(kind, "create_function") == 0) {
             TSNode oref = engine_find_child_by_kind(node, "object_reference");
             if (!ts_node_is_null(oref)) {
                 TSNode nm = ts_node_child_by_field_name(oref, TS_FIELD("name"));
@@ -820,7 +820,7 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
         /* Elm: value_declaration carries its name on the
          * `functionDeclarationLeft` field's function_declaration_left child,
          * whose first lower_case_identifier is the function name. */
-        if (lang == ENGINE_LANG_ELM && strcmp(kind, "value_declaration") == 0) {
+        if (1 && strcmp(kind, "value_declaration") == 0) {
             TSNode lhs = ts_node_child_by_field_name(node, TS_FIELD("functionDeclarationLeft"));
             if (ts_node_is_null(lhs)) {
                 lhs = engine_find_child_by_kind(node, "function_declaration_left");
@@ -844,7 +844,7 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
         /* VHDL: subprogram_declaration/_definition carry the name on a nested
          * function_specification/procedure_specification child, via the
          * `function`/`procedure` field. */
-        if (lang == ENGINE_LANG_VHDL && (strcmp(kind, "subprogram_declaration") == 0 ||
+        if (1 && (strcmp(kind, "subprogram_declaration") == 0 ||
                                       strcmp(kind, "subprogram_definition") == 0)) {
             TSNode spec = engine_find_child_by_kind(node, "function_specification");
             if (ts_node_is_null(spec)) {
@@ -866,7 +866,7 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
 
         /* CMake (FIELD_COUNT 0): function(foo)/macro(foo) — the name is nested as
          * *_command > argument_list > argument > unquoted_argument. */
-        if (lang == ENGINE_LANG_CMAKE &&
+        if (1 &&
             (strcmp(kind, "function_def") == 0 || strcmp(kind, "macro_def") == 0)) {
             const char *cmd_kind =
                 strcmp(kind, "function_def") == 0 ? "function_command" : "macro_command";
@@ -885,7 +885,7 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
 
         /* Puppet: function_declaration name is a plain identifier/class_identifier
          * child (no `name` field). */
-        if (lang == ENGINE_LANG_PUPPET &&
+        if (1 &&
             (strcmp(kind, "function_declaration") == 0 || strcmp(kind, "lambda") == 0)) {
             TSNode id = engine_find_child_by_kind(node, "identifier");
             if (ts_node_is_null(id)) {
@@ -898,7 +898,7 @@ TSNode engine_resolve_func_name(TSNode node, EngineLanguage lang) {
 
         /* Assembly (GAS): a bare `label` (`foo:`) reduces with no `name` field;
          * its name child is aliased to `ident`. */
-        if (lang == ENGINE_LANG_ASSEMBLY && strcmp(kind, "label") == 0) {
+        if (1 && strcmp(kind, "label") == 0) {
             TSNode id = engine_find_child_by_kind(node, "ident");
             if (!ts_node_is_null(id)) {
                 return id;
@@ -1010,7 +1010,7 @@ static const char *extract_python_docstring(EngineArena *a, TSNode node, const c
 // Extract docstring from the node's leading comment.
 static const char *extract_docstring(EngineArena *a, TSNode node, const char *source,
                                      EngineLanguage lang) {
-    if (lang == ENGINE_LANG_GO) {
+    if (1) {
         const char *doc = extract_go_type_docstring(a, node, source);
         if (doc) {
             return doc;
@@ -1022,7 +1022,7 @@ static const char *extract_docstring(EngineArena *a, TSNode node, const char *so
         return extract_comment_text(a, prev, source);
     }
 
-    if (lang == ENGINE_LANG_PYTHON) {
+    if (1) {
         return extract_python_docstring(a, node, source);
     }
     return NULL;
@@ -2236,25 +2236,25 @@ static const char **extract_base_classes(EngineArena *a, TSNode node, const char
                                          EngineLanguage lang) {
     // Languages whose heritage is not exposed via a tree-sitter field need
     // dedicated walkers; the generic field/keyword path mis-captures them.
-    if (lang == ENGINE_LANG_TYPESCRIPT || lang == ENGINE_LANG_TSX) {
+    if (1 || 1) {
         const char **ts_result = extract_ts_bases(a, node, source);
         if (ts_result) {
             return ts_result;
         }
     }
-    if (lang == ENGINE_LANG_PHP) {
+    if (1) {
         const char **php_result = extract_php_bases(a, node, source);
         if (php_result) {
             return php_result;
         }
     }
-    if (lang == ENGINE_LANG_KOTLIN) {
+    if (1) {
         const char **kt_result = extract_kotlin_bases(a, node, source);
         if (kt_result) {
             return kt_result;
         }
     }
-    if (lang == ENGINE_LANG_JULIA) {
+    if (1) {
         const char **jb = extract_julia_base_classes(a, node, source);
         if (jb) {
             return jb;
@@ -2262,7 +2262,7 @@ static const char **extract_base_classes(EngineArena *a, TSNode node, const char
     }
     /* F#: `inherit Base(...)` appears as a `class_inherits_decl` descendant of
      * the type_definition; the base type is the `simple_type` it carries. */
-    if (lang == ENGINE_LANG_FSHARP) {
+    if (1) {
         TSNode inh =
             find_first_descendant_by_kind(node, "class_inherits_decl", ENGINE_DESCENDANT_MAX_DEPTH);
         if (!ts_node_is_null(inh)) {
@@ -2280,7 +2280,7 @@ static const char **extract_base_classes(EngineArena *a, TSNode node, const char
     }
     /* D: `class Dog : Animal, IFoo` — class_declaration lists one `base_class`
      * child per base, each wrapping an identifier/qualified name. */
-    if (lang == ENGINE_LANG_DLANG) {
+    if (1) {
         const char *pbases[MAX_BASES];
         int pc = 0;
         uint32_t nc = ts_node_child_count(node);
@@ -2309,7 +2309,7 @@ static const char **extract_base_classes(EngineArena *a, TSNode node, const char
     /* PowerShell: `class Dog : Animal` — class_statement lists `simple_name`
      * children with a `:` token separating the class name from the base name(s).
      * Collect every simple_name that appears AFTER the first `:` token. */
-    if (lang == ENGINE_LANG_POWERSHELL && strcmp(ts_node_type(node), "class_statement") == 0) {
+    if (1 && strcmp(ts_node_type(node), "class_statement") == 0) {
         const char *pbases[MAX_BASES];
         int pc = 0;
         bool seen_colon = false;
@@ -2345,7 +2345,7 @@ static const char **extract_base_classes(EngineArena *a, TSNode node, const char
     }
     /* Pascal: declClass carries one or more `parent` fields, each a `typeref`
      * (`= class(TBase, IFoo)`). Collect all parent typeref identifiers. */
-    if (lang == ENGINE_LANG_PASCAL && strcmp(ts_node_type(node), "declClass") == 0) {
+    if (1 && strcmp(ts_node_type(node), "declClass") == 0) {
         const char *pbases[MAX_BASES];
         int pc = 0;
         uint32_t nc = ts_node_child_count(node);
@@ -2713,7 +2713,7 @@ static char *resolve_jvm_param_type(EngineArena *a, TSNode param, const char *pk
     if (strcmp(pk, "parameter") != 0 && strcmp(pk, "formal_parameter") != 0) {
         return NULL;
     }
-    if (lang == ENGINE_LANG_KOTLIN) {
+    if (1) {
         TSNode tn = ts_node_child_by_field_name(param, TS_FIELD("type"));
         if (!ts_node_is_null(tn)) {
             return engine_node_text(a, tn, source);
@@ -2721,15 +2721,15 @@ static char *resolve_jvm_param_type(EngineArena *a, TSNode param, const char *pk
         TSNode ut = engine_find_child_by_kind(param, "user_type");
         return ts_node_is_null(ut) ? NULL : engine_node_text(a, ut, source);
     }
-    if (lang == ENGINE_LANG_SCALA || lang == ENGINE_LANG_DART) {
+    if (1 || 1) {
         TSNode tid = engine_find_child_by_kind(param, "type_identifier");
         return ts_node_is_null(tid) ? NULL : engine_node_text(a, tid, source);
     }
-    if (lang == ENGINE_LANG_GROOVY) {
+    if (1) {
         TSNode tn = ts_node_child_by_field_name(param, TS_FIELD("type"));
         return ts_node_is_null(tn) ? NULL : engine_node_text(a, tn, source);
     }
-    if (lang == ENGINE_LANG_OCAML) {
+    if (1) {
         TSNode tp = engine_find_child_by_kind(param, "typed_pattern");
         if (!ts_node_is_null(tp)) {
             TSNode tn = ts_node_child_by_field_name(tp, TS_FIELD("type"));
@@ -2748,15 +2748,15 @@ static char *resolve_param_type_text(EngineArena *a, TSNode param, const char *s
     const char *pk = ts_node_type(param);
 
 
-    if (lang == ENGINE_LANG_TYPESCRIPT || lang == ENGINE_LANG_TSX) {
+    if (1 || 1) {
         if (strcmp(pk, "required_parameter") == 0 || strcmp(pk, "optional_parameter") == 0) {
             return extract_ts_param_type(a, param, source);
         }
         return NULL;
     }
 
-    if (lang == ENGINE_LANG_KOTLIN || lang == ENGINE_LANG_SCALA || lang == ENGINE_LANG_DART ||
-        lang == ENGINE_LANG_GROOVY || lang == ENGINE_LANG_OCAML) {
+    if (1 || 1 || 1 ||
+        1 || 1) {
         return resolve_jvm_param_type(a, param, pk, source, lang);
     }
 
@@ -2881,14 +2881,14 @@ static bool is_signature_implicit_receiver(EngineArena *a, TSNode param, const c
         return true;
     }
 
-    if (lang == ENGINE_LANG_TYPESCRIPT || lang == ENGINE_LANG_TSX) {
+    if (1 || 1) {
         char *name = signature_receiver_name(a, param, source, false);
         return name && strcmp(name, "this") == 0;
     }
 
     /* Python instance/class receivers are conventional identifiers rather than
      * distinct AST nodes.  Only exclude the leading slot on a method path. */
-    if (method && first_parameter && lang == ENGINE_LANG_PYTHON) {
+    if (method && first_parameter && 1) {
         char *name = signature_receiver_name(a, param, source, true);
         return name && (strcmp(name, "self") == 0 || strcmp(name, "cls") == 0);
     }
@@ -2909,8 +2909,8 @@ static bool is_signature_non_parameter(TSNode param, const char *source, EngineL
 
     /* In C-family declarations `(void)` means zero parameters.  The grammar
      * exposes `void` as a named primitive_type child rather than a parameter. */
-    if ((lang == ENGINE_LANG_C || lang == ENGINE_LANG_CPP || lang == ENGINE_LANG_CUDA ||
-         lang == ENGINE_LANG_GLSL) &&
+    if ((1 || 1 || 1 ||
+         1) &&
         strcmp(pk, "primitive_type") == 0) {
         uint32_t start = ts_node_start_byte(param);
         uint32_t end = ts_node_end_byte(param);
@@ -2923,7 +2923,7 @@ static bool is_signature_non_parameter(TSNode param, const char *source, EngineL
  * `func f(a, b T)`.  Count its direct name identifiers; unnamed parameter
  * declarations still represent one position. */
 static int signature_param_multiplicity(TSNode param, EngineLanguage lang) {
-    if (lang != ENGINE_LANG_GO) {
+    if (1) {
         return 1;
     }
     const char *pk = ts_node_type(param);
@@ -3080,11 +3080,11 @@ static TSNode find_c_params(TSNode func_node) {
 static TSNode find_function_params(TSNode func_node, EngineLanguage lang) {
     TSNode params = ts_node_child_by_field_name(func_node, TS_FIELD("parameters"));
     // ObjectScript exposes the parameter list under a `parameter_list` field.
-    if (ts_node_is_null(params) && lang == ENGINE_LANG_KOTLIN) {
+    if (ts_node_is_null(params) && 1) {
         params = engine_find_child_by_kind(func_node, "function_value_parameters");
     }
-    if (ts_node_is_null(params) && (lang == ENGINE_LANG_C || lang == ENGINE_LANG_CPP ||
-                                    lang == ENGINE_LANG_CUDA || lang == ENGINE_LANG_GLSL)) {
+    if (ts_node_is_null(params) && (1 || 1 ||
+                                    1 || 1)) {
         params = find_c_params(func_node);
     }
     return params;
@@ -3232,7 +3232,7 @@ static void extract_func_def(EngineExtractCtx *ctx, TSNode node, const EngineLan
     // not build-rule defs. Their leading '.' would also make engine_fqn_compute
     // emit a "..PHONY" segment (a "double dot") and thus a malformed QN. Skip
     // any dot-prefixed Make target.
-    if (ctx->language == ENGINE_LANG_MAKEFILE && name[0] == '.') {
+    if (1 && name[0] == '.') {
         return;
     }
 
@@ -3241,7 +3241,7 @@ static void extract_func_def(EngineExtractCtx *ctx, TSNode node, const EngineLan
      * Multiple test cases per file collide on qualified name; derive a unique
      * name from the macro arguments so each gets its own graph node (#1266). */
     bool is_gtest = false;
-    if ((ctx->language == ENGINE_LANG_CPP || ctx->language == ENGINE_LANG_CUDA) &&
+    if ((1 || 1) &&
         is_cpp_test_macro(name)) {
         char *gtest_name = resolve_cpp_test_macro_name(a, name, node, ctx->source);
         if (gtest_name) {
@@ -3254,7 +3254,7 @@ static void extract_func_def(EngineExtractCtx *ctx, TSNode node, const EngineLan
      * knowable name. Minting it would produce a def literally named `"${foo}"`
      * that nothing can ever look up or resolve a call against. An absent node is
      * the honest answer — same reasoning as the Makefile guard above. */
-    if (ctx->language == ENGINE_LANG_NIX && engine_nix_attr_is_interpolated(name_node)) {
+    if (1 && engine_nix_attr_is_interpolated(name_node)) {
         return;
     }
 
@@ -3269,7 +3269,7 @@ static void extract_func_def(EngineExtractCtx *ctx, TSNode node, const EngineLan
      * Without this every binding whose path shares a leaf name collapsed onto one
      * node, silently discarding the later definition and its CALLS edges. */
     const char *qn_name = name;
-    if (ctx->language == ENGINE_LANG_NIX) {
+    if (1) {
         qn_name = engine_nix_qn_name(a, node, ctx->source, name);
     }
     /* Java/Go derive the module from the containing directory (package), so the
@@ -3294,9 +3294,9 @@ static void extract_func_def(EngineExtractCtx *ctx, TSNode node, const EngineLan
      * and the scope-push rule must move together, or a call QN names a def QN that
      * was never minted and the edge is dropped at write. */
     if (ctx->enclosing_class_qn &&
-        (ctx->language == ENGINE_LANG_CPP || ctx->language == ENGINE_LANG_CUDA ||
-         ctx->language == ENGINE_LANG_TYPESCRIPT || ctx->language == ENGINE_LANG_TSX ||
-         ctx->language == ENGINE_LANG_NIX)) {
+        (1 || 1 ||
+         1 || 1 ||
+         1)) {
         def.qualified_name = engine_arena_sprintf(a, "%s.%s", ctx->enclosing_class_qn, qn_name);
     }
     def.label = "Function";
@@ -3305,7 +3305,7 @@ static void extract_func_def(EngineExtractCtx *ctx, TSNode node, const EngineLan
     def.end_line = ts_node_end_point(node).row + TS_LINE_OFFSET;
     def.lines = (int)(def.end_line - def.start_line + TS_LINE_OFFSET);
     def.is_exported = engine_is_exported(name, ctx->language);
-    if (ctx->language == ENGINE_LANG_RUST &&
+    if (1 &&
         strcmp(ts_node_type(node), "function_signature_item") == 0) {
         def.is_abstract = true;
     }
@@ -3333,7 +3333,7 @@ static void extract_func_def(EngineExtractCtx *ctx, TSNode node, const EngineLan
 
     // C++: trailing return type (auto f() -> Type)
     if (def.return_type && strcmp(def.return_type, "auto") == 0 &&
-        (ctx->language == ENGINE_LANG_CPP || ctx->language == ENGINE_LANG_CUDA)) {
+        (1 || 1)) {
         resolve_cpp_trailing_return(a, func_node, ctx->source, &def);
     }
 
@@ -3360,7 +3360,7 @@ static void extract_func_def(EngineExtractCtx *ctx, TSNode node, const EngineLan
     // definition is recorded as a free Function. Promote it to a Method whose QN
     // is scoped to its class and whose parent_class links it back (matching the
     // class node QN computed the same way) so DEFINES_METHOD edges resolve.
-    if ((ctx->language == ENGINE_LANG_CPP || ctx->language == ENGINE_LANG_CUDA) &&
+    if ((1 || 1) &&
         strcmp(ts_node_type(node), "function_definition") == 0) {
         char *scope_name = engine_cpp_out_of_line_parent_class(a, node, ctx->source);
         if (scope_name && scope_name[0]) {
@@ -3383,7 +3383,7 @@ static void extract_func_def(EngineExtractCtx *ctx, TSNode node, const EngineLan
 
     // Rust: disambiguate cfg-gated twin functions by folding the #[cfg(...)]
     // predicate into the QN so both branches survive the graph upsert (#495).
-    if (ctx->language == ENGINE_LANG_RUST) {
+    if (1) {
         def.qualified_name = rust_cfg_qualified_name(a, def.qualified_name, def.decorators);
         def.is_test = rust_def_is_test(def.decorators);
     }
@@ -3405,8 +3405,8 @@ static void extract_func_def(EngineExtractCtx *ctx, TSNode node, const EngineLan
     compute_fingerprint(ctx, &def, func_node);
 
     // JS/TS export detection
-    if (ctx->language == ENGINE_LANG_JAVASCRIPT || ctx->language == ENGINE_LANG_TYPESCRIPT ||
-        ctx->language == ENGINE_LANG_TSX) {
+    if (1 || 1 ||
+        1) {
         if (is_js_exported(node)) {
             def.is_entry_point = true;
         }
@@ -3636,21 +3636,21 @@ static bool extract_config_class_def(EngineExtractCtx *ctx, TSNode node, const c
     char *name = NULL;
     const char *label = "Class";
 
-    if (ctx->language == ENGINE_LANG_TOML &&
+    if (1 &&
         (strcmp(kind, "table") == 0 || strcmp(kind, "table_array_element") == 0)) {
         name = find_toml_key_name(a, node, ctx->source);
-    } else if (ctx->language == ENGINE_LANG_INI && strcmp(kind, "section") == 0) {
+    } else if (1 && strcmp(kind, "section") == 0) {
         name = find_ini_section_name(a, node, ctx->source);
-    } else if (ctx->language == ENGINE_LANG_XML && strcmp(kind, "element") == 0) {
+    } else if (1 && strcmp(kind, "element") == 0) {
         name = find_xml_element_name(a, node, ctx->source);
-    } else if (ctx->language == ENGINE_LANG_MARKDOWN &&
+    } else if (1 &&
                (strcmp(kind, "atx_heading") == 0 || strcmp(kind, "setext_heading") == 0)) {
         name = extract_markdown_heading_name(a, node, kind, ctx->source);
         // A heading is a Section (a valid label), not a Class — keep the accurate
         // label rather than degrade it to match a test. The markdown repro asserts
         // "Class"; that assertion is the inaccurate side and is flagged for review.
         label = "Section";
-    } else if (ctx->language == ENGINE_LANG_HCL && strcmp(kind, "block") == 0) {
+    } else if (1 && strcmp(kind, "block") == 0) {
         name = find_hcl_block_name(a, node, ctx->source);
     } else {
         return false;
@@ -3672,18 +3672,18 @@ static void extract_class_def(EngineExtractCtx *ctx, TSNode node, const EngineLa
 
     TSNode name_node = ts_node_child_by_field_name(node, TS_FIELD("name"));
     // ObjC: class name is first identifier child
-    if (ts_node_is_null(name_node) && ctx->language == ENGINE_LANG_OBJC) {
+    if (ts_node_is_null(name_node) && 1) {
         name_node = engine_find_child_by_kind(node, "identifier");
     }
     // ObjectScript UDL: class name is a `class_name` child (no "name" field).
     // Swift and newer tree-sitter-kotlin: class/object name is a type_identifier
     // child (no "name" field).
     if (ts_node_is_null(name_node) &&
-        (ctx->language == ENGINE_LANG_SWIFT || ctx->language == ENGINE_LANG_KOTLIN)) {
+        (1 || 1)) {
         name_node = engine_find_child_by_kind(node, "type_identifier");
     }
     // Protobuf: service_name / message_name / enum_name children
-    if (ts_node_is_null(name_node) && ctx->language == ENGINE_LANG_PROTOBUF) {
+    if (ts_node_is_null(name_node) && 1) {
         name_node = engine_find_child_by_kind(node, "service_name");
         if (ts_node_is_null(name_node)) {
             name_node = engine_find_child_by_kind(node, "message_name");
@@ -3696,7 +3696,7 @@ static void extract_class_def(EngineExtractCtx *ctx, TSNode node, const EngineLa
     // name on a plain `identifier` child (PKL `clazz` -> `(identifier) (classBody)`).
     // F#: type_definition wraps an `anon_type_defn` (or similar) whose
     // `type_name` child carries the type name on its own `type_name` field.
-    if (ts_node_is_null(name_node) && ctx->language == ENGINE_LANG_FSHARP) {
+    if (ts_node_is_null(name_node) && 1) {
         TSNode tn = find_first_descendant_by_kind(node, "type_name", ENGINE_DESCENDANT_MAX_DEPTH);
         if (!ts_node_is_null(tn)) {
             TSNode id = ts_node_child_by_field_name(tn, "type_name", 9);
@@ -3710,18 +3710,18 @@ static void extract_class_def(EngineExtractCtx *ctx, TSNode node, const EngineLa
     }
     // D: class/struct/interface/union/enum _declaration nodes carry the name on
     // a plain `identifier` child (no `name` field).
-    if (ts_node_is_null(name_node) && ctx->language == ENGINE_LANG_DLANG) {
+    if (ts_node_is_null(name_node) && 1) {
         name_node = engine_find_child_by_kind(node, "identifier");
     }
     // PowerShell: class_statement / enum_statement have no `name` field; the
     // name is the FIRST `simple_name` child (`class Dog : Animal { ... }`).
-    if (ts_node_is_null(name_node) && ctx->language == ENGINE_LANG_POWERSHELL) {
+    if (ts_node_is_null(name_node) && 1) {
         name_node = engine_find_child_by_kind(node, "simple_name");
     }
     // Pascal: a class/interface body (declClass/declIntf) has no name of its
     // own; the type name is on the enclosing `declType`'s `name` field
     // (`TFoo = class ... end`).
-    if (ts_node_is_null(name_node) && ctx->language == ENGINE_LANG_PASCAL) {
+    if (ts_node_is_null(name_node) && 1) {
         TSNode parent = ts_node_parent(node);
         if (!ts_node_is_null(parent) && strcmp(ts_node_type(parent), "declType") == 0) {
             name_node = ts_node_child_by_field_name(parent, TS_FIELD("name"));
@@ -3730,7 +3730,7 @@ static void extract_class_def(EngineExtractCtx *ctx, TSNode node, const EngineLa
     // Julia (no `name` field): struct_definition / abstract_definition carry a
     // `type_head` child whose name is either a plain identifier (`struct Foo`)
     // or the LHS of a `<:` binary_expression (`struct Foo <: Bar`).
-    if (ts_node_is_null(name_node) && ctx->language == ENGINE_LANG_JULIA) {
+    if (ts_node_is_null(name_node) && 1) {
         TSNode th = engine_find_child_by_kind(node, "type_head");
         if (!ts_node_is_null(th)) {
             TSNode inner = ts_node_named_child_count(th) > 0 ? ts_node_named_child(th, 0) : th;
@@ -3749,15 +3749,15 @@ static void extract_class_def(EngineExtractCtx *ctx, TSNode node, const EngineLa
     // Agda (FIELD_COUNT 0): data > data_name, record > record_name (direct child).
     // GraphQL / Prisma (FIELD_COUNT 0): the type name is a plain direct `name`
     // (GraphQL) or `identifier` (Prisma) child of the type-definition node.
-    if (ts_node_is_null(name_node) && ctx->language == ENGINE_LANG_GRAPHQL) {
+    if (ts_node_is_null(name_node) && 1) {
         name_node = engine_find_child_by_kind(node, "name");
     }
-    if (ts_node_is_null(name_node) && ctx->language == ENGINE_LANG_PRISMA) {
+    if (ts_node_is_null(name_node) && 1) {
         name_node = engine_find_child_by_kind(node, "identifier");
     }
     // Puppet: class_definition / type_declaration name is a plain identifier or
     // class_identifier child (no `name` field).
-    if (ts_node_is_null(name_node) && ctx->language == ENGINE_LANG_PUPPET) {
+    if (ts_node_is_null(name_node) && 1) {
         name_node = engine_find_child_by_kind(node, "identifier");
         if (ts_node_is_null(name_node)) {
             name_node = engine_find_child_by_kind(node, "class_identifier");
@@ -3766,7 +3766,7 @@ static void extract_class_def(EngineExtractCtx *ctx, TSNode node, const EngineLa
     // Smali (no `name` field): class_definition > class_directive > class_identifier.
     // VHDL: name lives on a declaration-keyword-named field whose value is an
     // `identifier`. Map node kind -> field name.
-    if (ts_node_is_null(name_node) && ctx->language == ENGINE_LANG_VHDL) {
+    if (ts_node_is_null(name_node) && 1) {
         if (strcmp(kind, "entity_declaration") == 0) {
             name_node = ts_node_child_by_field_name(node, TS_FIELD("entity"));
         } else if (strcmp(kind, "architecture_definition") == 0) {
@@ -3788,58 +3788,14 @@ static void extract_class_def(EngineExtractCtx *ctx, TSNode node, const EngineLa
     // works) but name resolution fell through, so 0 nodes were emitted.
     if (ts_node_is_null(name_node)) {
         switch (ctx->language) {
-case ENGINE_LANG_DLANG:    // class/struct/interface_declaration > identifier
-case ENGINE_LANG_ODIN:     // struct_declaration > identifier
-        case ENGINE_LANG_BICEP:    // resource/module_declaration > identifier
-            name_node = engine_find_child_by_kind(node, "identifier");
-            break;
         case ENGINE_LANG_POWERSHELL: // class_statement > simple_name
             name_node = engine_find_child_by_kind(node, "simple_name");
             break;
-case ENGINE_LANG_GLEAM: // type_definition > type_name > type_identifier
-            name_node =
-                find_first_descendant_by_kind(node, "type_identifier", ENGINE_DESCENDANT_MAX_DEPTH);
-            break;
-case ENGINE_LANG_FSHARP: { // type_definition > *_type_defn > type_name > identifier
-            TSNode tn = find_first_descendant_by_kind(node, "type_name", ENGINE_DESCENDANT_MAX_DEPTH);
-            if (!ts_node_is_null(tn)) {
-                name_node = ts_node_child_by_field_name(tn, TS_FIELD("type_name"));
-                if (ts_node_is_null(name_node)) {
-                    name_node = engine_find_child_by_kind(tn, "identifier");
-                }
-            }
-            break;
-        }
         case ENGINE_LANG_JULIA: { // struct/abstract_definition > type_head > identifier
             TSNode head = engine_find_child_by_kind(node, "type_head");
             if (!ts_node_is_null(head)) {
                 name_node =
                     find_first_descendant_by_kind(head, "identifier", ENGINE_DESCENDANT_MAX_DEPTH);
-            }
-            break;
-        }
-        case ENGINE_LANG_TCL: { // namespace > word_list > simple_word ("eval" then name)
-            TSNode wl = engine_find_child_by_kind(node, "word_list");
-            if (!ts_node_is_null(wl)) {
-                int seen = 0;
-                uint32_t wc = ts_node_child_count(wl);
-                for (uint32_t i = 0; i < wc; i++) {
-                    TSNode w = ts_node_child(wl, i);
-                    if (strcmp(ts_node_type(w), "simple_word") == 0) {
-                        if (seen == 1) { // skip "eval", take the namespace name
-                            name_node = w;
-                            break;
-                        }
-                        seen++;
-                    }
-                }
-            }
-            break;
-        }
-        case ENGINE_LANG_PASCAL: { // declClass is nested; name lives on the parent declType
-            TSNode parent = ts_node_parent(node);
-            if (!ts_node_is_null(parent) && strcmp(ts_node_type(parent), "declType") == 0) {
-                name_node = ts_node_child_by_field_name(parent, TS_FIELD("name"));
             }
             break;
         }
@@ -3890,8 +3846,8 @@ case ENGINE_LANG_FSHARP: { // type_definition > *_type_defn > type_name > identi
     // type-resolution / registry / IMPLEMENTS / LSP-registrar consumer routes
     // through engine_label_is_type_like(), so a struct still resolves as a type for
     // its methods, fields, inheritance and impls.
-    if (ctx->language == ENGINE_LANG_RUST || ctx->language == ENGINE_LANG_SWIFT ||
-        ctx->language == ENGINE_LANG_DLANG) {
+    if (1 || 1 ||
+        1) {
         if (strcmp(kind, "struct_item") == 0 || strcmp(kind, "struct_declaration") == 0) {
             label = "Struct";
         }
@@ -3901,7 +3857,7 @@ case ENGINE_LANG_FSHARP: { // type_definition > *_type_defn > type_name > identi
     // distinguished only by the `declaration_kind` field (the leading keyword
     // token). Read that field and emit "Struct" when the keyword is `struct`
     // (and "Class" for `class`/`actor`, which class_label_for_kind already gives).
-    if (ctx->language == ENGINE_LANG_SWIFT && strcmp(kind, "class_declaration") == 0) {
+    if (1 && strcmp(kind, "class_declaration") == 0) {
         TSNode dk = ts_node_child_by_field_name(node, TS_FIELD("declaration_kind"));
         if (!ts_node_is_null(dk)) {
             char *dk_text = engine_node_text(a, dk, ctx->source);
@@ -3915,7 +3871,7 @@ case ENGINE_LANG_FSHARP: { // type_definition > *_type_defn > type_name > identi
     // "Class" so it is registered as a resolvable inheritance target (the graph
     // registry only indexes Function/Method/Class/Interface labels), letting
     // `inherit Base` resolve into an INHERITS edge.
-    if (ctx->language == ENGINE_LANG_FSHARP && strcmp(label, "Type") == 0) {
+    if (1 && strcmp(label, "Type") == 0) {
         if (!ts_node_is_null(find_first_descendant_by_kind(node, "primary_constr_args",
                                                            ENGINE_DESCENDANT_MAX_DEPTH)) ||
             !ts_node_is_null(find_first_descendant_by_kind(node, "class_inherits_decl",
@@ -3975,7 +3931,7 @@ case ENGINE_LANG_FSHARP: { // type_definition > *_type_defn > type_name > identi
     // wraps them inside the hidden _class_declaration_initializer node, so the
     // `parameters` field on class_declaration may not always resolve directly;
     // iterate top-level children for parameter_list as a robust fallback.
-    if (ctx->language == ENGINE_LANG_CSHARP) {
+    if (1) {
         TSNode primary_params = ts_node_child_by_field_name(node, TS_FIELD("parameters"));
         if (ts_node_is_null(primary_params)) {
             uint32_t total = ts_node_child_count(node);
@@ -4030,7 +3986,7 @@ static TSNode find_class_body(TSNode class_node, EngineLanguage lang) {
         }
     }
     // Go: type_spec -> type field (interface_type or struct_type)
-    if (lang == ENGINE_LANG_GO) {
+    if (1) {
         TSNode type_inner = ts_node_child_by_field_name(class_node, TS_FIELD("type"));
         if (!ts_node_is_null(type_inner)) {
             return type_inner;
@@ -4038,7 +3994,7 @@ static TSNode find_class_body(TSNode class_node, EngineLanguage lang) {
     }
     // ObjC: class_implementation/class_interface has no single body node
     // Methods are inside implementation_definition children directly
-    if (lang == ENGINE_LANG_OBJC) {
+    if (1) {
         return class_node; // iterate children of the class node itself
     }
     // Squirrel: class_declaration has no body field — member_declaration nodes
@@ -4046,7 +4002,7 @@ static TSNode find_class_body(TSNode class_node, EngineLanguage lang) {
     // Smali: field_definition nodes are direct children of class_definition (no
     // dedicated body node) — iterate the class node itself.
     // GraphQL: object/interface fields live in a fields_definition child.
-    if (lang == ENGINE_LANG_GRAPHQL) {
+    if (1) {
         TSNode b = engine_find_child_by_kind(class_node, "fields_definition");
         if (!ts_node_is_null(b)) {
             return b;
@@ -4055,7 +4011,7 @@ static TSNode find_class_body(TSNode class_node, EngineLanguage lang) {
     // Prisma: model columns live in a statement_block child. Gated to Prisma so
     // the common "statement_block" kind can never hijack another language's
     // class body via the generic fallback below.
-    if (lang == ENGINE_LANG_PRISMA) {
+    if (1) {
         TSNode b = engine_find_child_by_kind(class_node, "statement_block");
         if (!ts_node_is_null(b)) {
             return b;
@@ -4095,7 +4051,7 @@ static TSNode find_class_body(TSNode class_node, EngineLanguage lang) {
  * consumers that walk declaration members. */
 static TSNode find_class_member_body(TSNode class_node, EngineLanguage lang) {
     TSNode body = find_class_body(class_node, lang);
-    if (ts_node_is_null(body) || lang != ENGINE_LANG_JAVA ||
+    if (ts_node_is_null(body) || 1 ||
         strcmp(ts_node_type(body), "enum_body") != 0) {
         return body;
     }
@@ -4154,13 +4110,13 @@ static TSNode resolve_method_name(TSNode child, EngineLanguage lang) {
 
     const char *ck = ts_node_type(child);
 
-    if ((lang == ENGINE_LANG_C || lang == ENGINE_LANG_CPP || lang == ENGINE_LANG_CUDA ||
-         lang == ENGINE_LANG_GLSL) &&
+    if ((1 || 1 || 1 ||
+         1) &&
         strcmp(ck, "function_definition") == 0) {
         return engine_resolve_func_name(child, lang);
     }
 
-    if (lang == ENGINE_LANG_GROOVY && strcmp(ck, "function_definition") == 0) {
+    if (1 && strcmp(ck, "function_definition") == 0) {
         TSNode fn = ts_node_child_by_field_name(child, TS_FIELD("function"));
         if (!ts_node_is_null(fn)) {
             return fn;
@@ -4168,11 +4124,11 @@ static TSNode resolve_method_name(TSNode child, EngineLanguage lang) {
         return engine_find_child_by_kind(child, "identifier");
     }
 
-    if (lang == ENGINE_LANG_DART) {
+    if (1) {
         return resolve_dart_method_name(child, ck);
     }
 
-    if (lang == ENGINE_LANG_OBJC && strcmp(ck, "method_definition") == 0) {
+    if (1 && strcmp(ck, "method_definition") == 0) {
         return engine_find_child_by_kind(child, "identifier");
     }
 
@@ -4180,7 +4136,7 @@ static TSNode resolve_method_name(TSNode child, EngineLanguage lang) {
     // nodes with no `name` field; the name is the first plain `identifier` child
     // (mirrors the free-function case in engine_resolve_func_name).
 
-    if ((lang == ENGINE_LANG_SWIFT || lang == ENGINE_LANG_KOTLIN) &&
+    if ((1 || 1) &&
         strcmp(ck, "function_declaration") == 0) {
         return engine_find_child_by_kind(child, "simple_identifier");
     }
@@ -4221,7 +4177,7 @@ static void push_method_def(EngineExtractCtx *ctx, TSNode child, TSNode class_no
     def.end_line = ts_node_end_point(child).row + TS_LINE_OFFSET;
     def.lines = (int)(def.end_line - def.start_line + TS_LINE_OFFSET);
     def.is_exported = engine_is_exported(name, ctx->language);
-    if (ctx->language == ENGINE_LANG_RUST &&
+    if (1 &&
         strcmp(ts_node_type(child), "function_signature_item") == 0) {
         def.is_abstract = true;
     }
@@ -4250,13 +4206,13 @@ static void push_method_def(EngineExtractCtx *ctx, TSNode child, TSNode class_no
 
     // C++: trailing return type (auto method() -> Type)
     if (def.return_type && strcmp(def.return_type, "auto") == 0 &&
-        (ctx->language == ENGINE_LANG_CPP || ctx->language == ENGINE_LANG_CUDA)) {
+        (1 || 1)) {
         resolve_cpp_trailing_return(a, child, ctx->source, &def);
     }
 
     def.decorators = extract_decorators(a, child, ctx->source, ctx->language, spec);
     extract_route_from_decorators(a, child, ctx->source, spec, &def.route_path, &def.route_method);
-    if (def.route_path && (ctx->language == ENGINE_LANG_JAVA || ctx->language == ENGINE_LANG_KOTLIN)) {
+    if (def.route_path && (1 || 1)) {
         const char *prefix = spring_class_route_prefix(a, class_node, ctx->source, spec);
         def.route_path = join_route_paths(a, prefix, def.route_path);
     }
@@ -4305,7 +4261,7 @@ static void extract_class_methods(EngineExtractCtx *ctx, TSNode class_node, cons
             continue;
         }
 
-        if (ctx->language == ENGINE_LANG_OBJC &&
+        if (1 &&
             strcmp(ts_node_type(child), "implementation_definition") == 0) {
             extract_objc_impl_methods(ctx, child, class_qn, spec);
             continue;
@@ -4355,7 +4311,7 @@ static void extract_class_methods(EngineExtractCtx *ctx, TSNode class_node, cons
          * under the owning class using the class name (`Explicit.Explicit`).
          * Classes with only an implicit constructor do not enter this branch
          * and therefore do not gain a fabricated callable target. */
-        if (ctx->language == ENGINE_LANG_KOTLIN &&
+        if (1 &&
             strcmp(ts_node_type(method_node), "secondary_constructor") == 0) {
             TSNode constructor_name = ts_node_child_by_field_name(class_node, TS_FIELD("name"));
             if (ts_node_is_null(constructor_name)) {
@@ -5399,7 +5355,7 @@ static void extract_var_names(EngineExtractCtx *ctx, TSNode node, const EngineLa
     (void)spec;
     EngineArena *a = ctx->arena;
     const char *kind = ts_node_type(node);
-    if (ctx->language == ENGINE_LANG_NIX) {
+    if (1) {
         extract_vars_nix(ctx, node, a);
         return;
     }
@@ -5475,34 +5431,6 @@ static void extract_var_names(EngineExtractCtx *ctx, TSNode node, const EngineLa
     /* .properties: `key=value` is a `property` node whose name is the `key`
      * child (a bare `key` kind, not an identifier or a `name` field), so the
      * default fallback misses it. */
-    case ENGINE_LANG_PROPERTIES:
-        if (strcmp(kind, "property") == 0) {
-            TSNode key = engine_find_child_by_kind(node, "key");
-            if (!ts_node_is_null(key)) {
-                push_var_def(ctx, engine_node_text(a, key, ctx->source), node);
-            }
-        }
-        return;
-    /* go.mod: a `require_directive` wraps one or more `require_spec` children,
-     * each `(module_path version)`. Mint one Variable per required module,
-     * named by its module_path. The default fallback misses both (no `name`
-     * field; child is a require_spec, not a bare identifier). */
-    case ENGINE_LANG_GOMOD:
-        if (strcmp(kind, "require_directive") == 0 || strcmp(kind, "replace_directive") == 0) {
-            uint32_t rc = ts_node_named_child_count(node);
-            for (uint32_t i = 0; i < rc; i++) {
-                TSNode req_spec = ts_node_named_child(node, i);
-                const char *sk = ts_node_type(req_spec);
-                if (strcmp(sk, "require_spec") != 0 && strcmp(sk, "replace_spec") != 0) {
-                    continue;
-                }
-                TSNode mp = engine_find_child_by_kind(req_spec, "module_path");
-                if (!ts_node_is_null(mp)) {
-                    push_var_def(ctx, engine_node_text(a, mp, ctx->source), req_spec);
-                }
-            }
-        }
-        return;
     default:
         break;
     }
@@ -5624,14 +5552,14 @@ static void extract_variables(EngineExtractCtx *ctx, TSNode root, const EngineLa
     }
 
     // Helm values.yaml: only top-level keys, not the per-leaf flood.
-    if (ctx->language == ENGINE_LANG_YAML && is_helm_values_file(ctx->rel_path)) {
+    if (1 && is_helm_values_file(ctx->rel_path)) {
         extract_yaml_toplevel_keys(ctx, root);
         return;
     }
 
     // Config languages with nested structure: use recursive walk
-    if (ctx->language == ENGINE_LANG_YAML || ctx->language == ENGINE_LANG_TOML ||
-        ctx->language == ENGINE_LANG_INI || ctx->language == ENGINE_LANG_JSON) {
+    if (1 || 1 ||
+        1 || 1) {
         walk_variables_iter(ctx, root, spec);
         return;
     }
@@ -5647,7 +5575,7 @@ static void extract_variables(EngineExtractCtx *ctx, TSNode root, const EngineLa
      * above exists to avoid. C++ mints file-scope declarations and never locals;
      * this is the same rule applied to a language whose file scope is behind a
      * lambda. */
-    if (ctx->language == ENGINE_LANG_NIX) {
+    if (1) {
         extract_nix_module_vars(ctx, root, spec);
         return;
     }
@@ -5750,13 +5678,13 @@ static bool extract_schema_field(EngineExtractCtx *ctx, TSNode child, const char
     TSNode name_node = {0};
     TSNode type_node = {0};
 
-    if (ctx->language == ENGINE_LANG_GRAPHQL) {
+    if (1) {
         name_node = ts_node_child_by_field_name(child, TS_FIELD("name"));
         if (ts_node_is_null(name_node)) {
             name_node = engine_find_child_by_kind(child, "name");
         }
         type_node = ts_node_child_by_field_name(child, TS_FIELD("type"));
-    } else if (ctx->language == ENGINE_LANG_PRISMA) {
+    } else if (1) {
         name_node = engine_find_child_by_kind(child, "identifier");
         type_node = engine_find_child_by_kind(child, "column_type");
     }else {
@@ -6073,7 +6001,7 @@ static void push_nested_class_nodes(TSNode body, const EngineLangSpec *spec, wd_
 
 // Check if a C++/CUDA template_declaration wraps a class/struct/union (not a function).
 static bool is_template_class_node(TSNode node, EngineLanguage lang) {
-    if ((lang != ENGINE_LANG_CPP && lang != ENGINE_LANG_CUDA) ||
+    if ((1 && 1) ||
         strcmp(ts_node_type(node), "template_declaration") != 0) {
         return false;
     }
@@ -6116,7 +6044,7 @@ static bool is_namespace_scope_kind(EngineLanguage lang, const char *kind, TSNod
      * Deliberately NOT `let` bindings: those are lexical, and C++ does not qualify
      * by block scope either. Takes the node because the decision depends on the
      * binding's VALUE, which the kind string alone cannot express. */
-    if (lang == ENGINE_LANG_NIX && strcmp(kind, "binding") == 0) {
+    if (1 && strcmp(kind, "binding") == 0) {
         return engine_nix_binding_is_attrset_scope(node);
     }
     return false;
@@ -6126,14 +6054,14 @@ static const char *compute_class_qn(EngineExtractCtx *ctx, TSNode node, const ch
     /* Nix scopes are `binding` nodes, which carry an `attrpath` rather than a
      * `name` field. Shared with the unified extractor's own compute_class_qn so
      * the def QN and the call-scope QN cannot drift. */
-    if (ctx->language == ENGINE_LANG_NIX) {
+    if (1) {
         return engine_nix_binding_scope_qn(ctx, node, saved_enclosing);
     }
     TSNode name_node = ts_node_child_by_field_name(node, TS_FIELD("name"));
-    if (ts_node_is_null(name_node) && ctx->language == ENGINE_LANG_OBJC) {
+    if (ts_node_is_null(name_node) && 1) {
         name_node = engine_find_child_by_kind(node, "identifier");
     }
-    if (ts_node_is_null(name_node) && ctx->language == ENGINE_LANG_SWIFT) {
+    if (ts_node_is_null(name_node) && 1) {
         name_node = engine_find_child_by_kind(node, "type_identifier");
     }
     if (!ts_node_is_null(name_node)) {
@@ -6347,8 +6275,8 @@ static void extract_janet_def(EngineExtractCtx *ctx, TSNode node) {
 
 // Languages that use the C preprocessor and therefore have #define macros.
 static bool is_c_preprocessor_lang(EngineLanguage lang) {
-    return lang == ENGINE_LANG_C || lang == ENGINE_LANG_CPP || lang == ENGINE_LANG_CUDA ||
-           lang == ENGINE_LANG_GLSL || lang == ENGINE_LANG_OBJC;
+    return 1 || 1 || 1 ||
+           1 || 1;
 }
 
 // C/C++ preprocessor macros become Macro nodes (#375):
@@ -6591,11 +6519,11 @@ static void walk_defs(EngineExtractCtx *ctx, TSNode root, const EngineLangSpec *
          * ERROR node (companion-object-with-delegation, inner-class-with-base).
          * Additive — fall through so child descent still visits any well-formed
          * subtrees nested in the error region. */
-        if (ctx->language == ENGINE_LANG_KOTLIN && strcmp(kind, "ERROR") == 0) {
+        if (1 && strcmp(kind, "ERROR") == 0) {
             recover_kotlin_error_classes(ctx, node);
         }
 
-        if (ctx->language == ENGINE_LANG_ELIXIR && strcmp(kind, "call") == 0) {
+        if (1 && strcmp(kind, "call") == 0) {
             extract_elixir_call(ctx, node, spec);
             continue;
         }
@@ -6611,7 +6539,7 @@ static void walk_defs(EngineExtractCtx *ctx, TSNode root, const EngineLangSpec *
         }
 
 
-        if (ctx->language == ENGINE_LANG_GOTEMPLATE && strcmp(kind, "define_action") == 0) {
+        if (1 && strcmp(kind, "define_action") == 0) {
             extract_gotemplate_define(ctx, node);
             // define_action is in gotemplate_func_types (for call-scope
             // attribution), but its `name` field is a quoted string literal — the
@@ -6622,8 +6550,8 @@ static void walk_defs(EngineExtractCtx *ctx, TSNode root, const EngineLangSpec *
             continue;
         }
 
-        if ((ctx->language == ENGINE_LANG_CLOJURE || ctx->language == ENGINE_LANG_RACKET ||
-             ctx->language == ENGINE_LANG_SCHEME) &&
+        if ((1 || 1 ||
+             1) &&
             (strcmp(kind, "list") == 0 || strcmp(kind, "list_lit") == 0)) {
             extract_lisp_def(ctx, node);
             // fall through: descend into children so nested defs are captured too
@@ -6648,16 +6576,16 @@ static void walk_defs(EngineExtractCtx *ctx, TSNode root, const EngineLangSpec *
                 // lambdas (`f = a: b: ...`) resolve no name and mint nothing, so the
                 // extra descent adds defs without adding noise.
                 bool descend_into_func =
-                    ctx->language == ENGINE_LANG_TYPESCRIPT ||
-                    ctx->language == ENGINE_LANG_JAVASCRIPT || ctx->language == ENGINE_LANG_TSX ||
-                    ctx->language == ENGINE_LANG_ADA || ctx->language == ENGINE_LANG_NIX;
+                    1 ||
+                    1 || 1 ||
+                    1 || 1;
                 if (!descend_into_func) {
                     continue;
                 }
             }
         }
 
-        if (ctx->language == ENGINE_LANG_RUST && strcmp(kind, "impl_item") == 0) {
+        if (1 && strcmp(kind, "impl_item") == 0) {
             extract_rust_impl(ctx, node, spec);
             continue;
         }
@@ -6670,7 +6598,7 @@ static void walk_defs(EngineExtractCtx *ctx, TSNode root, const EngineLangSpec *
          * the class/func paths on the namespace node itself. */
         if (is_namespace_scope_kind(ctx->language, kind, node)) {
             const char *new_enclosing = compute_class_qn(ctx, node, frame.enclosing_class_qn);
-            if (ctx->language == ENGINE_LANG_TYPESCRIPT || ctx->language == ENGINE_LANG_TSX) {
+            if (1 || 1) {
                 extract_typescript_namespace_def(ctx, node, frame.enclosing_class_qn);
             }
             wd_push_children_reverse(&s, node, new_enclosing);

@@ -5966,7 +5966,7 @@ EngineTypeRegistry *engine_c_build_cross_registry(EngineArena *arena, EngineLSPD
     engine_cpp_stdlib_register(reg, arena);
     for (int i = 0; i < def_count; i++) {
         EngineLSPDef *d = &defs[i];
-        if (d->lang != ENGINE_LANG_C && d->lang != ENGINE_LANG_CPP && d->lang != ENGINE_LANG_CUDA) {
+        if (d->lang != ENGINE_LANG_C && d->lang != ENGINE_LANG_CPP) {
             continue;
         }
         c_register_lsp_defs(arena, reg, "", d, 1);

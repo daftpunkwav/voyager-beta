@@ -37,8 +37,9 @@ The core runtime headers in `internal/engine/vendored/common/tree_sitter/`
 
 ## Tree-sitter Grammars
 
-159 pre-generated parsers are vendored in `internal/engine/vendored/grammars/<lang>/`
-(generated `parser.c` plus `scanner.c` where applicable, compiled statically).
+50 pre-generated parsers are vendored in `internal/engine/vendored/grammars/<lang>/`
+(generated `parser.c` plus `scanner.c` where applicable, compiled statically) —
+trimmed from the upstream set to the 50 most mainstream languages.
 Each grammar is the work of its upstream authors and each grammar directory
 contains the upstream `LICENSE` file.
 

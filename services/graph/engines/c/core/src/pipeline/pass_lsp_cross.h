@@ -12,7 +12,7 @@
  * so the same engine_pipeline_find_lsp_resolution path that handles per-
  * file LSP picks them up.
  *
- * Languages covered: Go, C/C++/CUDA, Python, TypeScript/JavaScript/JSX/
+ * Languages covered: Go, C/C++, Python, TypeScript/JavaScript/JSX/
  * TSX, PHP, C#, and JVM (Java/Kotlin via the shared filter helper).
  * Anything else short-circuits via engine_pxc_has_cross_lsp.
  *
@@ -120,7 +120,7 @@ EngineLSPDef *engine_pxc_filter_defs_for_file(const EngineModuleDefIndex *idx, E
  * engine_pxc_run_one path. */
 typedef struct {
     EngineTypeRegistry *go;     /* ENGINE_LANG_GO */
-    EngineTypeRegistry *c;      /* ENGINE_LANG_C, ENGINE_LANG_CPP, ENGINE_LANG_CUDA */
+    EngineTypeRegistry *c;      /* ENGINE_LANG_C, ENGINE_LANG_CPP */
     EngineTypeRegistry *python; /* ENGINE_LANG_PYTHON */
     EngineTypeRegistry *ts;     /* ENGINE_LANG_JAVASCRIPT, TYPESCRIPT, TSX */
     EngineTypeRegistry *php;    /* ENGINE_LANG_PHP */
@@ -140,7 +140,6 @@ static inline EngineTypeRegistry *engine_pxc_registry_for_lang(const EngineCross
         return r->go;
     case ENGINE_LANG_C:   /* fallthrough */
     case ENGINE_LANG_CPP: /* fallthrough */
-    case ENGINE_LANG_CUDA:
         return r->c;
     case ENGINE_LANG_PYTHON:
         return r->python;

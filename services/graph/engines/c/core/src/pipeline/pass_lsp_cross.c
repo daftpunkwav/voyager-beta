@@ -674,7 +674,6 @@ bool engine_pxc_has_cross_lsp(EngineLanguage lang) {
     case ENGINE_LANG_GO:
     case ENGINE_LANG_C:
     case ENGINE_LANG_CPP:
-    case ENGINE_LANG_CUDA:
     case ENGINE_LANG_PYTHON:
     case ENGINE_LANG_JAVASCRIPT:
     case ENGINE_LANG_TYPESCRIPT:
@@ -916,8 +915,7 @@ void engine_pxc_run_one(EngineLanguage lang, EngineFileResult *r, const char *so
                              imp_qns, imp_count, tree, &out);
         break;
     case ENGINE_LANG_C:
-    case ENGINE_LANG_CPP:
-    case ENGINE_LANG_CUDA: {
+    case ENGINE_LANG_CPP: {
         bool cpp_mode = (lang != ENGINE_LANG_C);
         /* C/C++ cross LSP takes include_paths/include_ns_qns instead of
          * imports — the existing pipeline doesn't carry C-style include
@@ -1038,7 +1036,6 @@ void engine_pxc_dispatch_file(EngineLanguage lang, EngineFileResult *result, con
         }
         case ENGINE_LANG_C:
         case ENGINE_LANG_CPP:
-        case ENGINE_LANG_CUDA:
             engine_run_c_lsp_cross_with_registry(
                 &result->arena, source, source_len, def_module, (lang != ENGINE_LANG_C), prebuilt,
                 imp_keys, imp_vals, imp_count, result->cached_tree, &result->resolved_calls);

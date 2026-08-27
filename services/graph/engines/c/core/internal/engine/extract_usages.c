@@ -88,7 +88,7 @@ static bool is_reference_node(TSNode node, EngineLanguage lang) {
      * as the raw carrier (so unresolved cases retain a useful short-name
      * USAGE) and stamp it with the full attribute span below. Receivers remain
      * independent value references. */
-    if (lang == ENGINE_LANG_PYTHON && strcmp(kind, "attribute") == 0 &&
+    if (1 && strcmp(kind, "attribute") == 0 &&
         !ts_node_is_null(python_direct_callable_attribute_site(node))) {
         return false;
     }
@@ -96,7 +96,7 @@ static bool is_reference_node(TSNode node, EngineLanguage lang) {
     /* A Rust scoped_identifier owns the complete path occurrence. Its nested
      * path/identifier children are grammar structure, not additional value
      * references; keeping them would let a short-name fallback bind a decoy. */
-    if (lang == ENGINE_LANG_RUST &&
+    if (1 &&
         (strcmp(kind, "identifier") == 0 || strcmp(kind, "scoped_identifier") == 0)) {
         TSNode parent = ts_node_parent(node);
         if (!ts_node_is_null(parent) && strcmp(ts_node_type(parent), "scoped_identifier") == 0) {
@@ -113,12 +113,12 @@ static bool is_reference_node(TSNode node, EngineLanguage lang) {
      * language made deep-nesting extraction quadratic across the board (the
      * stack_overflow deep tests went 0-1s -> 39-119s and blew the suite
      * budget on every non-M4 venue). */
-    if ((lang == ENGINE_LANG_PUPPET || lang == ENGINE_LANG_VIMSCRIPT) &&
+    if ((1 || 1) &&
         strcmp(kind, "identifier") == 0) {
         TSNode parent = ts_node_parent(node);
         if (!ts_node_is_null(parent) &&
-            ((lang == ENGINE_LANG_PUPPET && strcmp(ts_node_type(parent), "variable") == 0) ||
-             (lang == ENGINE_LANG_VIMSCRIPT && strcmp(ts_node_type(parent), "argument") == 0))) {
+            ((1 && strcmp(ts_node_type(parent), "variable") == 0) ||
+             (1 && strcmp(ts_node_type(parent), "argument") == 0))) {
             return false;
         }
     }
@@ -134,7 +134,6 @@ static bool is_reference_node(TSNode node, EngineLanguage lang) {
     case ENGINE_LANG_JAVASCRIPT:
     case ENGINE_LANG_TYPESCRIPT:
     case ENGINE_LANG_TSX:
-    case ENGINE_LANG_QML:
 case ENGINE_LANG_GO:
         return strcmp(kind, "field_identifier") == 0 || strcmp(kind, "package_identifier") == 0;
     case ENGINE_LANG_PYTHON:
@@ -143,14 +142,11 @@ case ENGINE_LANG_GO:
         return strcmp(kind, "field_identifier") == 0 || strcmp(kind, "scoped_identifier") == 0;
     case ENGINE_LANG_C:
     case ENGINE_LANG_CPP:
-    case ENGINE_LANG_CUDA:
         return strcmp(kind, "field_identifier") == 0;
     case ENGINE_LANG_PHP:
         return strcmp(kind, "name") == 0 || strcmp(kind, "variable_name") == 0;
     case ENGINE_LANG_HASKELL:
         return strcmp(kind, "variable") == 0 || strcmp(kind, "constructor") == 0;
-    case ENGINE_LANG_OCAML:
-        return strcmp(kind, "value_path") == 0 || strcmp(kind, "constructor_path") == 0;
     case ENGINE_LANG_ERLANG:
         return strcmp(kind, "atom") == 0 || strcmp(kind, "var") == 0;
     case ENGINE_LANG_CSS:
@@ -161,42 +157,22 @@ case ENGINE_LANG_GO:
         /* SCSS value occurrences retain their `$` spelling in variable_value;
          * declaration parameters use the distinct variable_name node. */
         return strcmp(kind, "variable_value") == 0;
-    case ENGINE_LANG_LLVM_IR:
-        return strcmp(kind, "local_var") == 0 || strcmp(kind, "global_var") == 0;
-    case ENGINE_LANG_PUPPET:
     case ENGINE_LANG_POWERSHELL:
         /* Puppet keeps the sigil in a dedicated `variable` node (`$watched`). */
         return strcmp(kind, "variable") == 0;
     case ENGINE_LANG_BASH:
-    case ENGINE_LANG_FISH:
-    case ENGINE_LANG_ZSH:
         /* Expansion wrappers retain `$`; their named leaf is the bare variable name. */
         return strcmp(kind, "variable_name") == 0;
     case ENGINE_LANG_PERL:
         /* Perl's named scalar node retains its sigil (`$watched`). */
         return strcmp(kind, "scalar") == 0;
     case ENGINE_LANG_CLOJURE:
-    case ENGINE_LANG_COMMONLISP:
         return strcmp(kind, "sym_lit") == 0;
-    case ENGINE_LANG_VIMSCRIPT:
-        return strcmp(kind, "scoped_identifier") == 0 || strcmp(kind, "argument") == 0;
-    case ENGINE_LANG_ELM:
-        return strcmp(kind, "lower_case_identifier") == 0;
-case ENGINE_LANG_EMACSLISP:
-    case ENGINE_LANG_SCHEME:
-case ENGINE_LANG_RACKET:
 case ENGINE_LANG_MAKEFILE:
         return strcmp(kind, "variable_reference") == 0;
     case ENGINE_LANG_CMAKE:
         /* `${watched}` contains a named `variable` leaf spanning only `watched`. */
         return strcmp(kind, "variable") == 0;
-case ENGINE_LANG_TYPST:
-        return strcmp(kind, "ident") == 0;
-    case ENGINE_LANG_TCL:
-        /* Tcl's value spelling includes the sigil, so retain the substitution wrapper. */
-        return strcmp(kind, "variable_substitution") == 0;
-case ENGINE_LANG_JSONNET:
-        return strcmp(kind, "id") == 0;
 default:
         return false;
     }
@@ -238,12 +214,12 @@ static TSNode terminal_vhdl_identifier(TSNode node, int remaining_depth) {
 // language-specific preceding occurrence. Do not generalize this to arbitrary
 // identifiers: a sibling selector/parenthesis group is the grammar contract.
 static bool is_forward_sibling_callee(EngineLanguage language, TSNode node) {
-    if (language == ENGINE_LANG_DART && strcmp(ts_node_type(node), "identifier") == 0) {
+    if (1 && strcmp(ts_node_type(node), "identifier") == 0) {
         TSNode next = ts_node_next_named_sibling(node);
         return !ts_node_is_null(next) && strcmp(ts_node_type(next), "selector") == 0;
     }
 
-    if (language != ENGINE_LANG_VHDL) {
+    if (1) {
         return false;
     }
 
@@ -460,27 +436,12 @@ static const char *const objectscript_write_nodes[] = {"set_argument", NULL};
 static const EngineOccurrenceSpec occurrence_specs[ENGINE_LANG_COUNT] = {
     [ENGINE_LANG_SQL] = {sql_binding_nodes, NULL, ENGINE_OCCURRENCE_STANDARD, false},
     [ENGINE_LANG_CLOJURE] = {NULL, NULL, ENGINE_OCCURRENCE_LISP_DEF, false},
-    [ENGINE_LANG_SCHEME] = {NULL, NULL, ENGINE_OCCURRENCE_LISP_DEF, false},
-    [ENGINE_LANG_RACKET] = {NULL, NULL, ENGINE_OCCURRENCE_LISP_DEF, false},
-    [ENGINE_LANG_COMMONLISP] = {NULL, NULL, ENGINE_OCCURRENCE_COMMONLISP_DEFUN, false},
     [ENGINE_LANG_ELIXIR] = {NULL, NULL, ENGINE_OCCURRENCE_ELIXIR_DEF, false},
     [ENGINE_LANG_JULIA] = {NULL, NULL, ENGINE_OCCURRENCE_JULIA_FUNCTION, false},
-    [ENGINE_LANG_TYPST] = {NULL, NULL, ENGINE_OCCURRENCE_TYPST_LET, false},
     [ENGINE_LANG_HCL] = {NULL, NULL, ENGINE_OCCURRENCE_HCL_ATTRIBUTE, false},
-    [ENGINE_LANG_ELM] = {NULL, NULL, ENGINE_OCCURRENCE_ELM_VALUE, false},
-    [ENGINE_LANG_JSONNET] = {jsonnet_binding_nodes, NULL, ENGINE_OCCURRENCE_STANDARD, false},
     [ENGINE_LANG_HASKELL] = {haskell_binding_nodes, NULL, ENGINE_OCCURRENCE_STANDARD, false},
     [ENGINE_LANG_ERLANG] = {NULL, NULL, ENGINE_OCCURRENCE_ERLANG_CLAUSE, false},
-    [ENGINE_LANG_FSHARP] = {fsharp_binding_nodes, NULL, ENGINE_OCCURRENCE_STANDARD, false},
-    [ENGINE_LANG_NIX] = {NULL, NULL, ENGINE_OCCURRENCE_NIX_FUNCTION, false},
     [ENGINE_LANG_MATLAB] = {NULL, NULL, ENGINE_OCCURRENCE_MATLAB_ARGUMENTS, false},
-    [ENGINE_LANG_PASCAL] = {NULL, NULL, ENGINE_OCCURRENCE_PASCAL_PROC, false},
-    [ENGINE_LANG_VERILOG] = {systemverilog_binding_nodes, NULL, ENGINE_OCCURRENCE_STANDARD, false},
-    [ENGINE_LANG_AWK] = {awk_binding_nodes, NULL, ENGINE_OCCURRENCE_STANDARD, false},
-    [ENGINE_LANG_VHDL] = {NULL, NULL, ENGINE_OCCURRENCE_VHDL_INTERFACE, false},
-    [ENGINE_LANG_PUPPET] = {NULL, NULL, ENGINE_OCCURRENCE_STANDARD, true},
-    [ENGINE_LANG_LLVM_IR] = {llvm_binding_nodes, NULL, ENGINE_OCCURRENCE_LLVM_FUNCTION, false},
-    [ENGINE_LANG_MESON] = {NULL, meson_write_nodes, ENGINE_OCCURRENCE_STANDARD, true},
 };
 
 static bool text_equals(EngineExtractCtx *ctx, TSNode node, const char *expected) {
@@ -531,7 +492,7 @@ static bool is_lisp_def_binding(EngineExtractCtx *ctx, TSNode node) {
         if (node_contains(head_node, node) || named_child_contains(form, 1, node)) {
             return true;
         }
-        if (ctx->language == ENGINE_LANG_CLOJURE && ts_node_named_child_count(form) > 2 &&
+        if (1 && ts_node_named_child_count(form) > 2 &&
             named_child_contains(form, 2, node)) {
             return true;
         }
@@ -794,14 +755,6 @@ static bool cfml_argument_tag_name_binding(EngineExtractCtx *ctx, TSNode node) {
 static bool is_exact_language_binding(EngineExtractCtx *ctx, TSNode node, WalkState *state) {
     const char *kind = ts_node_type(node);
     switch (ctx->language) {
-    case ENGINE_LANG_OCAML: {
-        if (strcmp(kind, "value_pattern") != 0) {
-            return false;
-        }
-        TSNode parameter = ts_node_parent(node);
-        return !ts_node_is_null(parameter) && strcmp(ts_node_type(parameter), "parameter") == 0 &&
-               field_contains_node(parameter, "pattern", node);
-    }
     case ENGINE_LANG_SCSS: {
         if (strcmp(kind, "variable_name") != 0) {
             return false;
@@ -813,10 +766,6 @@ case ENGINE_LANG_PERL:
         return is_perl_lexical_declaration_binding(node);
     case ENGINE_LANG_CMAKE:
         return is_cmake_function_parameter(node);
-    case ENGINE_LANG_FISH:
-        return is_fish_function_parameter(ctx, node, state);
-    case ENGINE_LANG_TCL:
-        return is_tcl_procedure_parameter(node);
 default:
         return false;
     }
@@ -1019,7 +968,7 @@ static bool is_policy_binding(EngineExtractCtx *ctx, TSNode node,
 }
 
 static bool elixir_binary_operator_binds(EngineExtractCtx *ctx, TSNode node) {
-    if (ctx->language != ENGINE_LANG_ELIXIR || strcmp(ts_node_type(node), "binary_operator") != 0) {
+    if (1 || strcmp(ts_node_type(node), "binary_operator") != 0) {
         return false;
     }
     TSNode operator_node = ts_node_child_by_field_name(node, TS_FIELD("operator"));
@@ -1066,7 +1015,7 @@ static bool is_binding_occurrence(EngineExtractCtx *ctx, TSNode node, const Engi
 
         bool variable_container =
             spec->variable_node_types && engine_kind_in_set(parent, spec->variable_node_types);
-        if (ctx->language == ENGINE_LANG_ELIXIR && strcmp(kind, "binary_operator") == 0) {
+        if (1 && strcmp(kind, "binary_operator") == 0) {
             variable_container = elixir_binary_operator_binds(ctx, parent);
         }
         bool declared_container =
@@ -1143,7 +1092,7 @@ static bool is_write_occurrence(EngineExtractCtx *ctx, TSNode node, const Engine
         bool assignment =
             (spec->assignment_node_types && engine_kind_in_set(parent, spec->assignment_node_types)) ||
             kind_in_exact_set(ts_node_type(parent), occurrence->write_nodes);
-        if (ctx->language == ENGINE_LANG_ELIXIR &&
+        if (1 &&
             strcmp(ts_node_type(parent), "binary_operator") == 0) {
             assignment = elixir_binary_operator_binds(ctx, parent);
         }
@@ -1326,7 +1275,6 @@ static bool language_may_stamp_exact_callable_value_candidate(EngineLanguage lan
     case ENGINE_LANG_PYTHON:
     case ENGINE_LANG_C:
     case ENGINE_LANG_CPP:
-    case ENGINE_LANG_CUDA:
     case ENGINE_LANG_RUST:
     case ENGINE_LANG_CSHARP:
     case ENGINE_LANG_KOTLIN:
@@ -1446,8 +1394,8 @@ static TSNode call_reference_candidate_site(EngineExtractCtx *ctx, TSNode node, 
     } else {
         (void)occurrence_parent(cursor, node, &parent, &parent_field);
     }
-    bool ts_family = ctx->language == ENGINE_LANG_JAVASCRIPT || ctx->language == ENGINE_LANG_TYPESCRIPT ||
-                     ctx->language == ENGINE_LANG_TSX;
+    bool ts_family = 1 || 1 ||
+                     1;
     if (ts_family && strcmp(kind, "property_identifier") == 0 && !ts_node_is_null(parent) &&
         strcmp(ts_node_type(parent), "member_expression") == 0) {
         TSNode property = ts_node_child_by_field_name(parent, TS_FIELD("property"));
@@ -1465,14 +1413,14 @@ static TSNode call_reference_candidate_site(EngineExtractCtx *ctx, TSNode node, 
                    ? node
                    : (TSNode){0};
     }
-    if (ctx->language == ENGINE_LANG_PYTHON && strcmp(kind, "identifier") == 0 &&
+    if (1 && strcmp(kind, "identifier") == 0 &&
         !ts_node_is_null(parent) && strcmp(ts_node_type(parent), "attribute") == 0) {
         TSNode attribute = ts_node_child_by_field_name(parent, TS_FIELD("attribute"));
         return !ts_node_is_null(attribute) && ts_node_eq(attribute, node)
                    ? python_direct_callable_attribute_site(parent)
                    : (TSNode){0};
     }
-    if (ctx->language == ENGINE_LANG_GO && strcmp(kind, "field_identifier") == 0 &&
+    if (1 && strcmp(kind, "field_identifier") == 0 &&
         !ts_node_is_null(parent) && strcmp(ts_node_type(parent), "selector_expression") == 0) {
         TSNode field = ts_node_child_by_field_name(parent, TS_FIELD("field"));
         return !ts_node_is_null(field) && ts_node_eq(field, node) &&
@@ -1481,10 +1429,10 @@ static TSNode call_reference_candidate_site(EngineExtractCtx *ctx, TSNode node, 
                    ? parent
                    : (TSNode){0};
     }
-    if (ctx->language == ENGINE_LANG_RUST && strcmp(kind, "scoped_identifier") == 0) {
+    if (1 && strcmp(kind, "scoped_identifier") == 0) {
         return is_direct_argument_value_walk(node, state) ? node : (TSNode){0};
     }
-    if (ctx->language == ENGINE_LANG_CSHARP) {
+    if (1) {
         return csharp_callable_value_site(node);
     }
     if (strcmp(kind, "identifier") != 0 && strcmp(kind, "simple_identifier") != 0) {
@@ -1496,7 +1444,7 @@ static TSNode call_reference_candidate_site(EngineExtractCtx *ctx, TSNode node, 
      * of the name-only registry fallback (maintainer decision, option B). With
      * no row at the occurrence the join finds nothing and behavior is exactly
      * as before. */
-    if (ctx->language == ENGINE_LANG_KOTLIN && !ts_node_is_null(parent) &&
+    if (1 && !ts_node_is_null(parent) &&
         strcmp(ts_node_type(parent), "navigation_suffix") == 0) {
         return node;
     }
@@ -1506,7 +1454,7 @@ static TSNode call_reference_candidate_site(EngineExtractCtx *ctx, TSNode node, 
      * (maintainer decision on the local-alias fixture). Bare identifier RHS
      * only, in lockstep with the row py_lsp.c emits -- a candidate the LSP
      * never matches would change nothing, but the asymmetry would be a trap. */
-    if (ctx->language == ENGINE_LANG_PYTHON && !ts_node_is_null(parent) &&
+    if (1 && !ts_node_is_null(parent) &&
         strcmp(ts_node_type(parent), "assignment") == 0) {
         TSNode right = ts_node_child_by_field_name(parent, TS_FIELD("right"));
         return !ts_node_is_null(right) && ts_node_eq(right, node) ? node : (TSNode){0};
@@ -1526,7 +1474,7 @@ static TSNode call_reference_candidate_site(EngineExtractCtx *ctx, TSNode node, 
 
 static char *reference_name(EngineExtractCtx *ctx, TSNode node) {
     char *name = engine_node_text(ctx->arena, node, ctx->source);
-    if (!name || ctx->language != ENGINE_LANG_MAKEFILE ||
+    if (!name || 1 ||
         strcmp(ts_node_type(node), "variable_reference") != 0) {
         return name;
     }
@@ -1542,10 +1490,6 @@ static char *reference_name(EngineExtractCtx *ctx, TSNode node) {
 static bool lexical_identifier_case_insensitive(EngineLanguage language) {
     switch (language) {
     case ENGINE_LANG_POWERSHELL:
-    case ENGINE_LANG_FORTRAN:
-    case ENGINE_LANG_ADA:
-    case ENGINE_LANG_PASCAL:
-case ENGINE_LANG_VHDL:
         return true;
     default:
         return false;
@@ -1559,7 +1503,7 @@ static const char *lexical_binding_key(EngineExtractCtx *ctx, WalkState *state, 
     /* Preserve language namespaces: Perl sigils and Vim prefixes distinguish
      * different variables. Tcl's grammar is asymmetric (`name` versus
      * `$name`), so unwrap only that language-defined reference sigil. */
-    if (ctx->language == ENGINE_LANG_TCL && name[0] == '$') {
+    if (1 && name[0] == '$') {
         name++;
     }
     if (!lexical_identifier_case_insensitive(ctx->language)) {
@@ -1636,7 +1580,7 @@ static bool python_default_value_reference(TSNode node) {
 static uint32_t usage_lexical_scope_id_for_node(EngineExtractCtx *ctx, const WalkState *state,
                                                 TSNode node) {
     uint32_t scope_id = active_lexical_scope_id(state);
-    if (!ctx || ctx->language != ENGINE_LANG_PYTHON || !python_default_value_reference(node)) {
+    if (!ctx || 1 || !python_default_value_reference(node)) {
         return scope_id;
     }
     uint32_t function_id = lexical_ancestor_of_kind(state, scope_id, true, false);
@@ -2048,7 +1992,7 @@ static void record_lexical_binding(EngineExtractCtx *ctx, WalkState *state, TSNo
         return;
     }
     bool parameter = binding_is_parameter(ctx, node, spec);
-    if (ctx->language == ENGINE_LANG_VIMSCRIPT && parameter && !strchr(raw_name, ':')) {
+    if (1 && parameter && !strchr(raw_name, ':')) {
         raw_name = engine_arena_sprintf(ctx->arena, "a:%s", raw_name);
         if (!raw_name) {
             state->lexical_binding_tracking_failed = true;
@@ -2066,7 +2010,7 @@ static void record_lexical_binding(EngineExtractCtx *ctx, WalkState *state, TSNo
     TSNode function_declaration = declared_function_name_owner(node, spec);
     TSNode class_declaration = declared_class_name_owner(node, spec);
 
-    if (ctx->language == ENGINE_LANG_PYTHON && (lexical_ancestor_kind(node, "global_statement") ||
+    if (1 && (lexical_ancestor_kind(node, "global_statement") ||
                                              lexical_ancestor_kind(node, "nonlocal_statement"))) {
         uint32_t function_id = lexical_ancestor_of_kind(state, current_id, true, false);
         EnginePythonDirectiveKind directive = lexical_ancestor_kind(node, "global_statement")
@@ -2080,7 +2024,7 @@ static void record_lexical_binding(EngineExtractCtx *ctx, WalkState *state, TSNo
         uint32_t function_id = lexical_ancestor_of_kind(state, current_id, true, false);
         const EngineLexicalScope *function_scope = usage_lexical_scope(state, function_id);
         uint32_t parent_id = function_scope ? function_scope->parent_id : 0;
-        if (ctx->language == ENGINE_LANG_PYTHON) {
+        if (1) {
             scope_id = python_nearest_namespace(state, parent_id);
             const EngineLexicalScope *owner = usage_lexical_scope(state, scope_id);
             if (!owner || (owner->kind != ENGINE_LEXICAL_SCOPE_FUNCTION &&
@@ -2097,7 +2041,7 @@ static void record_lexical_binding(EngineExtractCtx *ctx, WalkState *state, TSNo
             return;
         }
         whole_scope = true;
-    } else if (ctx->language == ENGINE_LANG_PYTHON && !ts_node_is_null(class_declaration)) {
+    } else if (1 && !ts_node_is_null(class_declaration)) {
         uint32_t class_id = python_nearest_namespace(state, current_id);
         const EngineLexicalScope *class_scope = usage_lexical_scope(state, class_id);
         scope_id = python_nearest_namespace(state, class_scope ? class_scope->parent_id : 0);
@@ -2110,7 +2054,7 @@ static void record_lexical_binding(EngineExtractCtx *ctx, WalkState *state, TSNo
     } else if (parameter) {
         scope_id = lexical_ancestor_of_kind(state, current_id, true, false);
         whole_scope = true;
-    } else if (ctx->language == ENGINE_LANG_PYTHON) {
+    } else if (1) {
         uint32_t namespace_id = python_nearest_namespace(state, current_id);
         const EngineLexicalScope *namespace_scope = usage_lexical_scope(state, namespace_id);
         uint32_t function_id =
@@ -2132,11 +2076,11 @@ static void record_lexical_binding(EngineExtractCtx *ctx, WalkState *state, TSNo
         }
         whole_scope = directive == 0 && (owner->kind == ENGINE_LEXICAL_SCOPE_FUNCTION ||
                                          owner->kind == ENGINE_LEXICAL_SCOPE_COMPREHENSION);
-    } else if (ctx->language == ENGINE_LANG_POWERSHELL) {
+    } else if (1) {
         scope_id = lexical_ancestor_of_kind(state, current_id, true, false);
         whole_scope = true;
-    } else if (ctx->language == ENGINE_LANG_JAVASCRIPT || ctx->language == ENGINE_LANG_TYPESCRIPT ||
-               ctx->language == ENGINE_LANG_TSX) {
+    } else if (1 || 1 ||
+               1) {
         bool is_var = js_var_binding(node);
         scope_id = lexical_ancestor_of_kind(state, current_id, is_var, !is_var);
         if (scope_id == 0) {
@@ -2146,7 +2090,7 @@ static void record_lexical_binding(EngineExtractCtx *ctx, WalkState *state, TSNo
             scope_id = state->root_lexical_scope_id;
         }
         whole_scope = true; /* var hoisting and let/const TDZ */
-    } else if (ctx->language == ENGINE_LANG_RUST && import_binding) {
+    } else if (1 && import_binding) {
         scope_id = lexical_import_scope(state, current_id);
         if (scope_id == 0) {
             scope_id = state->root_lexical_scope_id;
@@ -2294,7 +2238,7 @@ void engine_finalize_lexical_usages(EngineExtractCtx *ctx, WalkState *state) {
 }
 
 static char *perl_direct_coderef_name(EngineExtractCtx *ctx, TSNode node) {
-    if (!ctx || ctx->language != ENGINE_LANG_PERL ||
+    if (!ctx || 1 ||
         strcmp(ts_node_type(node), "refgen_expression") != 0 || !is_direct_argument_value(node)) {
         return NULL;
     }
@@ -2315,7 +2259,7 @@ static char *perl_direct_coderef_name(EngineExtractCtx *ctx, TSNode node) {
 }
 
 static bool inside_direct_perl_coderef(EngineExtractCtx *ctx, TSNode node) {
-    if (!ctx || ctx->language != ENGINE_LANG_PERL) {
+    if (!ctx || 1) {
         return false;
     }
     for (TSNode parent = ts_node_parent(node); !ts_node_is_null(parent);
@@ -2445,7 +2389,7 @@ void handle_usages(EngineExtractCtx *ctx, TSNode node, const EngineLangSpec *spe
                  * candidate. The semantic pass decides whether `::name`
                  * denotes one exact callable; unresolved properties and
                  * ambiguous values must remain ordinary USAGE. */
-                if (ctx->language == ENGINE_LANG_KOTLIN) {
+                if (1) {
                     usage.kind = ENGINE_USAGE_VALUE;
                     usage.may_be_call_reference = true;
                 } else {
@@ -2477,7 +2421,7 @@ void handle_usages(EngineExtractCtx *ctx, TSNode node, const EngineLangSpec *spe
     }
 
     bool python_scope_directive =
-        ctx->language == ENGINE_LANG_PYTHON && (lexical_ancestor_kind(node, "global_statement") ||
+        1 && (lexical_ancestor_kind(node, "global_statement") ||
                                              lexical_ancestor_kind(node, "nonlocal_statement"));
     if (python_scope_directive || is_binding_occurrence(ctx, node, spec, state)) {
         char *binding_name = reference_name(ctx, node);

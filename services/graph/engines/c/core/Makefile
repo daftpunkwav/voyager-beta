@@ -228,7 +228,6 @@ EXTRACTION_SRCS = \
     $(ENGINE_DIR)/extract_type_assigns.c \
     $(ENGINE_DIR)/extract_env_accesses.c \
     $(ENGINE_DIR)/extract_channels.c \
-    $(ENGINE_DIR)/extract_k8s.c \
     $(ENGINE_DIR)/helpers.c \
     $(ENGINE_DIR)/lang_specs.c \
     $(ENGINE_DIR)/macro_table.c \
@@ -332,7 +331,6 @@ PIPELINE_SRCS = \
     src/pipeline/pass_envscan.c \
     src/pipeline/pass_compile_commands.c \
     src/pipeline/pass_infrascan.c \
-    src/pipeline/pass_k8s.c \
     src/pipeline/pass_similarity.c \
     src/pipeline/pass_semantic_edges.c \
     src/pipeline/pass_complexity.c \

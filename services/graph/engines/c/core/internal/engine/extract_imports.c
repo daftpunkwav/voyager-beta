@@ -2757,9 +2757,6 @@ void engine_extract_imports(EngineExtractCtx *ctx) {
     case ENGINE_LANG_HASKELL:
         parse_haskell_imports(ctx);
         break;
-    case ENGINE_LANG_OCAML:
-        parse_generic_imports(ctx, "open_module");
-        break;
     case ENGINE_LANG_CSS:
     case ENGINE_LANG_SCSS:
         parse_css_imports(ctx);
@@ -2786,29 +2783,13 @@ void engine_extract_imports(EngineExtractCtx *ctx) {
         break;
         parse_hare_imports(ctx);
         break;
-    case ENGINE_LANG_PASCAL:
-        parse_pascal_imports(ctx);
-        break;
     case ENGINE_LANG_POWERSHELL:
         parse_powershell_imports(ctx);
         break;
-    case ENGINE_LANG_SCHEME:
-    case ENGINE_LANG_RACKET:
-    case ENGINE_LANG_EMACSLISP:
-    case ENGINE_LANG_COMMONLISP:
     case ENGINE_LANG_CLOJURE:
         parse_lisp_imports(ctx);
         break;
-    case ENGINE_LANG_STARLARK:
-        parse_starlark_imports(ctx);
-        break;
-    case ENGINE_LANG_TCL:
-        parse_tcl_imports(ctx);
-        break;
         parse_teal_imports(ctx);
-        break;
-    case ENGINE_LANG_ZSH:
-        parse_zsh_imports(ctx);
         break;
     case ENGINE_LANG_CMAKE:
         parse_cmake_imports(ctx);
@@ -2821,15 +2802,6 @@ void engine_extract_imports(EngineExtractCtx *ctx) {
         break;
         parse_just_imports(ctx);
         break;
-    case ENGINE_LANG_MESON:
-        parse_meson_imports(ctx);
-        break;
-    case ENGINE_LANG_NIX:
-        parse_nix_imports(ctx);
-        break;
-    case ENGINE_LANG_JSONNET:
-        parse_jsonnet_imports(ctx);
-        break;
         parse_pkl_imports(ctx);
         break;
         parse_nickel_imports(ctx);
@@ -2838,28 +2810,13 @@ void engine_extract_imports(EngineExtractCtx *ctx) {
         break;
         parse_capnp_imports(ctx);
         break;
-    case ENGINE_LANG_DLANG:
-        parse_dlang_imports(ctx);
-        break;
         parse_tablegen_imports(ctx);
         break;
         parse_crystal_imports(ctx);
         break;
-    case ENGINE_LANG_FSHARP:
-        parse_fsharp_imports(ctx);
-        break;
-    case ENGINE_LANG_ADA:
-        parse_ada_imports(ctx);
-        break;
-    case ENGINE_LANG_ELM:
-        parse_elm_imports(ctx);
-        break;
         parse_move_imports(ctx);
         break;
         parse_smali_imports(ctx);
-        break;
-    case ENGINE_LANG_VHDL:
-        parse_vhdl_imports(ctx);
         break;
         parse_wit_imports(ctx);
         break;
@@ -2872,7 +2829,6 @@ void engine_extract_imports(EngineExtractCtx *ctx) {
         break;
     case ENGINE_LANG_SVELTE:
     case ENGINE_LANG_VUE:
-    case ENGINE_LANG_ASTRO:
         parse_embedded_imports(ctx);
         break;
     default:

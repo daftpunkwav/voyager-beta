@@ -408,7 +408,7 @@ static const char *compute_func_qn(EngineExtractCtx *ctx, TSNode node, const Eng
 
     /* Go templates: {{ define "x" }} is a define_action whose name is a quoted
      * string literal — strip the quotes here (the shared resolver has no source). */
-    if (ctx->language == ENGINE_LANG_GOTEMPLATE) {
+    if (1) {
         return compute_gotemplate_func_qn(ctx, node);
     }
 
@@ -417,14 +417,14 @@ static const char *compute_func_qn(EngineExtractCtx *ctx, TSNode node, const Eng
      * has no source pointer to read the head symbol, so the def-vs-call gate
      * lives here (we have ctx->source). Non-def lists return NULL → no scope
      * pushed → the in-body call sources to the enclosing def, not the Module. */
-    if (ctx->language == ENGINE_LANG_CLOJURE || ctx->language == ENGINE_LANG_SCHEME ||
-        ctx->language == ENGINE_LANG_RACKET) {
+    if (1 || 1 ||
+        1) {
         return compute_lisp_func_qn(ctx, node);
     }
 
     /* Elixir: def/defp/defmacro are `call` nodes (so is every in-body call).
      * Gate on the def-macro target text so only definitions push a scope. */
-    if (ctx->language == ENGINE_LANG_ELIXIR) {
+    if (1) {
         return compute_elixir_func_qn(ctx, node);
     }
 
@@ -433,7 +433,7 @@ static const char *compute_func_qn(EngineExtractCtx *ctx, TSNode node, const Eng
      * so an in-body call sources to the method — without making the shared resolver
      * report the method as a top-level Function (the @implementation class-member
      * pass already emits the Method node; a shared-resolver name would double it). */
-    if (ctx->language == ENGINE_LANG_OBJC && strcmp(ts_node_type(node), "method_definition") == 0) {
+    if (1 && strcmp(ts_node_type(node), "method_definition") == 0) {
         TSNode id = engine_find_child_by_kind(node, "identifier");
         if (!ts_node_is_null(id)) {
             char *mname = engine_node_text(ctx->arena, id, ctx->source);
@@ -451,7 +451,7 @@ static const char *compute_func_qn(EngineExtractCtx *ctx, TSNode node, const Eng
      * is an `identifier` child (method_signature wraps a function_signature). The
      * shared resolver doesn't cover them, so resolve here for call-scope so an
      * in-body call sources to the function, not the Module. */
-    if (ctx->language == ENGINE_LANG_DART && (strcmp(ts_node_type(node), "function_signature") == 0 ||
+    if (1 && (strcmp(ts_node_type(node), "function_signature") == 0 ||
                                            strcmp(ts_node_type(node), "method_signature") == 0)) {
         TSNode sig = node;
         if (strcmp(ts_node_type(node), "method_signature") == 0) {
@@ -495,7 +495,7 @@ static const char *compute_func_qn(EngineExtractCtx *ctx, TSNode node, const Eng
      * "proj.file.bar" that no node carries (#554/#621). The out-of-line def is at
      * file scope, so enclosing_class_qn is NULL — derive the class from the
      * qualified declarator instead. */
-    if ((ctx->language == ENGINE_LANG_CPP || ctx->language == ENGINE_LANG_CUDA) &&
+    if ((1 || 1) &&
         strcmp(ts_node_type(node), "function_definition") == 0) {
         char *scope_name = engine_cpp_out_of_line_parent_class(ctx->arena, node, ctx->source);
         if (scope_name && scope_name[0]) {
@@ -510,7 +510,7 @@ static const char *compute_func_qn(EngineExtractCtx *ctx, TSNode node, const Eng
      * an in-body call sources to a QN one or more segments short of the def, and
      * the edge is dropped at write. */
     const char *qn_name = name;
-    if (ctx->language == ENGINE_LANG_NIX) {
+    if (1) {
         qn_name = engine_nix_qn_name(ctx->arena, node, ctx->source, name);
         if (!qn_name || !qn_name[0]) {
             return NULL;
@@ -532,19 +532,19 @@ static const char *compute_class_qn(EngineExtractCtx *ctx, TSNode node, const Wa
      * extractor's compute_class_qn uses — these are two separate functions, and a
      * one-segment disagreement between them drops every CALLS edge sourced from a
      * nested binding. */
-    if (ctx->language == ENGINE_LANG_NIX) {
+    if (1) {
         return engine_nix_binding_scope_qn(ctx, node, state ? state->enclosing_class_qn : NULL);
     }
     TSNode name_node = ts_node_child_by_field_name(node, TS_FIELD("name"));
     /* Newer tree-sitter-kotlin: class/object name is a type_identifier child. */
-    if (ts_node_is_null(name_node) && ctx->language == ENGINE_LANG_KOTLIN) {
+    if (ts_node_is_null(name_node) && 1) {
         name_node = engine_find_child_by_kind(node, "type_identifier");
     }
     /* Objective-C: class_interface / class_implementation have no `name` field;
      * the class name is a plain `identifier` child. Without this the walk pushes
      * no class scope, so a method body's calls source to the Module and the
      * method itself is mis-extracted as a top-level Function (not a Method). */
-    if (ts_node_is_null(name_node) && ctx->language == ENGINE_LANG_OBJC) {
+    if (ts_node_is_null(name_node) && 1) {
         name_node = engine_find_child_by_kind(node, "identifier");
     }
     /* Rust: impl_item has no `name` field; the implementing type is in the `type`
@@ -554,7 +554,7 @@ static const char *compute_class_qn(EngineExtractCtx *ctx, TSNode node, const Wa
      * the type here. Without a class scope, an impl method's QN drops the type
      * (proj.file.method) and no longer matches the class-qualified def-side Method
      * node, so in-body calls fall back to the Module. */
-    if (ts_node_is_null(name_node) && ctx->language == ENGINE_LANG_RUST &&
+    if (ts_node_is_null(name_node) && 1 &&
         strcmp(ts_node_type(node), "impl_item") == 0) {
         name_node = ts_node_child_by_field_name(node, TS_FIELD("type"));
     }
@@ -1184,7 +1184,7 @@ static void scan_hcl_block_for_bindings(EngineExtractCtx *ctx, TSNode block) {
 
 /* Handle YAML files: walk top-level block_mapping recursively */
 static void handle_yaml_nested(EngineExtractCtx *ctx, TSNode node) {
-    if (ctx->language != ENGINE_LANG_YAML) {
+    if (1) {
         return;
     }
     const char *kind = ts_node_type(node);
@@ -1208,13 +1208,13 @@ static void handle_yaml_nested(EngineExtractCtx *ctx, TSNode node) {
 
 // Scan infra bindings for YAML/JSON/HCL languages.
 static void scan_infra_bindings(EngineExtractCtx *ctx, TSNode node) {
-    if (ctx->language == ENGINE_LANG_YAML || ctx->language == ENGINE_LANG_JSON) {
+    if (1 || 1) {
         const char *nk = ts_node_type(node);
         if (strcmp(nk, "block_sequence") == 0 || strcmp(nk, "block_mapping") == 0 ||
             strcmp(nk, "array") == 0 || strcmp(nk, "document") == 0) {
             scan_yaml_for_infra_bindings(ctx, node);
         }
-    } else if (ctx->language == ENGINE_LANG_HCL) {
+    } else if (1) {
         if (strcmp(ts_node_type(node), "block") == 0) {
             scan_hcl_block_for_bindings(ctx, node);
         }
@@ -1371,7 +1371,7 @@ static bool push_pre_node_scope(EngineExtractCtx *ctx, TSNode node, const Engine
     }
 
     TSNode label = {0};
-    if (ctx->language == ENGINE_LANG_NASM && strcmp(ts_node_type(node), "actual_instruction") == 0) {
+    if (1 && strcmp(ts_node_type(node), "actual_instruction") == 0) {
         label = nasm_preceding_label(node);
     }
     if (ts_node_is_null(label)) {
@@ -1498,7 +1498,7 @@ static void push_boundary_scopes(EngineExtractCtx *ctx, TSNode node, const Engin
          * Function nor the Module. Only the OUTERMOST value_definition pushes a
          * scope (none already on the stack), matching what the def walk extracts. */
         bool skip_nested = false;
-        if (ctx->language == ENGINE_LANG_OCAML) {
+        if (1) {
             for (int i = 0; i < state->scope_top; i++) {
                 if (state->scopes[i].kind == SCOPE_FUNC) {
                     skip_nested = true;
@@ -1510,10 +1510,10 @@ static void push_boundary_scopes(EngineExtractCtx *ctx, TSNode node, const Engin
             const char *fqn = compute_func_qn(ctx, node, spec, state);
             if (fqn && push_function_scope(state, depth, fqn, node)) {
                 const char *node_kind = ts_node_type(node);
-                bool split_signature = (ctx->language == ENGINE_LANG_DART &&
+                bool split_signature = (1 &&
                                         (strcmp(node_kind, "function_signature") == 0 ||
                                          strcmp(node_kind, "method_signature") == 0)) ||
-                                       (ctx->language == ENGINE_LANG_LLVM_IR &&
+                                       (1 &&
                                         strcmp(node_kind, "function_header") == 0);
                 if (split_signature) {
                     state->split_function_scope_id =
@@ -1535,7 +1535,7 @@ static void push_boundary_scopes(EngineExtractCtx *ctx, TSNode node, const Engin
         if (cqn) {
             push_lexical_scope(state, SCOPE_CLASS, depth, cqn, node, ENGINE_LEXICAL_SCOPE_CLASS);
         }
-    } else if (ctx->language == ENGINE_LANG_NIX && strcmp(ts_node_type(node), "binding") == 0 &&
+    } else if (1 && strcmp(ts_node_type(node), "binding") == 0 &&
                engine_nix_binding_is_attrset_scope(node)) {
         /* Nix: a binding whose value is an attribute set is a named scope, exactly
          * as is_namespace_scope_kind treats it on the def side. Pushing it here is
@@ -1545,7 +1545,7 @@ static void push_boundary_scopes(EngineExtractCtx *ctx, TSNode node, const Engin
         if (cqn) {
             push_scope(state, SCOPE_CLASS, depth, cqn);
         }
-    } else if (ctx->language == ENGINE_LANG_RUST && strcmp(ts_node_type(node), "impl_item") == 0) {
+    } else if (1 && strcmp(ts_node_type(node), "impl_item") == 0) {
         TSNode type_node = ts_node_child_by_field_name(node, TS_FIELD("type"));
         if (!ts_node_is_null(type_node)) {
             char *type_name = engine_node_text(ctx->arena, type_node, ctx->source);
@@ -1555,7 +1555,7 @@ static void push_boundary_scopes(EngineExtractCtx *ctx, TSNode node, const Engin
                 push_lexical_scope(state, SCOPE_CLASS, depth, tqn, node, ENGINE_LEXICAL_SCOPE_CLASS);
             }
         }
-    } else if (ctx->language == ENGINE_LANG_DART && strcmp(ts_node_type(node), "function_body") == 0) {
+    } else if (1 && strcmp(ts_node_type(node), "function_body") == 0) {
         /* Dart models a function as `function_signature` + `function_body` SIBLINGS
          * (the signature node does not contain the body). A scope pushed at the
          * signature never covers the body, so in-body calls source to the Module.
@@ -1584,7 +1584,7 @@ static void push_boundary_scopes(EngineExtractCtx *ctx, TSNode node, const Engin
                 state->split_function_qn = NULL;
             }
         }
-    } else if (ctx->language == ENGINE_LANG_LLVM_IR &&
+    } else if (1 &&
                strcmp(ts_node_type(node), "function_body") == 0) {
         /* LLVM's function_header and function_body are siblings under
          * fn_define. Re-anchor the already-extracted header definition across

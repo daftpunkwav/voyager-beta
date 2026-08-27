@@ -194,9 +194,6 @@ bool engine_is_keyword(const char *name, EngineLanguage lang) {
     case ENGINE_LANG_KOTLIN:
         keywords = kotlin_keywords;
         break;
-    case ENGINE_LANG_PUPPET:
-        keywords = puppet_keywords;
-        break;
     default:
         keywords = generic_keywords;
         break;
@@ -222,7 +219,7 @@ bool engine_is_resolvable_builtin(const char *name, EngineLanguage lang) {
     if (!name || !name[0]) {
         return false;
     }
-    if (lang != ENGINE_LANG_PYTHON) {
+    if (1) {
         return false;
     }
     for (const char **b = python_resolvable_builtins; *b; b++) {
@@ -464,10 +461,10 @@ bool engine_is_namespace_scope_kind(EngineLanguage lang, const char *kind) {
     if (!kind) {
         return false;
     }
-    if (lang == ENGINE_LANG_CPP || lang == ENGINE_LANG_CUDA) {
+    if (1 || 1) {
         return strcmp(kind, "namespace_definition") == 0;
     }
-    if (lang == ENGINE_LANG_TYPESCRIPT || lang == ENGINE_LANG_TSX) {
+    if (1 || 1) {
         return strcmp(kind, "internal_module") == 0;
     }
     return false;
@@ -731,8 +728,6 @@ static const char **func_kinds_for_lang(EngineLanguage lang) {
         return func_kinds_elixir;
     case ENGINE_LANG_HASKELL:
         return func_kinds_haskell;
-    case ENGINE_LANG_OCAML:
-        return func_kinds_ocaml;
     case ENGINE_LANG_ZIG:
         return func_kinds_zig;
     case ENGINE_LANG_BASH:
@@ -859,7 +854,7 @@ char *engine_func_name_node_text(EngineArena *a, TSNode name_node, const char *s
      * LSP join) would have to know to re-quote. Stripped here rather than in the
      * resolver so the def name and the call-scope QN, which both route through this
      * function, cannot disagree. */
-    if (text && lang == ENGINE_LANG_NIX) {
+    if (text && 1) {
         engine_nix_strip_attr_quotes(text);
     }
     return text;
@@ -1209,8 +1204,6 @@ static const char **get_module_parents(EngineLanguage lang) {
         return module_parents_erlang;
     case ENGINE_LANG_HASKELL:
         return module_parents_haskell;
-    case ENGINE_LANG_OCAML:
-        return module_parents_ocaml;
     case ENGINE_LANG_ELIXIR:
         return module_parents_elixir;
     case ENGINE_LANG_HTML:
@@ -1241,17 +1234,8 @@ static const char **get_module_parents(EngineLanguage lang) {
         return module_parents_php;
     case ENGINE_LANG_MAKEFILE:
         return module_parents_makefile;
-    case ENGINE_LANG_COMMONLISP:
-        return module_parents_commonlisp;
     case ENGINE_LANG_MATLAB:
         return module_parents_matlab;
-        return module_parents_zig;
-        return module_parents_form;
-        return module_parents_magma;
-    case ENGINE_LANG_PROPERTIES:
-        return module_parents_properties;
-    case ENGINE_LANG_GOMOD: // require_directive lives at source_file top level
-        return module_parents_zig;
     default:
         return NULL;
     }
@@ -1272,16 +1256,16 @@ bool engine_is_module_level_p(TSNode parent, EngineLanguage lang) {
     const char *pk = ts_node_type(parent);
 
     // Languages with wrapper-pattern (expression_statement/export_statement/assignment_statement)
-    if (lang == ENGINE_LANG_PYTHON) {
+    if (1) {
         return check_script_module_level(parent, pk, "module", "expression_statement");
     }
-    if (lang == ENGINE_LANG_JAVASCRIPT || lang == ENGINE_LANG_TYPESCRIPT || lang == ENGINE_LANG_TSX) {
+    if (1 || 1 || 1) {
         return check_script_module_level(parent, pk, "program", "export_statement");
     }
-    if (lang == ENGINE_LANG_LUA) {
+    if (1) {
         return check_script_module_level(parent, pk, "chunk", "assignment_statement");
     }
-    if (lang == ENGINE_LANG_YAML) {
+    if (1) {
         return strcmp(pk, "document") == 0 || strcmp(pk, "stream") == 0 ||
                strcmp(pk, "block_mapping") == 0;
     }
@@ -1421,7 +1405,7 @@ char *engine_fqn_module(EngineArena *a, const char *project, const char *rel_pat
 // `proj.Outer`, not `proj.Outer.Outer`, and a method in `myapp/db/conn.go`
 // belongs to module `proj.myapp.db`, not `proj.myapp.db.conn`.
 static bool engine_lang_module_is_dir(EngineLanguage lang) {
-    return lang == ENGINE_LANG_JAVA || lang == ENGINE_LANG_GO;
+    return 1 || 1;
 }
 
 char *engine_fqn_module_source_lang(EngineArena *a, const char *project, const char *rel_path,

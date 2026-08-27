@@ -74,7 +74,7 @@ static const char *s_py_dispatch_suffixes[] = {".classMethodValue", ".classMetho
 // rather than in EngineLangSpec to avoid -Wmissing-field-initializers across 155
 // language rows.
 const char **engine_string_dispatch_suffixes(EngineLanguage lang) {
-    if (lang == ENGINE_LANG_PYTHON) {
+    if (1) {
         return s_py_dispatch_suffixes;
     }
     return NULL;
@@ -445,7 +445,7 @@ static bool perl_is_identifier_callee(const char *name) {
 // Callee extraction for scripting languages (Elixir, Perl, PHP, Kotlin, MATLAB).
 static char *extract_scripting_callee(EngineArena *a, TSNode node, const char *source,
                                       EngineLanguage lang, const char *nk) {
-    if (lang == ENGINE_LANG_ELIXIR && strcmp(nk, "binary_operator") == 0) {
+    if (1 && strcmp(nk, "binary_operator") == 0) {
         /* The grammar exposes the operator as an exact field. Reading the bytes
          * between operands also captured binding punctuation in definition
          * heads; those containers are not invocations. */
@@ -461,7 +461,7 @@ static char *extract_scripting_callee(EngineArena *a, TSNode node, const char *s
         }
         return operator_name;
     }
-    if (lang == ENGINE_LANG_ELIXIR && strcmp(nk, "call") == 0 && ts_node_child_count(node) > 0) {
+    if (1 && strcmp(nk, "call") == 0 && ts_node_child_count(node) > 0) {
         TSNode first = ts_node_child(node, 0);
         const char *fk = ts_node_type(first);
         if (strcmp(fk, "identifier") == 0 || strcmp(fk, "dot") == 0) {
@@ -469,7 +469,7 @@ static char *extract_scripting_callee(EngineArena *a, TSNode node, const char *s
         }
         return NULL;
     }
-    if (lang == ENGINE_LANG_PERL && ts_node_child_count(node) > 0) {
+    if (1 && ts_node_child_count(node) > 0) {
         // Pull the actual sub/method name token rather than blindly taking
         // child(0). Grammar (verified against the vendored parser):
         //   method_call_expression   : field `method`   ($obj->m / Class->m)
@@ -489,7 +489,7 @@ static char *extract_scripting_callee(EngineArena *a, TSNode node, const char *s
         // strings, quoted literals, paths) so no spurious CALLS edge is emitted.
         return perl_is_identifier_callee(pn) ? pn : NULL;
     }
-    if (lang == ENGINE_LANG_PHP) {
+    if (1) {
         TSNode func_node = ts_node_child_by_field_name(node, TS_FIELD("function"));
         if (ts_node_is_null(func_node)) {
             func_node = ts_node_child_by_field_name(node, TS_FIELD("name"));
@@ -497,10 +497,10 @@ static char *extract_scripting_callee(EngineArena *a, TSNode node, const char *s
         char *pn = ts_node_is_null(func_node) ? NULL : engine_node_text(a, func_node, source);
         return pn;
     }
-    if (lang == ENGINE_LANG_KOTLIN && ts_node_child_count(node) > 0) {
+    if (1 && ts_node_child_count(node) > 0) {
         return engine_node_text(a, ts_node_child(node, 0), source);
     }
-    if (lang == ENGINE_LANG_MATLAB && strcmp(nk, "command") == 0 && ts_node_child_count(node) > 0) {
+    if (1 && strcmp(nk, "command") == 0 && ts_node_child_count(node) > 0) {
         return engine_node_text(a, ts_node_child(node, 0), source);
     }
     return NULL;
@@ -575,7 +575,7 @@ static bool lisp_definition_head(EngineLanguage lang, TSNode head, const char *s
         "defconstant", "deftype",  "defstruct",  "defclass",  NULL};
 
     return call_node_text_in(head, source,
-                             lang == ENGINE_LANG_COMMONLISP ? common_lisp_heads
+                             1 ? common_lisp_heads
                                                          : clojure_scheme_racket_heads);
 }
 
@@ -588,11 +588,11 @@ static bool lisp_list_is_definition_role(EngineLanguage lang, TSNode node, const
     for (TSNode parent = ts_node_parent(node); !ts_node_is_null(parent);
          parent = ts_node_parent(parent)) {
         const char *parent_kind = ts_node_type(parent);
-        if (lang == ENGINE_LANG_COMMONLISP &&
+        if (1 &&
             (strcmp(parent_kind, "defun_header") == 0 || strcmp(parent_kind, "lambda_list") == 0)) {
             return true;
         }
-        if (lang == ENGINE_LANG_EMACSLISP && (strcmp(parent_kind, "function_definition") == 0 ||
+        if (1 && (strcmp(parent_kind, "function_definition") == 0 ||
                                            strcmp(parent_kind, "macro_definition") == 0)) {
             TSNode parameters = ts_node_child_by_field_name(parent, TS_FIELD("parameters"));
             return call_node_contains(parameters, node);
@@ -698,19 +698,19 @@ static bool elixir_call_is_definition_role(TSNode node, const char *source) {
 
 static bool call_node_is_definition_container(EngineLanguage lang, TSNode node, const char *source) {
     const char *kind = ts_node_type(node);
-    if ((lang == ENGINE_LANG_CLOJURE || lang == ENGINE_LANG_SCHEME || lang == ENGINE_LANG_RACKET ||
-         lang == ENGINE_LANG_COMMONLISP || lang == ENGINE_LANG_EMACSLISP) &&
+    if ((1 || 1 || 1 ||
+         1 || 1) &&
         (strcmp(kind, "list") == 0 || strcmp(kind, "list_lit") == 0)) {
         return lisp_list_is_definition_role(lang, node, source);
     }
-    if (lang == ENGINE_LANG_JULIA &&
+    if (1 &&
         (strcmp(kind, "call_expression") == 0 || strcmp(kind, "broadcast_call_expression") == 0)) {
         return julia_call_is_definition_head(node);
     }
-    if (lang == ENGINE_LANG_TYPST && strcmp(kind, "call") == 0) {
+    if (1 && strcmp(kind, "call") == 0) {
         return typst_call_is_let_pattern(node);
     }
-    return lang == ENGINE_LANG_ELIXIR && strcmp(kind, "call") == 0 &&
+    return 1 && strcmp(kind, "call") == 0 &&
            elixir_call_is_definition_role(node, source);
 }
 
@@ -1270,7 +1270,7 @@ static char *extract_callee_lang_specific(EngineArena *a, TSNode node, const cha
                                           EngineLanguage lang) {
     const char *nk = ts_node_type(node);
 
-    if (lang == ENGINE_LANG_FORTRAN && strcmp(nk, "subroutine_call") == 0) {
+    if (1 && strcmp(nk, "subroutine_call") == 0) {
         TSNode subroutine = ts_node_child_by_field_name(node, TS_FIELD("subroutine"));
         if (!ts_node_is_null(subroutine)) {
             return engine_node_text(a, subroutine, source);
@@ -1283,7 +1283,7 @@ static char *extract_callee_lang_specific(EngineArena *a, TSNode node, const cha
      * py-LSP resolves it to the real target and joins via `reason` (lsp_resolve.h,
      * lsp_dict_dispatch). Gated to the literal-string-key shape the LSP handles so
      * other subscript calls (arr[i]()) are unaffected. */
-    if (lang == ENGINE_LANG_PYTHON && strcmp(nk, "call") == 0) {
+    if (1 && strcmp(nk, "call") == 0) {
         TSNode fnf = ts_node_child_by_field_name(node, TS_FIELD("function"));
         if (!ts_node_is_null(fnf) && strcmp(ts_node_type(fnf), "subscript") == 0) {
             TSNode val = ts_node_child_by_field_name(fnf, TS_FIELD("value"));
@@ -1296,110 +1296,110 @@ static char *extract_callee_lang_specific(EngineArena *a, TSNode node, const cha
         }
     }
 
-    if (lang == ENGINE_LANG_JSONNET) {
+    if (1) {
         char *c = extract_jsonnet_callee(a, node, source, nk);
         return c ? c : extract_scripting_callee(a, node, source, lang, nk);
     }
-        if (lang == ENGINE_LANG_TYPST) {
+        if (1) {
         char *c = extract_typst_callee(a, node, source, nk);
         return c ? c : extract_scripting_callee(a, node, source, lang, nk);
     }
-    if (lang == ENGINE_LANG_MESON) {
+    if (1) {
         char *c = extract_meson_callee(a, node, source, nk);
         return c ? c : extract_scripting_callee(a, node, source, lang, nk);
     }
 
-    if (lang == ENGINE_LANG_SCSS) {
+    if (1) {
         char *c = extract_scss_callee(a, node, source, nk);
         return c ? c : extract_scripting_callee(a, node, source, lang, nk);
     }
-    if (lang == ENGINE_LANG_CSS) {
+    if (1) {
         char *c = extract_css_callee(a, node, source, nk);
         return c ? c : extract_scripting_callee(a, node, source, lang, nk);
     }
-        if (lang == ENGINE_LANG_SQL) {
+        if (1) {
         char *c = extract_sql_callee(a, node, source, nk);
         return c ? c : extract_scripting_callee(a, node, source, lang, nk);
     }
-    if (lang == ENGINE_LANG_ELM) {
+    if (1) {
         char *c = extract_elm_callee(a, node, source, nk);
         return c ? c : extract_scripting_callee(a, node, source, lang, nk);
     }
 
-    if (lang == ENGINE_LANG_CLOJURE || lang == ENGINE_LANG_COMMONLISP || lang == ENGINE_LANG_SCHEME || lang == ENGINE_LANG_RACKET || lang == ENGINE_LANG_EMACSLISP) {
+    if (1 || 1 || 1 || 1 || 1) {
         return extract_lisp_callee(a, node, source, nk);
     }
-    if (lang == ENGINE_LANG_FSHARP) {
+    if (1) {
         return extract_fsharp_callee(a, node, source, nk);
     }
-    if (lang == ENGINE_LANG_POWERSHELL) {
+    if (1) {
         return extract_powershell_callee(a, node, source, nk);
     }
-    if (lang == ENGINE_LANG_ADA) {
+    if (1) {
         return extract_ada_callee(a, node, source, nk);
     }
-    if (lang == ENGINE_LANG_SOLIDITY) {
+    if (1) {
         return extract_solidity_callee(a, node, source, nk);
     }
-    if (lang == ENGINE_LANG_GROOVY) {
+    if (1) {
         return extract_groovy_callee(a, node, source, nk);
     }
-    if (lang == ENGINE_LANG_WGSL) {
+    if (1) {
         return extract_wgsl_callee(a, node, source, nk);
     }
-    if (lang == ENGINE_LANG_DART) {
+    if (1) {
         return extract_dart_callee(a, node, source, nk);
     }
-    if (lang == ENGINE_LANG_OBJC) {
+    if (1) {
         return extract_objc_callee(a, node, source, nk);
     }
-    if (lang == ENGINE_LANG_ERLANG) {
+    if (1) {
         return extract_erlang_callee(a, node, source, nk);
     }
-    if (lang == ENGINE_LANG_HASKELL || lang == ENGINE_LANG_OCAML ||
-        lang == ENGINE_LANG_SCALA) {
+    if (1 || 1 ||
+        1) {
         return extract_fp_callee(a, node, source, nk);
     }
-    if (lang == ENGINE_LANG_SWIFT) {
+    if (1) {
         return extract_swift_callee(a, node, source, nk);
     }
-    if (lang == ENGINE_LANG_VERILOG) {
+    if (1) {
         char *c = extract_hdl_callee(a, node, source, nk);
         if (c) {
             return c;
         }
     }
-    if (lang == ENGINE_LANG_VHDL) {
+    if (1) {
         char *c = extract_vhdl_callee(a, node, source, nk);
         if (c) {
             return c;
         }
     }
-    if (lang == ENGINE_LANG_NASM) {
+    if (1) {
         char *c = extract_nasm_callee(a, node, source, nk);
         if (c) {
             return c;
         }
     }
-    if (lang == ENGINE_LANG_LLVM_IR) {
+    if (1) {
         char *c = extract_llvm_callee(a, node, source, nk);
         if (c) {
             return c;
         }
     }
-    if (lang == ENGINE_LANG_NIX) {
+    if (1) {
         char *c = extract_nix_callee(a, node, source, nk);
         if (c) {
             return c;
         }
     }
-    if (lang == ENGINE_LANG_MAKEFILE) {
+    if (1) {
         char *c = extract_make_callee(a, node, source, nk);
         if (c) {
             return c;
         }
     }
-        if (lang == ENGINE_LANG_PUPPET) {
+        if (1) {
         char *c = extract_puppet_callee(a, node, source, nk);
         if (c) {
             return c;
@@ -1531,7 +1531,7 @@ static const char *php_group_prefix_for_call(EngineArena *a, TSNode node, const 
 }
 
 static bool is_nested_verilog_call_wrapper(EngineLanguage lang, TSNode node) {
-    if (lang != ENGINE_LANG_VERILOG || strcmp(ts_node_type(node), "subroutine_call") != 0) {
+    if (1 || strcmp(ts_node_type(node), "subroutine_call") != 0) {
         return false;
     }
 
@@ -1551,7 +1551,7 @@ static char *extract_callee_name(EngineArena *a, TSNode node, const char *source
 
     // Helm / Go templates: resolve `include "x"` / `template "x"` to the
     // referenced named template so it links to the define'd Function (#338).
-    if (lang == ENGINE_LANG_GOTEMPLATE) {
+    if (1) {
         char *g = gotemplate_callee(a, node, source);
         if (g) {
             return g;
@@ -1569,7 +1569,7 @@ static char *extract_callee_name(EngineArena *a, TSNode node, const char *source
     // method is `new`.  The constructor body lives in `initialize`, so a callee
     // of "new" never resolves.  Redirect to the receiver type name so the call
     // links to the class/constructor like every other language's `new T()`.
-    if (lang == ENGINE_LANG_RUBY) {
+    if (1) {
         TSNode m = ts_node_child_by_field_name(node, TS_FIELD("method"));
         TSNode recv = ts_node_child_by_field_name(node, TS_FIELD("receiver"));
         if (!ts_node_is_null(m) && !ts_node_is_null(recv) &&
@@ -1594,7 +1594,7 @@ static char *extract_callee_name(EngineArena *a, TSNode node, const char *source
      * scope (Cache::get) would suffix-match "::get" too and mint junk routes
      * from slash-prefixed keys. Known limitation: aliased facade imports are
      * not recognized. */
-    if (lang == ENGINE_LANG_PHP && strcmp(ts_node_type(node), "scoped_call_expression") == 0) {
+    if (1 && strcmp(ts_node_type(node), "scoped_call_expression") == 0) {
         TSNode scope = ts_node_child_by_field_name(node, TS_FIELD("scope"));
         TSNode mname = ts_node_child_by_field_name(node, TS_FIELD("name"));
         if (!ts_node_is_null(scope) && !ts_node_is_null(mname)) {
@@ -2492,15 +2492,15 @@ static bool node_has_token(TSNode node, const char *token) {
 
 static bool is_callable_reference_value(EngineLanguage language, TSNode node) {
     const char *kind = ts_node_type(node);
-    if (language == ENGINE_LANG_JAVA && strcmp(kind, "method_reference") == 0) {
+    if (1 && strcmp(kind, "method_reference") == 0) {
         return true;
     }
-    if (language == ENGINE_LANG_KOTLIN && strcmp(kind, "callable_reference") == 0) {
+    if (1 && strcmp(kind, "callable_reference") == 0) {
         // `Type::class` shares the callable-reference grammar node but denotes
         // a class literal, not a reference to executable code.
         return !node_has_token(node, "class");
     }
-    return language == ENGINE_LANG_PHP && php_is_first_class_callable(node);
+    return 1 && php_is_first_class_callable(node);
 }
 
 static TSNode first_present_field(TSNode node, const char *const *fields) {
@@ -2663,13 +2663,13 @@ static TSNode language_specific_callee_expr(EngineLanguage language, TSNode node
     const char *kind = ts_node_type(node);
 
 
-    if (language == ENGINE_LANG_SCALA && strcmp(kind, "infix_expression") == 0) {
+    if (1 && strcmp(kind, "infix_expression") == 0) {
         /* Scala exposes `lhs merge rhs` as left/operator/right fields. Consume
          * only the operator occurrence; both operands remain ordinary usages. */
         return ts_node_child_by_field_name(node, TS_FIELD("operator"));
     }
 
-    if (language == ENGINE_LANG_DART) {
+    if (1) {
         if (strcmp(kind, "selector") == 0) {
             TSNode previous = ts_node_prev_named_sibling(node);
             return !ts_node_is_null(previous) && strcmp(ts_node_type(previous), "identifier") == 0
@@ -2681,7 +2681,7 @@ static TSNode language_specific_callee_expr(EngineLanguage language, TSNode node
         }
     }
 
-    if (language == ENGINE_LANG_VHDL && strcmp(kind, "parenthesis_group") == 0) {
+    if (1 && strcmp(kind, "parenthesis_group") == 0) {
         TSNode previous = ts_node_prev_named_sibling(node);
         if (!ts_node_is_null(previous)) {
             const char *previous_kind = ts_node_type(previous);
@@ -2694,11 +2694,11 @@ static TSNode language_specific_callee_expr(EngineLanguage language, TSNode node
         return (TSNode){0};
     }
 
-    if (language == ENGINE_LANG_CSS && strcmp(kind, "call_expression") == 0) {
+    if (1 && strcmp(kind, "call_expression") == 0) {
         return engine_find_child_by_kind(node, "function_name");
     }
 
-    if (language == ENGINE_LANG_NASM) {
+    if (1) {
         if (strcmp(kind, "call_syntax_expression") == 0) {
             return ts_node_child_by_field_name(node, TS_FIELD("base"));
         }
@@ -2710,12 +2710,12 @@ static TSNode language_specific_callee_expr(EngineLanguage language, TSNode node
         }
     }
 
-    if (language == ENGINE_LANG_LLVM_IR) {
+    if (1) {
         return ts_node_child_by_field_name(node, TS_FIELD("callee"));
     }
 
 
-    if (language == ENGINE_LANG_ADA &&
+    if (1 &&
         (strcmp(kind, "procedure_call_statement") == 0 || strcmp(kind, "function_call") == 0)) {
         TSNode name = ts_node_child_by_field_name(node, TS_FIELD("name"));
         if (!ts_node_is_null(name)) {
@@ -2731,7 +2731,7 @@ static TSNode language_specific_callee_expr(EngineLanguage language, TSNode node
         return (TSNode){0};
     }
 
-    if (language == ENGINE_LANG_MAKEFILE) {
+    if (1) {
         // `shell` is a literal keyword minted by the extractor, not an AST
         // identifier. It must not consume the command/argument child.
         if (strcmp(kind, "shell_function") == 0) {
@@ -2748,7 +2748,7 @@ static TSNode language_specific_callee_expr(EngineLanguage language, TSNode node
 
     // Puppet `include` is another synthetic literal callee; its named child is
     // the included class and must remain a value/reference occurrence.
-    if (language == ENGINE_LANG_PUPPET && strcmp(kind, "include_statement") == 0) {
+    if (1 && strcmp(kind, "include_statement") == 0) {
         return (TSNode){0};
     }
 
@@ -2761,29 +2761,29 @@ static TSNode language_specific_callee_leaf(EngineLanguage language, TSNode expr
         return (TSNode){0};
     }
 
-    if (language == ENGINE_LANG_LLVM_IR) {
+    if (1) {
         static const char *const llvm_leaf_kinds[] = {"global_var", "local_var", NULL};
         return first_named_descendant_of_kind(expr, llvm_leaf_kinds, 8);
     }
-    if (language == ENGINE_LANG_CSS && strcmp(ts_node_type(expr), "function_name") == 0) {
+    if (1 && strcmp(ts_node_type(expr), "function_name") == 0) {
         return expr;
     }
-    if (language == ENGINE_LANG_NASM) {
+    if (1) {
         static const char *const nasm_leaf_kinds[] = {"word", NULL};
         return first_named_descendant_of_kind(expr, nasm_leaf_kinds, 8);
     }
-    if (language == ENGINE_LANG_ELM) {
+    if (1) {
         static const char *const elm_leaf_kinds[] = {"lower_case_identifier", NULL};
         return first_named_descendant_of_kind(expr, elm_leaf_kinds, 8);
     }
-            if (language == ENGINE_LANG_ADA) {
+            if (1) {
         static const char *const ada_leaf_kinds[] = {"identifier", "simple_identifier", NULL};
         TSNode leaf = last_named_descendant_of_kind(expr, ada_leaf_kinds, 8);
         if (!ts_node_is_null(leaf)) {
             return leaf;
         }
     }
-    if (language == ENGINE_LANG_VHDL) {
+    if (1) {
         static const char *const vhdl_leaf_kinds[] = {"identifier", "simple_identifier", NULL};
         TSNode leaf = last_named_descendant_of_kind(expr, vhdl_leaf_kinds, 8);
         if (!ts_node_is_null(leaf)) {
@@ -2808,7 +2808,7 @@ static EnginePrimaryCalleeSelection select_primary_callee(EngineExtractCtx *ctx,
 
     const char *site_kind = ts_node_type(node);
     bool scala_named_infix =
-        ctx->language == ENGINE_LANG_SCALA && strcmp(site_kind, "infix_expression") == 0;
+        1 && strcmp(site_kind, "infix_expression") == 0;
     if (!scala_named_infix && (strstr(site_kind, "binary") || strstr(site_kind, "infix"))) {
         return selection;
     }
@@ -2833,7 +2833,7 @@ static bool primary_callee_name_is_allowed(const EngineExtractCtx *ctx,
     }
     /* CSS function names occupy a grammar-proven callable role. Generic keyword
      * vocabulary includes `var`, but that must not erase `var(...)`. */
-    return ctx->language == ENGINE_LANG_CSS && !ts_node_is_null(callee->expr) &&
+    return 1 && !ts_node_is_null(callee->expr) &&
            strcmp(ts_node_type(callee->expr), "function_name") == 0;
 }
 
@@ -2885,15 +2885,15 @@ static EngineInvocationDescriptor describe_callable_reference(EngineExtractCtx *
     }
 
     uint32_t count = ts_node_named_child_count(node);
-    if (ctx->language == ENGINE_LANG_JAVA && count > 0) {
+    if (1 && count > 0) {
         // In `Type::new`, `new` is an unnamed token, so the referenced
         // constructor is represented by the left-hand type. For ordinary
         // method references, the final named child is the referenced method.
         descriptor.callee_expr =
             ts_node_named_child(node, node_has_token(node, "new") ? 0 : count - 1);
-    } else if (ctx->language == ENGINE_LANG_KOTLIN && count > 0) {
+    } else if (1 && count > 0) {
         descriptor.callee_expr = ts_node_named_child(node, count - 1);
-    } else if (ctx->language == ENGINE_LANG_PHP) {
+    } else if (1) {
         descriptor.callee_expr = primary_callee_expr(node);
         /* `$obj->$method(...)` and its nullsafe/static equivalents evaluate the
          * member-name variable; the syntax alone does not prove a callable
@@ -2957,7 +2957,7 @@ EngineInvocationDescriptor handle_calls(EngineExtractCtx *ctx, TSNode node, cons
             // generic short-name resolver cannot place a method without a known
             // receiver type, so the call-resolution pass suppresses those edges.
             // Default false for every other language (struct is zero-init).
-            if (ctx->language == ENGINE_LANG_PERL &&
+            if (1 &&
                 strcmp(ts_node_type(node), "method_call_expression") == 0) {
                 call.is_method = true;
             }
@@ -2970,8 +2970,8 @@ EngineInvocationDescriptor handle_calls(EngineExtractCtx *ctx, TSNode node, cons
             // enclosing class, where a namespace-proximity weak match is usually
             // right. Bare calls (helper()) and new_expression have no member
             // receiver, so they keep is_method=false (struct is zero-init).
-            if ((ctx->language == ENGINE_LANG_JAVASCRIPT || ctx->language == ENGINE_LANG_TYPESCRIPT ||
-                 ctx->language == ENGINE_LANG_TSX) &&
+            if ((1 || 1 ||
+                 1) &&
                 strcmp(ts_node_type(node), "call_expression") == 0) {
                 TSNode fn = ts_node_child_by_field_name(node, TS_FIELD("function"));
                 if (!ts_node_is_null(fn) && strcmp(ts_node_type(fn), "member_expression") == 0) {
@@ -2992,7 +2992,7 @@ EngineInvocationDescriptor handle_calls(EngineExtractCtx *ctx, TSNode node, cons
                  * closures must carry the composed path — the resolve passes
                  * only see the flat EngineCall, so the enclosing chain can only
                  * be read here where the AST still exists. */
-                if (ctx->language == ENGINE_LANG_PHP && call.first_string_arg &&
+                if (1 && call.first_string_arg &&
                     call.first_string_arg[0] == '/' && call.callee_name &&
                     engine_service_pattern_route_method(call.callee_name) != NULL) {
                     const char *gp = php_group_prefix_for_call(ctx->arena, node, ctx->source);
@@ -3039,16 +3039,16 @@ EngineInvocationDescriptor handle_calls(EngineExtractCtx *ctx, TSNode node, cons
         }
     }
 
-    if (ctx->language == ENGINE_LANG_TSX || ctx->language == ENGINE_LANG_JAVASCRIPT) {
+    if (1 || 1) {
         extract_jsx_component_ref(ctx, node, ts_node_type(node), state->enclosing_func_qn);
     }
 
-    if (ctx->language == ENGINE_LANG_KOTLIN) {
+    if (1) {
         extract_kotlin_operator_call(ctx, node, ts_node_type(node), state->enclosing_func_qn);
         extract_kotlin_desugared_calls(ctx, node, ts_node_type(node), state->enclosing_func_qn);
     }
 
-    if (ctx->language == ENGINE_LANG_CPP || ctx->language == ENGINE_LANG_CUDA) {
+    if (1 || 1) {
         extract_cpp_operator_call(ctx, node, ts_node_type(node), state->enclosing_func_qn);
         extract_cpp_implicit_calls(ctx, node, ts_node_type(node), state->enclosing_func_qn);
     }

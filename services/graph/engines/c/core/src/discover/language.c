@@ -59,16 +59,11 @@ static const ext_entry_t EXT_TABLE[] = {
     {".cmake", ENGINE_LANG_CMAKE},
 
     /* Common Lisp */
-    {".cl", ENGINE_LANG_COMMONLISP},
-    {".lisp", ENGINE_LANG_COMMONLISP},
-    {".lsp", ENGINE_LANG_COMMONLISP},
 
     /* CSS */
     {".css", ENGINE_LANG_CSS},
 
     /* CUDA */
-    {".cu", ENGINE_LANG_CUDA},
-    {".cuh", ENGINE_LANG_CUDA},
 
     /* Dart */
     {".dart", ENGINE_LANG_DART},
@@ -81,32 +76,19 @@ static const ext_entry_t EXT_TABLE[] = {
     {".exs", ENGINE_LANG_ELIXIR},
 
     /* DotEnv */
-    {".env", ENGINE_LANG_DOTENV},
 
     /* Elm */
-    {".elm", ENGINE_LANG_ELM},
 
     /* Emacs Lisp */
-    {".el", ENGINE_LANG_EMACSLISP},
 
     /* Erlang */
     {".erl", ENGINE_LANG_ERLANG},
 
     /* F# */
-    {".fs", ENGINE_LANG_FSHARP},
-    {".fsi", ENGINE_LANG_FSHARP},
-    {".fsx", ENGINE_LANG_FSHARP},
 
     /* Fortran */
-    {".f03", ENGINE_LANG_FORTRAN},
-    {".f08", ENGINE_LANG_FORTRAN},
-    {".f90", ENGINE_LANG_FORTRAN},
-    {".f95", ENGINE_LANG_FORTRAN},
 
     /* GLSL */
-    {".frag", ENGINE_LANG_GLSL},
-    {".glsl", ENGINE_LANG_GLSL},
-    {".vert", ENGINE_LANG_GLSL},
 
     /* Go */
     {".go", ENGINE_LANG_GO},
@@ -172,17 +154,12 @@ static const ext_entry_t EXT_TABLE[] = {
     {".mlx", ENGINE_LANG_MATLAB},
 
     /* Meson */
-    {".meson", ENGINE_LANG_MESON},
 
     /* Mojo */
-    {".mojo", ENGINE_LANG_MOJO},
 
     /* Nix */
-    {".nix", ENGINE_LANG_NIX},
 
     /* OCaml */
-    {".ml", ENGINE_LANG_OCAML},
-    {".mli", ENGINE_LANG_OCAML},
 
     /* Perl */
     {".pl", ENGINE_LANG_PERL},
@@ -226,8 +203,6 @@ static const ext_entry_t EXT_TABLE[] = {
     {".swift", ENGINE_LANG_SWIFT},
 
     /* SystemVerilog + Verilog */
-    {".sv", ENGINE_LANG_VERILOG},
-    {".v", ENGINE_LANG_VERILOG},
 
     /* TOML */
     {".toml", ENGINE_LANG_TOML},
@@ -241,12 +216,6 @@ static const ext_entry_t EXT_TABLE[] = {
     {".cts", ENGINE_LANG_TYPESCRIPT}, /* TS CommonJS modules */
 
     /* VimScript */
-    {".vim", ENGINE_LANG_VIMSCRIPT},
-    {".vimrc", ENGINE_LANG_VIMSCRIPT},
-    {"BUILD", ENGINE_LANG_STARLARK},
-    {"BUILD.bazel", ENGINE_LANG_STARLARK},
-    {"WORKSPACE", ENGINE_LANG_STARLARK},
-    {"WORKSPACE.bazel", ENGINE_LANG_STARLARK},
 
     /* .inc：常见于 C/C++ 头文件片段；BitBake 语法已移除。 */
 
@@ -265,17 +234,13 @@ static const ext_entry_t EXT_TABLE[] = {
     {".yml", ENGINE_LANG_YAML},
 
     /* Ada */
-    {".adb", ENGINE_LANG_ADA},
 
     /* Ada */
-    {".ads", ENGINE_LANG_ADA},
 
 
     /* Astro */
-    {".astro", ENGINE_LANG_ASTRO},
 
     /* AWK */
-    {".awk", ENGINE_LANG_AWK},
 
     /* BitBake */
 
@@ -287,32 +252,27 @@ static const ext_entry_t EXT_TABLE[] = {
     /* BibTeX */
 
     /* Bicep */
-    {".bicep", ENGINE_LANG_BICEP},
 
     /* Blade */
     /* .blade.php handled by userconfig compound extensions, not EXT_TABLE */
 
     /* Starlark */
-    {".bzl", ENGINE_LANG_STARLARK},
 
     /* Cairo */
 
     /* Cap'n Proto */
 
     /* Apex */
-    {".cls", ENGINE_LANG_APEX},
 
     /* Crystal */
 
     /* CSV */
 
     /* D */
-    {".d", ENGINE_LANG_DLANG},
 
     /* Diff */
 
     /* Pascal */
-    {".dpr", ENGINE_LANG_PASCAL},
 
     /* DeviceTree */
 
@@ -320,52 +280,40 @@ static const ext_entry_t EXT_TABLE[] = {
 
 
     /* Fish */
-    {".fish", ENGINE_LANG_FISH},
 
     /* Fennel */
 
     /* HLSL */
-    {".fx", ENGINE_LANG_HLSL},
 
     /* GDScript */
-    {".gd", ENGINE_LANG_GDSCRIPT},
 
     /* Gleam */
-    {".gleam", ENGINE_LANG_GLEAM},
 
     /* GN */
 
     /* GN */
 
     /* Go Template */
-    {".gotmpl", ENGINE_LANG_GOTEMPLATE},
-    {".tpl", ENGINE_LANG_GOTEMPLATE}, /* Helm _helpers.tpl named-template definitions */
 
 
 
     /* HLSL */
-    {".hlsl", ENGINE_LANG_HLSL},
 
     /* HLSL */
-    {".hlsli", ENGINE_LANG_HLSL},
 
     /* ISPC */
 
     /* Jinja2 */
-    {".j2", ENGINE_LANG_JINJA2},
 
     /* Janet */
 
     /* Jinja2 */
-    {".jinja", ENGINE_LANG_JINJA2},
 
     /* Jinja2 */
-    {".jinja2", ENGINE_LANG_JINJA2},
 
     /* JSON5 */
 
     /* Jsonnet */
-    {".jsonnet", ENGINE_LANG_JSONNET},
 
     /* KDL */
 
@@ -374,34 +322,26 @@ static const ext_entry_t EXT_TABLE[] = {
     /* Linker Script */
 
     /* Jsonnet */
-    {".libsonnet", ENGINE_LANG_JSONNET},
 
     /* Liquid */
-    {".liquid", ENGINE_LANG_LIQUID},
 
     /* LLVM IR */
-    {".ll", ENGINE_LANG_LLVM_IR},
 
     /* Pascal */
-    {".lpr", ENGINE_LANG_PASCAL},
 
     /* Luau */
 
     /* Qt QML */
-    {".qml", ENGINE_LANG_QML},
 
     /* CFML / ColdFusion — .cfc components are script-dialect; .cfm are tag templates */
 
     /* Mermaid */
-    {".mermaid", ENGINE_LANG_MERMAID},
 
     /* Mermaid */
-    {".mmd", ENGINE_LANG_MERMAID},
 
     /* Move */
 
     /* NASM */
-    {".nasm", ENGINE_LANG_NASM},
 
     /* Nickel */
 
@@ -412,12 +352,10 @@ static const ext_entry_t EXT_TABLE[] = {
     /* Squirrel */
 
     /* Odin */
-    {".odin", ENGINE_LANG_ODIN},
 
     /* DeviceTree */
 
     /* Pascal */
-    {".pas", ENGINE_LANG_PASCAL},
 
     /* Diff */
 
@@ -431,13 +369,10 @@ static const ext_entry_t EXT_TABLE[] = {
     /* PO */
 
     /* Puppet */
-    {".pp", ENGINE_LANG_PUPPET},
 
     /* Prisma */
-    {".prisma", ENGINE_LANG_PRISMA},
 
     /* Properties */
-    {".properties", ENGINE_LANG_PROPERTIES},
 
     /* PowerShell */
     {".ps1", ENGINE_LANG_POWERSHELL},
@@ -457,12 +392,10 @@ static const ext_entry_t EXT_TABLE[] = {
     /* Regex */
 
     /* Racket */
-    {".rkt", ENGINE_LANG_RACKET},
 
     /* RON */
 
     /* reStructuredText */
-    {".rst", ENGINE_LANG_RST},
 
     /* Assembly */
     {".s", ENGINE_LANG_ASSEMBLY},
@@ -471,7 +404,6 @@ static const ext_entry_t EXT_TABLE[] = {
     {".S", ENGINE_LANG_ASSEMBLY},
 
     /* Scheme */
-    {".scm", ENGINE_LANG_SCHEME},
 
     /* Slang */
 
@@ -480,22 +412,18 @@ static const ext_entry_t EXT_TABLE[] = {
     /* Smithy */
 
     /* Solidity */
-    {".sol", ENGINE_LANG_SOLIDITY},
 
 
 
     /* Scheme */
-    {".ss", ENGINE_LANG_SCHEME},
 
     /* Starlark */
-    {".star", ENGINE_LANG_STARLARK},
 
 
 
     /* Sway */
 
     /* Tcl */
-    {".tcl", ENGINE_LANG_TCL},
 
     /* TableGen */
 
@@ -507,27 +435,20 @@ static const ext_entry_t EXT_TABLE[] = {
 
 
     /* Go Template */
-    {".tmpl", ENGINE_LANG_GOTEMPLATE},
 
     /* Apex */
-    {".trigger", ENGINE_LANG_APEX},
 
     /* Typst */
-    {".typ", ENGINE_LANG_TYPST},
 
     /* VHDL */
-    {".vhd", ENGINE_LANG_VHDL},
 
     /* VHDL */
-    {".vhdl", ENGINE_LANG_VHDL},
 
     /* WGSL */
-    {".wgsl", ENGINE_LANG_WGSL},
 
     /* WIT */
 
     /* Zsh */
-    {".zsh", ENGINE_LANG_ZSH},
 
     /* Zig */
     {".zig", ENGINE_LANG_ZIG},
@@ -548,31 +469,6 @@ static const filename_entry_t FILENAME_TABLE[] = {
     {"GNUmakefile", ENGINE_LANG_MAKEFILE},
     {"Makefile", ENGINE_LANG_MAKEFILE},
     {"makefile", ENGINE_LANG_MAKEFILE},
-    {"meson.build", ENGINE_LANG_MESON},
-    {"meson.options", ENGINE_LANG_MESON},
-    {"meson_options.txt", ENGINE_LANG_MESON},
-    {"kustomization.yaml", ENGINE_LANG_KUSTOMIZE},
-    {"kustomization.yml", ENGINE_LANG_KUSTOMIZE},
-    /* Note: FILENAME_TABLE uses case-sensitive strcmp, so mixed-case variants
-     * (e.g. "Kustomization.yaml") are not matched here.  They fall through to
-     * ENGINE_LANG_YAML and are re-classified by engine_is_kustomize_file() in
-     * pass_k8s.c, which performs a case-insensitive comparison.  This is the
-     * intended behaviour — no additional entries are needed. */
-    {".vimrc", ENGINE_LANG_VIMSCRIPT},
-    {".zshrc", ENGINE_LANG_ZSH},
-    {".zshenv", ENGINE_LANG_ZSH},
-    {".zprofile", ENGINE_LANG_ZSH},
-    {"BUILD", ENGINE_LANG_STARLARK},
-    {"BUILD.bazel", ENGINE_LANG_STARLARK},
-    {"WORKSPACE", ENGINE_LANG_STARLARK},
-    {"WORKSPACE.bazel", ENGINE_LANG_STARLARK},
-    {"requirements.txt", ENGINE_LANG_REQUIREMENTS},
-    {"requirements-dev.txt", ENGINE_LANG_REQUIREMENTS},
-    {"requirements-test.txt", ENGINE_LANG_REQUIREMENTS},
-    {"go.mod", ENGINE_LANG_GOMOD},
-    {".env", ENGINE_LANG_DOTENV},
-    {".env.local", ENGINE_LANG_DOTENV},
-
 };
 
 #define FILENAME_TABLE_SIZE (sizeof(FILENAME_TABLE) / sizeof(FILENAME_TABLE[0]))
@@ -599,7 +495,6 @@ static const char *LANG_NAMES[ENGINE_LANG_COUNT] = {
     [ENGINE_LANG_ZIG] = "Zig",
     [ENGINE_LANG_ELIXIR] = "Elixir",
     [ENGINE_LANG_HASKELL] = "Haskell",
-    [ENGINE_LANG_OCAML] = "OCaml",
     [ENGINE_LANG_OBJC] = "Objective-C",
     [ENGINE_LANG_SWIFT] = "Swift",
     [ENGINE_LANG_DART] = "Dart",
@@ -616,16 +511,7 @@ static const char *LANG_NAMES[ENGINE_LANG_COUNT] = {
     [ENGINE_LANG_SQL] = "SQL",
     [ENGINE_LANG_DOCKERFILE] = "Dockerfile",
     [ENGINE_LANG_CLOJURE] = "Clojure",
-    [ENGINE_LANG_FSHARP] = "F#",
     [ENGINE_LANG_JULIA] = "Julia",
-    [ENGINE_LANG_VIMSCRIPT] = "VimScript",
-    [ENGINE_LANG_NIX] = "Nix",
-    [ENGINE_LANG_COMMONLISP] = "Common Lisp",
-    [ENGINE_LANG_ELM] = "Elm",
-    [ENGINE_LANG_FORTRAN] = "Fortran",
-    [ENGINE_LANG_CUDA] = "CUDA",
-    [ENGINE_LANG_VERILOG] = "Verilog",
-    [ENGINE_LANG_EMACSLISP] = "Emacs Lisp",
     [ENGINE_LANG_JSON] = "JSON",
     [ENGINE_LANG_XML] = "XML",
     [ENGINE_LANG_MARKDOWN] = "Markdown",
@@ -635,53 +521,10 @@ static const char *LANG_NAMES[ENGINE_LANG_COUNT] = {
     [ENGINE_LANG_GRAPHQL] = "GraphQL",
     [ENGINE_LANG_VUE] = "Vue",
     [ENGINE_LANG_SVELTE] = "Svelte",
-    [ENGINE_LANG_MESON] = "Meson",
-    [ENGINE_LANG_GLSL] = "GLSL",
     [ENGINE_LANG_INI] = "INI",
     [ENGINE_LANG_MATLAB] = "MATLAB",
-    [ENGINE_LANG_KUSTOMIZE] = "Kustomize",
-    [ENGINE_LANG_K8S] = "Kubernetes",
-    [ENGINE_LANG_SOLIDITY] = "Solidity",
-    [ENGINE_LANG_TYPST] = "Typst",
-    [ENGINE_LANG_GDSCRIPT] = "GDScript",
-    [ENGINE_LANG_GLEAM] = "Gleam",
     [ENGINE_LANG_POWERSHELL] = "PowerShell",
-    [ENGINE_LANG_PASCAL] = "Pascal",
-    [ENGINE_LANG_DLANG] = "D",
-    [ENGINE_LANG_SCHEME] = "Scheme",
-    [ENGINE_LANG_FISH] = "Fish",
-    [ENGINE_LANG_AWK] = "AWK",
-    [ENGINE_LANG_ZSH] = "Zsh",
-    [ENGINE_LANG_TCL] = "Tcl",
-    [ENGINE_LANG_ADA] = "Ada",
-    [ENGINE_LANG_RACKET] = "Racket",
-    [ENGINE_LANG_ODIN] = "Odin",
-    [ENGINE_LANG_QML] = "QML",
-    [ENGINE_LANG_NASM] = "NASM",
     [ENGINE_LANG_ASSEMBLY] = "Assembly",
-    [ENGINE_LANG_ASTRO] = "Astro",
-    [ENGINE_LANG_BLADE] = "Blade",
-    [ENGINE_LANG_GOTEMPLATE] = "Go Template",
-    [ENGINE_LANG_LIQUID] = "Liquid",
-    [ENGINE_LANG_JINJA2] = "Jinja2",
-    [ENGINE_LANG_PRISMA] = "Prisma",
-    [ENGINE_LANG_DOTENV] = "DotEnv",
-    [ENGINE_LANG_WGSL] = "WGSL",
-    [ENGINE_LANG_JSONNET] = "Jsonnet",
-    [ENGINE_LANG_PROPERTIES] = "Properties",
-    [ENGINE_LANG_STARLARK] = "Starlark",
-    [ENGINE_LANG_BICEP] = "Bicep",
-    [ENGINE_LANG_REQUIREMENTS] = "Requirements",
-    [ENGINE_LANG_HLSL] = "HLSL",
-    [ENGINE_LANG_VHDL] = "VHDL",
-    [ENGINE_LANG_RST] = "reStructuredText",
-    [ENGINE_LANG_MERMAID] = "Mermaid",
-    [ENGINE_LANG_PUPPET] = "Puppet",
-    [ENGINE_LANG_GITIGNORE] = "gitignore",
-    [ENGINE_LANG_LLVM_IR] = "LLVM IR",
-    [ENGINE_LANG_GOMOD] = "Go Mod",
-    [ENGINE_LANG_APEX] = "Apex",
-    [ENGINE_LANG_MOJO] = "Mojo",
 
 };
 
@@ -727,7 +570,6 @@ EngineLanguage engine_language_for_filename(const char *filename) {
      * pass_envscan/pass_infrascan (".env" exact, ".env." prefix, "*.env"
      * suffix) so file-index routing agrees with direct extraction. */
     if (strncmp(filename, ".env.", SLEN(".env.")) == 0) {
-        return ENGINE_LANG_DOTENV;
     }
 
     /* Fall back to extension-based lookup.
@@ -747,7 +589,6 @@ EngineLanguage engine_language_for_filename(const char *filename) {
         const char *ext;
         EngineLanguage lang;
     } COMPOUND_EXT_TABLE[] = {
-        {".blade.php", ENGINE_LANG_BLADE},
     };
     const engine_userconfig_t *ucfg = engine_get_user_lang_config();
     const char *p = strchr(filename, '.');
@@ -845,7 +686,6 @@ EngineLanguage engine_disambiguate_m(const char *path) {
 /* Disambiguate .cls files: .cls is Salesforce Apex. */
 EngineLanguage engine_disambiguate_cls(const char *path) {
     (void)path;
-    return ENGINE_LANG_APEX;
 }
 
 /* Disambiguate .inc files: treat as C include fragment. */

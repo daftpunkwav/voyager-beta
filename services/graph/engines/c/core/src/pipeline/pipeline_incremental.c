@@ -2147,7 +2147,7 @@ static int run_closure_delta(engine_pipeline_t *p, const char *db_path, const ch
     engine_clock_gettime(CLOCK_MONOTONIC, &t);
     int phase_rc = run_extract_resolve(&ctx, changed_files, ci, &cr);
     if (phase_rc == 0) {
-        phase_rc = engine_pipeline_pass_k8s(&ctx, changed_files, ci);
+        phase_rc = 0; /* k8s pass removed with language trim */
     }
     if (phase_rc == 0) {
         phase_rc = engine_pipeline_check_cancel(&ctx);
@@ -2693,7 +2693,7 @@ int engine_pipeline_run_incremental(engine_pipeline_t *p, const char *db_path, e
 
     int phase_rc = run_extract_resolve(&ctx, changed_files, ci, NULL);
     if (phase_rc == 0) {
-        phase_rc = engine_pipeline_pass_k8s(&ctx, changed_files, ci);
+        phase_rc = 0; /* k8s pass removed with language trim */
     }
     if (phase_rc == 0) {
         phase_rc = engine_pipeline_check_cancel(&ctx);

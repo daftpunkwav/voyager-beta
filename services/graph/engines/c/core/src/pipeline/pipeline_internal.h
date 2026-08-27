@@ -563,7 +563,6 @@ void engine_pipeline_create_route_nodes(engine_gbuf_t *gb);
 int engine_pipeline_pass_definitions(engine_pipeline_ctx_t *ctx, const engine_file_info_t *files,
                                   int file_count);
 
-int engine_pipeline_pass_k8s(engine_pipeline_ctx_t *ctx, const engine_file_info_t *files, int file_count);
 
 int engine_pipeline_pass_calls(engine_pipeline_ctx_t *ctx, const engine_file_info_t *files, int file_count);
 

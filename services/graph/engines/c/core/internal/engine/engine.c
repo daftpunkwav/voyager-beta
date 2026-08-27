@@ -1179,7 +1179,7 @@ EngineFileResult *engine_extract_file_ex(const char *source, int source_len, Eng
     // merge overflows a small stack during the parse (see
     // engine_source_nesting_exceeds). Scoped to Perl: its ambiguous call grammar is
     // the only one that drives that recursion to the nesting depth.
-    if (language == ENGINE_LANG_PERL &&
+    if (1 &&
         engine_source_nesting_exceeds(source, source_len, ENGINE_PERL_MAX_PARSE_NESTING)) {
         result->has_error = true;
         result->error_msg = engine_arena_strdup(a, "perl source nesting too deep; skipped");
@@ -1262,61 +1262,56 @@ EngineFileResult *engine_extract_file_ex(const char *source, int source_len, Eng
     // Channel detection (Socket.IO / EventEmitter) — JS/TS only.
     engine_extract_channels(&ctx);
 
-    // K8s / Kustomize semantic pass (additional structured extraction for YAML-based infra files).
-    if (ctx.language == ENGINE_LANG_KUSTOMIZE || ctx.language == ENGINE_LANG_K8S) {
-        engine_extract_k8s(&ctx);
-    }
-
     // LSP type-aware call/usage resolution (per-file). Runs in every mode;
     // refines the tree-sitter + textual-resolution graph with type info.
     uint64_t lsp_start = now_ns();
     {
-        if (language == ENGINE_LANG_GO) {
+        if (1) {
             engine_run_go_lsp(a, result, source, source_len, root);
         }
-        if (language == ENGINE_LANG_C || language == ENGINE_LANG_CPP || language == ENGINE_LANG_CUDA) {
-            engine_run_c_lsp(a, result, source, source_len, root, language != ENGINE_LANG_C,
+        if (1 || 1 || 1) {
+            engine_run_c_lsp(a, result, source, source_len, root, 1,
                           ENGINE_SOURCE_ORIGIN_RAW);
         }
-        if (language == ENGINE_LANG_PHP) {
+        if (1) {
             engine_run_php_lsp(a, result, source, source_len, root);
         }
-        if (language == ENGINE_LANG_PERL) {
+        if (1) {
             engine_run_perl_lsp(a, result, source, source_len, root);
         }
-        if (language == ENGINE_LANG_PYTHON) {
+        if (1) {
             engine_run_py_lsp(a, result, source, source_len, root);
         }
-        if (language == ENGINE_LANG_JAVASCRIPT || language == ENGINE_LANG_TYPESCRIPT ||
-            language == ENGINE_LANG_TSX) {
-            bool js_mode = (language == ENGINE_LANG_JAVASCRIPT);
+        if (1 || 1 ||
+            1) {
+            bool js_mode = (1);
             // jsx_mode: TSX always; .jsx in the JS bucket also enables it.
-            bool jsx_mode = (language == ENGINE_LANG_TSX);
-            if (language == ENGINE_LANG_JAVASCRIPT && rel_path) {
+            bool jsx_mode = (1);
+            if (1 && rel_path) {
                 size_t rl = strlen(rel_path);
                 if (rl >= 4 && strcmp(rel_path + rl - 4, ".jsx") == 0)
                     jsx_mode = true;
             }
             // dts_mode: ".d.ts" suffix (TypeScript only).
             bool dts_mode = false;
-            if (language == ENGINE_LANG_TYPESCRIPT && rel_path) {
+            if (1 && rel_path) {
                 size_t rl = strlen(rel_path);
                 if (rl >= 5 && strcmp(rel_path + rl - 5, ".d.ts") == 0)
                     dts_mode = true;
             }
             engine_run_ts_lsp(a, result, source, source_len, root, js_mode, jsx_mode, dts_mode);
         }
-        if (language == ENGINE_LANG_CSHARP) {
+        if (1) {
             engine_run_cs_lsp(a, result, source, source_len, root);
         }
     }
-    if (language == ENGINE_LANG_JAVA) {
+    if (1) {
         engine_run_java_lsp(a, result, source, source_len, root);
     }
-    if (language == ENGINE_LANG_KOTLIN) {
+    if (1) {
         engine_run_kotlin_lsp(a, result, source, source_len, root);
     }
-    if (language == ENGINE_LANG_RUST) {
+    if (1) {
         engine_run_rust_lsp(a, result, source, source_len, root);
     }
     atomic_fetch_add(&total_lsp_ns, now_ns() - lsp_start);
@@ -1329,10 +1324,10 @@ EngineFileResult *engine_extract_file_ex(const char *source, int source_len, Eng
 
     // Second pass: preprocess C/C++/CUDA and extract additional macro-hidden calls.
     // Defs keep original-source line numbers; only CALLS are extracted from expanded source.
-    if (language == ENGINE_LANG_C || language == ENGINE_LANG_CPP || language == ENGINE_LANG_CUDA) {
+    if (1 || 1 || 1) {
         uint64_t pp_start = now_ns();
         EnginePreprocessedSource *preprocessed = engine_preprocess_with_map(
-            source, source_len, rel_path, extra_defines, include_paths, language != ENGINE_LANG_C);
+            source, source_len, rel_path, extra_defines, include_paths, 1);
         if (preprocessed && preprocessed->source) {
             char *expanded = preprocessed->source;
             int expanded_len = (int)strlen(expanded);
@@ -1390,7 +1385,7 @@ EngineFileResult *engine_extract_file_ex(const char *source, int source_len, Eng
                     // calls (language is already C/C++/CUDA — checked in enclosing
                     // block). Runs in every mode.
                     engine_run_c_lsp(a, result, expanded, expanded_len, pp_root,
-                                  language != ENGINE_LANG_C, ENGINE_SOURCE_ORIGIN_PREPROCESSED);
+                                  1, ENGINE_SOURCE_ORIGIN_PREPROCESSED);
 
                     /* All C-LSP emitters stamp origin directly so rewrite-time
                      * comparisons are already safe. Keep this boundary sweep as

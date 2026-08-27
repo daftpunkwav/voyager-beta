@@ -28,7 +28,6 @@ typedef enum {
     ENGINE_LANG_ZIG,
     ENGINE_LANG_ELIXIR,
     ENGINE_LANG_HASKELL,
-    ENGINE_LANG_OCAML,
     ENGINE_LANG_OBJC,
     ENGINE_LANG_SWIFT,
     ENGINE_LANG_DART,
@@ -46,16 +45,7 @@ typedef enum {
     ENGINE_LANG_DOCKERFILE,
     // New languages (v0.5 expansion)
     ENGINE_LANG_CLOJURE,
-    ENGINE_LANG_FSHARP,
     ENGINE_LANG_JULIA,
-    ENGINE_LANG_VIMSCRIPT,
-    ENGINE_LANG_NIX,
-    ENGINE_LANG_COMMONLISP,
-    ENGINE_LANG_ELM,
-    ENGINE_LANG_FORTRAN,
-    ENGINE_LANG_CUDA,
-    ENGINE_LANG_VERILOG,
-    ENGINE_LANG_EMACSLISP,
     ENGINE_LANG_JSON,
     ENGINE_LANG_XML,
     ENGINE_LANG_MARKDOWN,
@@ -65,54 +55,11 @@ typedef enum {
     ENGINE_LANG_GRAPHQL,
     ENGINE_LANG_VUE,
     ENGINE_LANG_SVELTE,
-    ENGINE_LANG_MESON,
-    ENGINE_LANG_GLSL,
     ENGINE_LANG_INI,
     // Scientific/math languages
     ENGINE_LANG_MATLAB,
-    ENGINE_LANG_SOLIDITY,
-    ENGINE_LANG_TYPST,
-    ENGINE_LANG_GDSCRIPT,
-    ENGINE_LANG_GLEAM,
     ENGINE_LANG_POWERSHELL,
-    ENGINE_LANG_PASCAL,
-    ENGINE_LANG_DLANG,
-    ENGINE_LANG_SCHEME,
-    ENGINE_LANG_FISH,
-    ENGINE_LANG_AWK,
-    ENGINE_LANG_ZSH,
-    ENGINE_LANG_TCL,
-    ENGINE_LANG_ADA,
-    ENGINE_LANG_RACKET,
-    ENGINE_LANG_ODIN,
-    ENGINE_LANG_NASM,
     ENGINE_LANG_ASSEMBLY,
-    ENGINE_LANG_ASTRO,
-    ENGINE_LANG_BLADE,
-    ENGINE_LANG_GOTEMPLATE,
-    ENGINE_LANG_LIQUID,
-    ENGINE_LANG_JINJA2,
-    ENGINE_LANG_PRISMA,
-    ENGINE_LANG_DOTENV,
-    ENGINE_LANG_WGSL,
-    ENGINE_LANG_JSONNET,
-    ENGINE_LANG_PROPERTIES,
-    ENGINE_LANG_STARLARK,
-    ENGINE_LANG_BICEP,
-    ENGINE_LANG_REQUIREMENTS,
-    ENGINE_LANG_HLSL,
-    ENGINE_LANG_VHDL,
-    ENGINE_LANG_RST,
-    ENGINE_LANG_MERMAID,
-    ENGINE_LANG_PUPPET,
-    ENGINE_LANG_GITIGNORE,
-    ENGINE_LANG_LLVM_IR,
-    ENGINE_LANG_GOMOD,
-    ENGINE_LANG_APEX,
-    ENGINE_LANG_KUSTOMIZE,            // kustomization.yaml — Kubernetes overlay tool
-    ENGINE_LANG_K8S,                  // Generic Kubernetes manifest (apiVersion: detected)
-    ENGINE_LANG_QML,                  // Qt QML (Qt Modeling Language — declarative UI + embedded JS)
-    ENGINE_LANG_MOJO,                 // Mojo
     ENGINE_LANG_COUNT
 } EngineLanguage;
 
@@ -676,8 +623,6 @@ void engine_extract_channels(EngineExtractCtx *ctx);
 // Single-pass unified extraction (replaces the 7 calls above except defs+imports).
 void engine_extract_unified(EngineExtractCtx *ctx);
 
-// K8s / Kustomize semantic extractor (called when language is ENGINE_LANG_K8S or ENGINE_LANG_KUSTOMIZE).
-void engine_extract_k8s(EngineExtractCtx *ctx);
 
 // --- Label predicates ---
 
