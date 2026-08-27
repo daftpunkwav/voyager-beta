@@ -11,7 +11,7 @@
  */
 
 export type { ApiResponse, SSEEvent } from '@/bridge/legacyApi';
-import type { ApiResponse as _ApiResponse } from '@/bridge/legacyApi';
+import type { LegacyApiClient } from '@/bridge/legacyApi';
 
 // ---------- 用户 / GitHub ----------
 
@@ -26,6 +26,8 @@ export interface User {
   github_token_masked?: string;
   /** 兼容旧字段 */
   pat_masked?: string;
+  /** ISO 创建时间(OverviewPage hero 使用 formatDateTime(user.created_at)) */
+  created_at?: string;
   /** 扩展:角色 */
   role?: 'owner' | 'user' | 'guest';
 }
@@ -63,9 +65,15 @@ export interface StarRepo {
   already_imported?: boolean;
 }
 
+/** select_repos SSE 事件载荷(导入助手勾选操控)。
+ *  运行时佐证:agentStore processSSEStream select_repos 分支读 repo_keys/action/reason/count;
+ *  EmbedAgentChat.applySelectRepos 与 ImportStarsDrawer/ImportUrlsModal.applyAgentSelection
+ *  按 action 'set' | 'add' | 'remove' 消费。 */
 export interface SelectReposEvent {
-  intro: string;
-  repos: StarRepo[];
+  repo_keys: string[];
+  action: 'set' | 'add' | 'remove';
+  reason?: string;
+  count?: number;
 }
 
 // ---------- Project (旧) → Repo (新) ----------
@@ -80,7 +88,6 @@ export interface Project {
   category_id: string | null;
   category_ids?: string[];
   tag_ids?: string[];
-  tags?: Array<string | Tag>;
   progress: 'none' | 'learning' | 'learned' | 'mastered';
   source: 'github' | 'gitee' | 'manual' | 'imported';
   status: 'importing' | 'ready' | 'failed';
@@ -91,6 +98,9 @@ export interface Project {
   added_ts: number;
   updated_ts: number;
   imported_at?: string;
+  /** 仓库侧 tags 为字符串 id 数组(后端 repo.tags JSON 数组);
+   *  展示名经 useTags() 的 Tag 对象表解析(ProjectTable.tagMap / ProjectDetailPage)。 */
+  tags?: string[];
   relevance?: number;
   /** 兼容旧字段 */
   project_id?: string;
@@ -100,6 +110,9 @@ export interface Project {
   updated_at?: number;
   cached?: boolean;
 }
+
+/** 项目学习进度(旧 API 独立导出名;即 Project['progress']) */
+export type ProjectProgress = Project['progress'];
 
 export interface ProjectListParams {
   search?: string;
@@ -177,7 +190,14 @@ export interface Category {
   sort_order?: number;
 }
 
-export type Tag = string | { id: string; name: string; count?: number };
+/** 标签对象(useTags() 返回的标签表条目)。
+ *  消费佐证:FilterBar t.id/t.name、ProjectTable tagMap、EditProjectModal t.id/t.name/t.count、
+ *  CategoryTagManager t.id/t.name/t.count 均按对象访问。 */
+export interface Tag {
+  id: string;
+  name: string;
+  count?: number;
+}
 
 export interface TagRef {
   id: string;
@@ -204,7 +224,9 @@ export interface Note {
   created_ts: number;
   updated_ts: number;
   created_at?: number;
-  updated_at?: number;
+  /** ISO 字符串形态(消费佐证:NoteList/OverviewPage/ProjectDetailPage 均传入
+   *  formatRelativeTime / formatDate 等 iso:string 签名) */
+  updated_at?: string;
 }
 
 export interface NoteCreate {
@@ -323,6 +345,8 @@ export interface Settings {
   };
   privacy: { activity_report: boolean };
   /** 兼容旧字段 — flat 命名 */
+  theme?: 'dark' | 'light' | 'system';
+  font_scale?: number;
   llm_configured?: boolean;
   llm_model?: string;
   llm_default_provider_id?: string;
@@ -335,8 +359,10 @@ export interface Settings {
   llm_provider?: string;
   llm_provider_display_name?: string;
   agent_code_of_conduct?: string;
-  agent_guidelines?: Array<{ id: string; text: string; enabled: boolean }>;
-  agent_llm_configs?: Record<string, AgentLlmConfig>;
+  /** 运行时形态为 per-agent 准则(AgentSettingsSection 读 g.agent_id/g.guideline 并整表回写) */
+  agent_guidelines?: Array<{ agent_id: string; guideline: string }>;
+  /** 运行时为数组形态(LlmAgentOverrides for...of 遍历并整表回写) */
+  agent_llm_configs?: AgentLlmConfig[];
   agent_speaking_styles?: Record<string, AgentSpeakingStyle>;
 }
 
@@ -349,15 +375,17 @@ export type LlmApiFormat = 'openai' | 'anthropic' | 'google' | 'ollama' | 'custo
 export interface LlmProviderConfig {
   id: string;
   preset_id: string;
-  label: string;
+  /** 以下三个字段为可选:前端构造草稿(LlmSettingsSection 扁平兼容回退、
+   *  llmConfig.createProviderFromPreset)均不含它们,且仓库内无读取点 */
+  label?: string;
   display_name?: string;
   base_url?: string;
   api_base?: string;
-  has_api_key: boolean;
+  has_api_key?: boolean;
   configured?: boolean;
   api_key_masked?: string;
   api_format: LlmApiFormat;
-  models: string[];
+  models?: string[];
   available_models?: string[];
   enabled: boolean;
   default_model?: string;
@@ -365,20 +393,26 @@ export interface LlmProviderConfig {
   max_output_tokens?: number;
 }
 
+/** Agent LLM 覆盖配置(运行时形态,佐证:LlmAgentOverrides 默认项构造与补丁、
+ *  llmConfig.createDefaultAgentLlmConfigs) */
 export interface AgentLlmConfig {
   agent_id: string;
-  provider_id: string;
-  model: string;
-  temperature?: number;
-  max_output_tokens?: number;
+  provider_id: string | null;
+  model_override: string | null;
+  speaking_style: AgentSpeakingStyle;
 }
 
-export interface AgentSpeakingStyle {
-  agent_id: string;
-  tone: 'concise' | 'normal' | 'warm' | 'formal';
-  language: string;
-  catchphrases?: string[];
-}
+/** Agent 说话风格(运行时为字符串枚举,佐证:llmConfig.SPEAKING_STYLE_OPTIONS 8 个
+ *  字符串值;旧对象形态在仓库内无任何使用点) */
+export type AgentSpeakingStyle =
+  | 'default'
+  | 'warm'
+  | 'sharp'
+  | 'professional'
+  | 'humorous'
+  | 'concise'
+  | 'mentor'
+  | 'socratic';
 
 export interface LlmUsageSummary {
   total_input_tokens: number;
@@ -464,6 +498,10 @@ export interface AgentSession {
   updated_ts: number;
   source?: 'chat' | 'analyze' | 'import' | 'graph';
   status?: 'active' | 'archived';
+  /** 会话列表 UI 未读标记(AgentPage 渲染未读圆点;数据层暂无来源) */
+  unread?: boolean;
+  /** ISO 形态更新时间(AgentPage formatRelativeTime(s.updated_at)) */
+  updated_at?: string;
 }
 
 export interface AgentSessionDetail extends AgentSession {
@@ -614,19 +652,21 @@ export interface AgentPermissions {
 export interface MemoryItem {
   id: string;
   content: string;
-  category: 'preference' | 'fact' | 'context' | 'goal' | 'skill';
-  created_ts: number;
-  source: 'user' | 'inferred' | 'agent';
+  /** 运行时类别集(AgentContextSidebar MEMORY_LABELS / 区块遍历仅含这 4 类) */
+  category: 'summary' | 'goal' | 'tech' | 'preference';
+  created_ts?: number;
+  /** ISO 形态(AgentContextSidebar 本地构造 created_at) */
+  created_at?: string;
+  source?: 'user' | 'inferred' | 'agent';
   confidence?: number;
 }
 
 export interface MemoryProposal {
   id: string;
-  content: string;
-  category: MemoryItem['category'];
-  reason: string;
-  status: 'pending' | 'accepted' | 'rejected';
-  created_ts: number;
+  /** 消费佐证:AgentContextSidebar 待确认记忆卡读 value/agent_id/kind */
+  value: string;
+  agent_id?: string;
+  kind?: string;
 }
 
 export interface UserProfile {
@@ -648,11 +688,12 @@ export interface LearnerIdentity {
 }
 
 export interface Goal {
-  id: string;
+  id?: string;
   title?: string;
   text?: string;
+  priority?: number;
   status: 'active' | 'completed' | 'paused';
-  progress: number;
+  progress?: number;
 }
 
 export interface TechProficiencyEntry {
@@ -684,10 +725,26 @@ export interface ContextWindowStats {
   output_tokens: number;
 }
 
+/** 导入助手上下文(EmbedAgentChat importContext;构造点:ImportStarsDrawer/ImportUrlsModal
+ *  传入 mode/available_repo_keys/selected_repo_keys/available_repos/imported_projects) */
 export interface ImportAssistContext {
-  intent: string;
-  candidate_repos: StarRepo[];
-  hints?: string[];
+  mode: 'stars' | 'search' | 'urls';
+  available_repo_keys?: string[];
+  selected_repo_keys?: string[];
+  available_repos?: Array<{
+    key: string;
+    language: string | null;
+    stars: number;
+    already_imported: boolean;
+    description: string | null;
+  }>;
+  imported_projects?: Array<{
+    name: string;
+    language?: string | null;
+    progress?: string;
+    stars?: number;
+    description?: string | null;
+  }>;
 }
 
 // ---------- SSE 事件(旧 v1 形态) ----------
@@ -710,12 +767,15 @@ export type SSEEventType =
 
 export interface SSETextDelta {
   type: 'text_delta';
-  text: string;
+  /** 运行时字段为 content(佐证:sseHandlers/agentSSEStream/ProjectDetailPage/
+   *  useTrendingScoutSpot 四处独立消费) */
+  content: string;
 }
 
 export interface SSEThinking {
   type: 'thinking';
-  text: string;
+  /** 运行时字段为 content(佐证:sseHandlers/agentSSEStream 两处消费) */
+  content: string;
 }
 
 export interface SSEToolCall {
@@ -741,14 +801,21 @@ export interface SSEAgentSwitch {
 
 export interface SSESubagentStart {
   type: 'subagent_start';
-  agentId: AgentId;
+  /** 运行时为 snake_case agent_id(agentStore L618 读取) */
+  agent_id: AgentId;
   task?: string;
+  /** agentStore L629 读取 */
+  reason?: string;
 }
 
 export interface SSESubagentDone {
   type: 'subagent_done';
-  agentId: AgentId;
-  status: 'ok' | 'error';
+  /** 运行时为 snake_case agent_id(agentStore L656 读取) */
+  agent_id: AgentId;
+  /** agentStore L658-662 允许 'question' */
+  status: 'ok' | 'question' | 'error';
+  /** agentStore L664 读取 */
+  thinking?: string;
   output?: string;
 }
 
@@ -769,13 +836,9 @@ export interface ApiError {
 
 // ---------- 兼容层对外类型 ----------
 // 完整 84 方法由 bridge/legacyApi.ts 的 LegacyApiClient 实现,
-// 此处声明为结构兼容,具体方法签名以 LegacyApiClient 为准。
-// 兼容层:放宽 any(见文件顶部注释;旧 store 直接 .data 访问,需 any 推断)
-export type IApiClient = {
-  [k: string]: (...args: any[]) => Promise<_ApiResponse<any>> | AsyncGenerator<any> | any;
-};
+// 具体方法签名以 LegacyApiClient 为准(直接别名,避免两处声明漂移)。
+export type IApiClient = LegacyApiClient;
 
 // ---------- 兼容层(legacyApi 对外类型) ----------
-// IApiClient 由 bridge/legacyApi.ts 内部声明并 export,这里不再重复(避免签名漂移)。
 
 // SSE 形态在新前端被弃用,旧 hook 仍可能消费 — 由桥接层转译

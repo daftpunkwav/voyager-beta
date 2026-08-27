@@ -1,4 +1,3 @@
-// @ts-nocheck — 迁移期:上游迁入的代码,字段重命名由 legacyApi 边界归一化,新 page / hook 仍按 strict 写(见各文件顶部注释)。
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,6 +14,8 @@ import { formatNumber, REPO_AVATAR_GRADIENTS, splitRepoName } from '@/utils/form
 import { categoryLabel } from '@/utils/labels';
 import { getApi } from '@/api/client';
 import type { GraphEdge, GraphNode } from '@/api/types';
+// 玻璃层级 token(旧 OVERVIEW_OUTER_GLASS / OVERVIEW_INNER_GLASS 已统一至此)
+import { GLASS_CHIP, GLASS_OUTER } from '@/constants/glassTokens';
 
 const SIMILAR_PREVIEW_COUNT = 3;
 
@@ -59,7 +60,8 @@ export function GraphPage() {
 
   const batchIndex = useMutation({
     mutationFn: (ids: string[]) => getApi().batchIndexCodeGraph(ids, 'moderate'),
-    onSuccess: (res) => {
+    // 显式标注旧 ApiResponse 信封(useMutation 对 TData=unknown 的推断会使 res 退化为 unknown)
+    onSuccess: (res: { data: unknown }) => {
       const payload = res.data as {
         queued?: string[] | number;
         failed?: string[];
@@ -373,7 +375,7 @@ export function GraphPage() {
           )}
 
           {selectedNode && (
-            <div className={`node-detail ${OVERVIEW_OUTER_GLASS}`}>
+            <div className={`node-detail ${GLASS_OUTER}`}>
               <div className="node-detail-head">
                 <div className="node-avatar" style={{ background: REPO_AVATAR_GRADIENTS[0] }}>
                   {(selectedRepo?.repo[0] ?? 'P').toUpperCase()}
@@ -427,7 +429,7 @@ export function GraphPage() {
                           return (
                             <div
                               key={node.id}
-                              className={`similar-item ${OVERVIEW_INNER_GLASS}`}
+                              className={`similar-item ${GLASS_CHIP}`}
                             >
                               <button
                                 type="button"

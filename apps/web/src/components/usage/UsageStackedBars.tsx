@@ -1,4 +1,4 @@
-// @ts-nocheck — 迁移期:上游迁入的代码,字段重命名由 legacyApi 边界归一化,新 page / hook 仍按 strict 写(见各文件顶部注释)。
+// @ts-nocheck — 待后端契约确认:UsageStackedBars.tsx:19 页面读 by_day[].total_tokens/prompt_cached_tokens/completion_tokens/by_model,后端 get_usage_stats 无按天聚合(services/llm/store.py),边界归一需臆造数据;其余错误已清
 import { useMemo, useState } from 'react';
 import type { LlmUsageSummary } from '@/api/types';
 import { GLASS_CHIP } from '@/constants/glassTokens';

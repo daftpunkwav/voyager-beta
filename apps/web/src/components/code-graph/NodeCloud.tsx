@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -387,7 +386,7 @@ function NodeSpheres({
     if (!mat) return;
     const target =
       controls && "target" in controls && controls.target
-        ? controls.target
+        ? (controls.target as THREE.Vector3)
         : fallbackTarget;
     const dist = camera.position.distanceTo(target);
     /* 用最大节点尺寸判断：放大看 hub 时更容易开启动画 */

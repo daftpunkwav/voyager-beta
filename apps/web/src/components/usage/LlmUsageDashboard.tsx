@@ -1,4 +1,4 @@
-// @ts-nocheck — 迁移期:上游迁入的代码,字段重命名由 legacyApi 边界归一化,新 page / hook 仍按 strict 写(见各文件顶部注释)。
+// @ts-nocheck — 待后端契约确认:LlmUsageDashboard.tsx:100 getLlmUsage(get_usage_stats)后端仅返回 {days,input_tokens,output_tokens,calls,by_model[{model,input,output,calls}]}(services/llm/store.py usage_stats),页面消费的 totals/heatmap/recent 字段后端不存在,边界归一需臆造数据;其余错误已清
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getApi } from '@/api/client';

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -187,15 +186,21 @@ export function EdgeLines({
 
   const syncUniforms = (distFade = true) => {
     const pr = gl.getPixelRatio();
-    const w = gl.drawingBufferWidth || size.width * pr || 1920;
-    const h = gl.drawingBufferHeight || size.height * pr || 1080;
+    // three r166+ 已移除 renderer.drawingBufferWidth/Height;按可选字段读取,
+    // 缺失时回退 size*pr(与原运行时行为一致)
+    const glBuffer = gl as unknown as {
+      drawingBufferWidth?: number;
+      drawingBufferHeight?: number;
+    };
+    const w = glBuffer.drawingBufferWidth || size.width * pr || 1920;
+    const h = glBuffer.drawingBufferHeight || size.height * pr || 1080;
     edgeMat.uniforms.uResolution.value.set(w, h);
     edgeMat.uniforms.uBg.value.copy(isDark ? BG_DARK : BG_LIGHT);
     edgeMat.uniforms.uIsDark.value = isDark ? 1 : 0;
     if (!distFade) return;
     const target =
       controls && "target" in controls && controls.target
-        ? controls.target
+        ? (controls.target as THREE.Vector3)
         : fallbackTarget.current;
     const dist = camera.position.distanceTo(target);
     /* 暗色少做远距压暗，保留 原生引擎式星云连线；浅色仍用 fade 防黑疙瘩 */

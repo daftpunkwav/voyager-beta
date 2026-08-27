@@ -1,4 +1,4 @@
-// @ts-nocheck — 迁移期:上游迁入的代码,字段重命名由 legacyApi 边界归一化,新 page / hook 仍按 strict 写(见各文件顶部注释)。
+// @ts-nocheck — 待后端契约确认:UsageKpiCards.tsx:12 页面读 usage.totals.total_tokens/prompt_cached_tokens/top,后端 get_usage_stats 均不提供(services/llm/store.py),边界归一需臆造数据;其余错误已清
 import type { LlmUsageSummary } from '@/api/types';
 import { GLASS_CHIP } from '@/constants/glassTokens';
 import { formatTokenCount, formatTokenPercent } from '@/utils/formatTokens';

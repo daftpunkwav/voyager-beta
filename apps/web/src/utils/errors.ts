@@ -1,13 +1,17 @@
-// @ts-nocheck — 迁移期:上游迁入的代码,字段重命名由 legacyApi 边界归一化,新 page / hook 仍按 strict 写(见各文件顶部注释)。
-import type { ApiError } from '@/api/types';
+/** 旧 API 错误信封:{ error: { message } }。
+ *  注意:与 api/types 的 ApiError({ code, message })是两种形态;
+ *  本文件运行时按信封形态判定('error' in err),故用本地类型。 */
+interface LegacyErrorEnvelope {
+  error: { message: string };
+}
 
 /** 判断是否为 API 错误响应 */
-export function isApiError(err: unknown): err is ApiError {
+export function isApiError(err: unknown): err is LegacyErrorEnvelope {
   return (
     typeof err === 'object' &&
     err !== null &&
     'error' in err &&
-    typeof (err as ApiError).error?.message === 'string'
+    typeof (err as LegacyErrorEnvelope).error?.message === 'string'
   );
 }
 
