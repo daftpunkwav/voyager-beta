@@ -1752,9 +1752,7 @@ static void application_update_publish_terminal_locked(engine_daemon_application
     if (!application->update_cancel_requested && application_update_version_valid(latest_version) &&
         engine_compare_versions(latest_version, engine_cli_get_version()) > 0) {
         (void)snprintf(application->update_notice, sizeof(application->update_notice),
-                       "Update available: %s -> %s -- run: graph-engine update  |  "
-                       "Enjoying graph-engine? Please leave a star: "
-                       "https://github.com/DeusData/graph-engine",
+                       "Update available: %s -> %s -- run: graph-engine update",
                        engine_cli_get_version(), latest_version);
         engine_log_info("update.available", "current", engine_cli_get_version(), "latest",
                      latest_version);

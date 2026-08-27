@@ -144,7 +144,7 @@ static void handle_ui_config(engine_http_conn_t *c, const engine_http_req_t *req
      * targets must come from an auditable backend response, same pattern as
      * the /api/repo-info deep-links). */
     engine_http_replyf(c, 200, g_cors_json, "{\"lang\":\"%s\",\"upstream_issues_url\":\"%s\"}",
-                    lang_buf, "https://github.com/DeusData/graph-engine/issues/new");
+                    lang_buf, "");
 }
 
 /* ── Server state ─────────────────────────────────────────────── */

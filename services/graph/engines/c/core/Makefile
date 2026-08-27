@@ -1,4 +1,4 @@
-# Makefile — 图谱 C 引擎构建系统（源码迁自 codebase-memory-mcp）
+# Makefile — 图谱 C 引擎构建系统
 # Makefile 为兼容上游脚本的薄包装（include 本文件）。
 #
 # Usage:
