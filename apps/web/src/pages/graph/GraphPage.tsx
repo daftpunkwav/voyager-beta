@@ -86,12 +86,6 @@ export function GraphPage() {
     onError: () => addToast({ type: 'error', message: '批量索引请求失败' }),
   });
 
-  useEffect(() => {
-    if (!isError) return;
-    const message = error instanceof Error ? error.message : '加载图谱失败';
-    addToast({ type: 'error', message });
-  }, [isError, error, addToast]);
-
   const mergedData = useMemo(() => {
     if (!data) return { nodes: [] as GraphNode[], edges: [] as GraphEdge[] };
     const cross = (crossQ.data?.data?.edges || []) as unknown as GraphEdge[];
@@ -178,17 +172,29 @@ export function GraphPage() {
       ? `https://github.com/${selectedRepo.owner}/${selectedRepo.repo}`
       : null;
 
-  if (isLoading) return <LoadingSpinner fullScreen />;
+  if (isLoading) {
+    return (
+      <div className="graph-page-shell page-scaffold">
+        <LoadingSpinner fullScreen label="加载图谱中…" />
+      </div>
+    );
+  }
 
   if (isError) {
     return (
-      <div className="graph-page-shell">
-        <div className="graph-content">
+      <div className="graph-page-shell page-scaffold">
+        <header className="page-scaffold__head">
+          <div>
+            <h1>网络图谱</h1>
+            <p className="page-scaffold__subtitle">项目关系、相似度与推荐边</p>
+          </div>
+        </header>
+        <div className="page-scaffold__state">
           <EmptyState
             title="无法加载图谱"
-            description="请检查后端服务后重试"
+            description={error instanceof Error ? error.message : '请检查后端服务后重试'}
             action={
-              <button type="button" className="btn btn--secondary" onClick={() => void refetch()}>
+              <button type="button" className="btn btn-primary" onClick={() => void refetch()}>
                 重试
               </button>
             }
@@ -200,8 +206,14 @@ export function GraphPage() {
 
   if ((data?.nodes.length ?? 0) < 2) {
     return (
-      <div className="graph-page-shell">
-        <div className="graph-content">
+      <div className="graph-page-shell page-scaffold">
+        <header className="page-scaffold__head">
+          <div>
+            <h1>网络图谱</h1>
+            <p className="page-scaffold__subtitle">项目关系、相似度与推荐边</p>
+          </div>
+        </header>
+        <div className="page-scaffold__state">
           <EmptyState title="节点不足" description="至少需要 2 个项目才能生成关系图谱" />
         </div>
       </div>

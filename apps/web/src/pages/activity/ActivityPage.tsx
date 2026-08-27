@@ -62,9 +62,12 @@ export function ActivityPage() {
   }, [kind]);
 
   return (
-    <div className="activity-page">
-      <header className="activity-page__head">
-        <h1 className="h2">活动</h1>
+    <div className="activity-page page-scaffold">
+      <header className="page-scaffold__head activity-page__head">
+        <div>
+          <h1>活动</h1>
+          <p className="page-scaffold__subtitle">Agent 事件流与操作审计</p>
+        </div>
         <select
           className="filter-native-select"
           value={kind}
@@ -83,25 +86,33 @@ export function ActivityPage() {
       </header>
 
       {loading ? (
-        <LoadingSpinner label="加载活动流中…" />
+        <div className="page-scaffold__state">
+          <LoadingSpinner label="加载活动流中…" />
+        </div>
       ) : error ? (
-        <EmptyState title="加载失败" message={error} />
+        <div className="page-scaffold__state">
+          <EmptyState title="加载失败" message={error} />
+        </div>
       ) : events.length === 0 ? (
-        <EmptyState title="暂无活动" message="(此时间段内无事件)" />
+        <div className="page-scaffold__state">
+          <EmptyState title="暂无活动" message="(此时间段内无事件)" />
+        </div>
       ) : (
-        <GlassCard className="activity-card">
-          <ul className="activity-list">
-            {events.map((ev) => {
-              const s = summarize(ev);
-              return (
-                <li key={ev.seq ?? `${ev.ts}-${ev.id}`} className={`activity-row activity-row--${s.tone}`}>
-                  <span className="small mono">{ev.ts ? new Date(ev.ts * 1000).toLocaleString() : ''}</span>
-                  <span className="activity-row__text">{s.text}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </GlassCard>
+        <div className="page-scaffold__body">
+          <GlassCard className="activity-card">
+            <ul className="activity-list">
+              {events.map((ev) => {
+                const s = summarize(ev);
+                return (
+                  <li key={ev.seq ?? `${ev.ts}-${ev.id}`} className={`activity-row activity-row--${s.tone}`}>
+                    <span className="small mono">{ev.ts ? new Date(ev.ts * 1000).toLocaleString() : ''}</span>
+                    <span className="activity-row__text">{s.text}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </GlassCard>
+        </div>
       )}
     </div>
   );

@@ -70,17 +70,23 @@ export function LlmUsageDashboard() {
         </button>
       </div>
 
-      {isLoading && <LoadingSpinner />}
+      {isLoading && (
+        <div className="page-scaffold__state">
+          <LoadingSpinner label="加载用量统计中…" />
+        </div>
+      )}
       {isError && (
-        <EmptyState
-          title="用量统计服务暂不可用"
-          description={(error as Error | null)?.message || '无法连接后端服务'}
-          action={
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => void refetch()}>
-              重试
-            </button>
-          }
-        />
+        <div className="page-scaffold__state">
+          <EmptyState
+            title="用量统计服务暂不可用"
+            description={(error as Error | null)?.message || '无法连接后端服务'}
+            action={
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => void refetch()}>
+                重试
+              </button>
+            }
+          />
+        </div>
       )}
 
       {usage && (

@@ -41,24 +41,38 @@ export function SettingsPage() {
   // isLoading=false 但 settings 仍为 null,导致页面永远停在 LoadingSpinner
   // 卡死(用户无法看到内容/降级 UI)。
   if (isLoading && !settings) {
-    return <LoadingSpinner />;
+    return (
+      <div className="page-scaffold">
+        <LoadingSpinner label="加载设置中…" />
+      </div>
+    );
   }
   if (!settings) {
     // 后端不可达,显示降级 + 重试入口(避免白屏)
     return (
-      <EmptyState
-        title="无法加载设置"
-        description={error ?? '后端服务未启动或不可达。请检查 gateway 是否运行后重试。'}
-        action={
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => void loadSettings()}
-          >
-            重试
-          </button>
-        }
-      />
+      <div className="page-scaffold">
+        <header className="page-scaffold__head">
+          <div>
+            <h1>设置</h1>
+            <p className="page-scaffold__subtitle">个性化、账号、模型与数据管理</p>
+          </div>
+        </header>
+        <div className="page-scaffold__state">
+          <EmptyState
+            title="无法加载设置"
+            description={error ?? '后端服务未启动或不可达。请检查 gateway 是否运行后重试。'}
+            action={
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void loadSettings()}
+              >
+                重试
+              </button>
+            }
+          />
+        </div>
+      </div>
     );
   }
 
@@ -102,9 +116,16 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="settings-shell">
-      <nav className="subnav" aria-label="设置分类">
-        <div className="subnav-title">设置</div>
+    <div className="page-scaffold settings-page">
+      <header className="page-scaffold__head">
+        <div>
+          <h1>设置</h1>
+          <p className="page-scaffold__subtitle">个性化、账号、模型与数据管理</p>
+        </div>
+      </header>
+      <div className="settings-shell">
+        <nav className="subnav" aria-label="设置分类">
+          <div className="subnav-title">分类</div>
         {NAV.map((item) => (
           <button
             key={item.id}
@@ -280,18 +301,19 @@ export function SettingsPage() {
           </section>
         )}
       </div>
-
-      <ConfirmDialog
-        open={unbindId !== null}
-        title="解绑 GitHub"
-        message="确定解绑此账号？"
-        danger
-        onConfirm={() => {
-          if (unbindId) void unbindGithub(unbindId);
-          setUnbindId(null);
-        }}
-        onCancel={() => setUnbindId(null)}
-      />
     </div>
-  );
+
+    <ConfirmDialog
+      open={unbindId !== null}
+      title="解绑 GitHub"
+      message="确定解绑此账号？"
+      danger
+      onConfirm={() => {
+        if (unbindId) void unbindGithub(unbindId);
+        setUnbindId(null);
+      }}
+      onCancel={() => setUnbindId(null)}
+    />
+  </div>
+);
 }

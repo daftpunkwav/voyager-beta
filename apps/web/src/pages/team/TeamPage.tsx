@@ -66,13 +66,38 @@ export function TeamPage() {
     return unsub;
   }, []);
 
-  if (loading) return <LoadingSpinner label="加载团队信息中…" />;
-  if (error) return <EmptyState title="加载失败" message={error} />;
+  if (loading) {
+    return (
+      <div className="team-page page-scaffold">
+        <LoadingSpinner label="加载团队信息中…" />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="team-page page-scaffold">
+        <header className="page-scaffold__head">
+          <div>
+            <h1>团队</h1>
+            <p className="page-scaffold__subtitle">查看可用人格、当前工具面、注册自建 subagent</p>
+          </div>
+        </header>
+        <div className="page-scaffold__state">
+          <EmptyState title="加载失败" message={error} />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="team-page">
-      <h1 className="h2">团队</h1>
-      <p className="muted small">查看可用人格、当前工具面、注册自建 subagent。</p>
+    <div className="team-page page-scaffold">
+      <header className="page-scaffold__head">
+        <div>
+          <h1>团队</h1>
+          <p className="page-scaffold__subtitle">查看可用人格、当前工具面、注册自建 subagent</p>
+        </div>
+      </header>
+      <div className="page-scaffold__body">
 
       <section className="team-section">
         <h2 className="h3">人格</h2>
@@ -139,7 +164,9 @@ export function TeamPage() {
         </GlassCard>
       </section>
     </div>
-  );
+  </div>
+);
 }
 
 export default TeamPage;
+

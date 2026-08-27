@@ -59,8 +59,13 @@ export function HealthPage() {
   }, []);
 
   return (
-    <div className="health-page">
-      <h1 className="h2">服务状态</h1>
+    <div className="health-page page-scaffold">
+      <header className="page-scaffold__head">
+        <div>
+          <h1>服务状态</h1>
+          <p className="page-scaffold__subtitle">实时健康探测与后端服务可用性</p>
+        </div>
+      </header>
       {loading ? (
         <LoadingSpinner label="加载健康状态中…" />
       ) : error ? (
@@ -68,7 +73,7 @@ export function HealthPage() {
       ) : !payload ? (
         <EmptyState title="无数据" />
       ) : (
-        <>
+        <div className="page-scaffold__body">
           <GlassCard className={`health-overall health-overall--${payload.overall ?? 'unknown'}`}>
             <span className="label">整体</span>
             <span className="value">{payload.overall ?? 'unknown'}</span>
@@ -88,7 +93,7 @@ export function HealthPage() {
               </GlassCard>
             ))}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

@@ -136,7 +136,13 @@ export function OverviewPage() {
     return () => observer.disconnect();
   }, [period, trending]);
 
-  if (statsLoading) return <LoadingSpinner />;
+  if (statsLoading) {
+    return (
+      <div className="overview-page page-scaffold">
+        <LoadingSpinner label="加载总览中…" />
+      </div>
+    );
+  }
 
   const total = stats?.total ?? 0;
   const byProgress = stats?.by_progress ?? {
@@ -178,7 +184,7 @@ export function OverviewPage() {
   const activityItems = (activities ?? []).slice(0, ACTIVITY_SLOT_COUNT);
 
   return (
-    <>
+    <div className="overview-page page-scaffold">
       <div className="overview-hero-wrap" data-testid="overview-hero">
         <div className="overview-hero-art" aria-hidden>
           <span className="overview-hero-artword">
@@ -499,6 +505,6 @@ export function OverviewPage() {
         lookTarget={scout.lookTarget}
         bubbleWidthPx={scoutBubbleWidth}
       />
-    </>
+    </div>
   );
 }

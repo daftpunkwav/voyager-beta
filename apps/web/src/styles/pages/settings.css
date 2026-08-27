@@ -810,6 +810,15 @@
   padding: 12px 16px 24px;
 }
 
+/* 统一页面标题与 settings-shell 左右对齐 */
+.settings-page > .page-scaffold__head {
+  padding: 16px clamp(16px, 3vw, 40px) 0;
+  margin-bottom: 16px;
+}
+.settings-page .settings-shell {
+  padding-top: 0;
+}
+
 /* ---------- 玻璃表单下拉（设置页等） ---------- */
 .glass-select {
   position: relative;

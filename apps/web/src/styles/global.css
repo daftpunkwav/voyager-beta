@@ -43,23 +43,34 @@ a {
 .list > *:nth-child(5), .repo-card:nth-child(5), .note-item:nth-child(5), .session-item:nth-child(5), .health-card:nth-child(5) { animation-delay: 160ms; }
 .list > *:nth-child(6), .repo-card:nth-child(6), .note-item:nth-child(6), .session-item:nth-child(6), .health-card:nth-child(6) { animation-delay: 200ms; }
 
+/* ---------- Loading Spinner · 页面居中 ---------- */
 .loading-spinner {
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: calc(var(--sp) * 3);
   padding: calc(var(--sp) * 4);
+  text-align: center;
 }
-.loading-spinner--fullscreen {
-  min-height: 60vh;
-  justify-content: center;
+.loading-spinner--fullscreen,
+.page-scaffold__state > .loading-spinner,
+.content > .loading-spinner {
+  flex: 1;
+  min-height: 50vh;
 }
 .spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--bg-300);
+  width: 28px;
+  height: 28px;
+  border: 2.5px solid var(--bg-300);
   border-top-color: var(--brand-500);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+.loading-spinner__label {
+  font-size: 13px;
+  color: var(--text-500);
+  font-weight: 500;
 }
 @keyframes spin {
   to {
