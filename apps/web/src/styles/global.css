@@ -280,3 +280,59 @@ a {
     scroll-behavior: auto !important;
   }
 }
+
+/* ==========================================================================
+   全局动效层 · 入场 / 按压 / 弹层 / 主题切换(所有动画已被 reduced-motion 覆盖)
+   ========================================================================== */
+
+/* -- 弹层 · Apple sheet 弹入:overlay 淡入 + 面板上移缩放(spring) -- */
+@keyframes voyagerOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes voyagerSheetIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes voyagerDrawerIn { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.modal-overlay, .drawer-overlay { animation: voyagerOverlayIn var(--dur-fast, 150ms) var(--ease-apple) both; }
+.modal { animation: voyagerSheetIn var(--dur-slow, 350ms) var(--ease-spring) both; }
+.drawer { animation: voyagerDrawerIn var(--dur-base, 250ms) var(--ease-apple) both; }
+
+/* -- 下拉/菜单 pop-in -- */
+@keyframes voyagerPopIn {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+.chat-more-pop, .glass-select__menu, .filter-dropdown__menu {
+  animation: voyagerPopIn var(--dur-fast, 150ms) var(--ease-apple) both;
+}
+
+/* -- 卡片网格入场 stagger(统计卡/健康卡/团队卡) -- */
+.stat-grid > *, .health-grid > *, .team-grid > * {
+  animation: contentFadeIn var(--dur-slow, 350ms) var(--ease-apple) both;
+}
+.stat-grid > :nth-child(2), .health-grid > :nth-child(2), .team-grid > :nth-child(2) { animation-delay: 50ms; }
+.stat-grid > :nth-child(3), .health-grid > :nth-child(3), .team-grid > :nth-child(3) { animation-delay: 100ms; }
+.stat-grid > :nth-child(4), .health-grid > :nth-child(4), .team-grid > :nth-child(4) { animation-delay: 150ms; }
+
+/* -- 按压微反馈:非主按钮轻缩(主按钮已有色阶+位移语义,不叠加) -- */
+.btn:active:not(.btn-primary) { transform: scale(0.97); }
+.filter-chip:active, .page-btn:active, .icon-btn:active { transform: scale(0.94); }
+
+/* -- 悬浮对话球:入场 pop + hover 抬升;面板弹入 -- */
+@keyframes voyagerFloatIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.9); }
+  to   { opacity: 1; transform: none; }
+}
+.float-dot { animation: voyagerFloatIn var(--dur-slow, 350ms) var(--ease-spring) both; }
+.float-dot:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+}
+.float-panel { animation: voyagerSheetIn var(--dur-base, 250ms) var(--ease-spring) both; }
+
+/* -- 主题切换平滑过渡(仅颜色类属性,避免 backdrop-filter 抖动) -- */
+body { transition: background var(--dur-slow, 350ms) var(--ease-apple); }
+.card, .stat, .table, .filter-bar {
+  transition-property: background-color, border-color, box-shadow, color;
+  transition-duration: var(--dur-base, 250ms);
+  transition-timing-function: var(--ease-apple);
+}
