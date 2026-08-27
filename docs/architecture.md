@@ -629,26 +629,35 @@ services/<domain>/
 
 ### 8.4 graph(图谱服务)
 
-**两条建图管线,互不 import**:
+**图谱分 L0/L1 两层,两条建图管线,互不 import**:
+
+| 层 | 覆盖 | 方式 |
+|---|---|---|
+| **L0(跨资源关联)** | 资源库全部类型;范围可选——只分析代码仓库、只分析其他资源,或任意组合 | 当前:确定性 meta 管线(标签重合 → RELATED 边)兜底;未来:AI 管线语义关联叠加 |
+| **L1(单资源深度)** | code 仓库走程序化管线;文档/网页等由 AI 管线 | code:C/Python 引擎自动解析;其余:agent 阅读内容后建图 |
 
 | 管线 | 用途 | 方式 |
 |---|---|---|
 | `pipelines/code`(程序化) | **源码分析、仓库关联度分析**(当前引擎的能力范围) | 引擎自动解析,无需 LLM |
-| `pipelines/ai`(AI 建图) | 书籍、新闻、文档等文本内容 | **agent 阅读内容后经 `set_node` / `set_relationship`(upsert 语义)直接建图** |
+| `pipelines/l0`(程序化) | **L0 跨资源关联**(kinds 可选;universe 命名空间) | 资源元数据(标签/分类)确定性关联;资源清单经装配根注入,graph 不 import sources |
+| `pipelines/ai`(AI 建图) | 书籍、新闻、文档等文本内容的 L1 与 L0 语义关联 | **agent 阅读内容后经 `set_node` / `set_relationship`(upsert 语义)直接建图** |
 
 **引擎(engines/,程序化管线的执行者)**:**默认 C 引擎**(sidecar 子进程),
 **不可用时自动回退 Python 引擎**并发出事件告知;适配层对管线屏蔽差异;
-用户可在设置里强制指定(决策 §15)。
+用户可在设置里强制指定(决策 §15)。引擎只服务 code 资源的 L1——
+文档、图片、网页的图谱一律走 AI 管线。
 
-- 初始能力原语:`enqueue_index / cancel_index / reorder_queue /
+- 初始能力原语:`enqueue_index / enqueue_l0 / l0_view / cancel_index / reorder_queue /
   set_node / set_relationship / query_graph / get_subgraph`;
   其中 `set_node` / `set_relationship` 只是基础写入原语——完整工具集(子图提取、
   路径查询、邻居展开、批量操作、节点合并、图统计等)在 `docs/modules/graph.md`
   中详细设计并按需扩充,本文档不枚举;
 - 自带优先级队列:enqueue/cancel/reorder,并发上限、重试、backoff;
-  进度事件 `task.progress`;待命语义:队列空则空转,有任务即醒;
+  任务带 level(L0/L1)与 kinds;进度事件 `task.progress`;待命语义:队列空则空转,
+  有任务即醒;
 - AI 管线与程序化管线产出**同一份图存储**——用户手动建的节点、
-  引擎解析的节点、agent 建的节点在同一个图谱里,来源字段区分(actor + pipeline)。
+  引擎解析的节点、agent 建的节点在同一个图谱里,来源字段区分(actor + pipeline);
+  L0 重建只清 meta 派生数据,不碰 AI 产出。
 
 ### 8.5 code-exec(代码执行服务)
 
