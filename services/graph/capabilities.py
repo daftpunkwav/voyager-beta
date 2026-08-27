@@ -17,6 +17,7 @@ from platform_eventbus import EventBus
 from .engines.adapter import EngineAdapter
 from .index_queue import IndexQueue
 from .pipelines.ai import guide as ai_guide
+from .pipelines.l0 import relate as l0_relate
 from .store import GraphStore
 
 _DOMAIN = "graph"
@@ -29,6 +30,8 @@ class Deps:
     queue: IndexQueue
     adapter: EngineAdapter
     bus: EventBus | None
+    #: L0 资源清单回调(kinds -> 资源摘要);聚合形态由装配根注入
+    resource_provider: l0_relate.ResourceProvider | None = None
 
 
 _deps: Deps | None = None
@@ -58,12 +61,39 @@ def _ensure_node_id(store: GraphStore, project: str, qn: str, *,
 
 # ---------- 队列类 ----------
 
-@capability(registry, name="enqueue_index", description="源码索引入队(长任务;进度经 task.* 事件)",
+@capability(registry, name="enqueue_index",
+            description="L1 源码索引入队(code 仓库深度分析;长任务,进度经 task.* 事件)",
             long_running=True, cost=5)
 def enqueue_index(project: str, repo_path: str, priority: int = 100) -> JobRef:
     deps = _require_deps()
-    jid = deps.queue.enqueue(project, repo_path, priority)
+    jid = deps.queue.enqueue(project, repo_path, priority, level="l1")
     return JobRef(job_id=jid)
+
+
+@capability(registry, name="enqueue_l0",
+            description="L0 跨资源关联分析入队(kinds 选资源种类子集;"
+                        "标签重合兜底,AI 语义关联叠加)",
+            long_running=True, cost=3)
+def enqueue_l0(kinds: list[str], priority: int = 100) -> JobRef:
+    deps = _require_deps()
+    unknown = [k for k in kinds if k not in l0_relate.L0_KINDS]
+    if unknown:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           f"未知的资源种类: {unknown}(可选: {list(l0_relate.L0_KINDS)})")
+    if not kinds:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           "kinds 不能为空:至少选择一种资源参与关联分析")
+    jid = deps.queue.enqueue(l0_relate.L0_PROJECT, "", priority,
+                             level="l0", kinds=sorted(set(kinds)))
+    return JobRef(job_id=jid)
+
+
+@capability(registry, name="l0_view",
+            description="L0 关联图视图(universe 空间节点/边,可按资源种类过滤;"
+                        "含跨仓关联边)")
+def l0_view(kinds: list[str] | None = None, limit: int = 500) -> dict:
+    return l0_relate.l0_view(_require_deps().store, kinds=kinds,
+                             limit=min(limit, 2000))
 
 
 @capability(registry, name="cancel_index", description="取消排队中的索引任务")

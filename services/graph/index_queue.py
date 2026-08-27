@@ -2,10 +2,14 @@
 
 修订自旧 index_pipeline 的"任务代际"概念:取消不再需要 gen 失效机制——
 状态机 (queued→running→done/failed/cancelled) + 调度器执行前复查状态即可。
+
+任务分层(§8.4 L0/L1):level="l1" 为单资源深度分析(code 仓库,repo_path);
+level="l0" 为跨资源关联分析(kinds 选资源种类子集,repo_path 为空)。
 """
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import threading
 import time
@@ -28,8 +32,12 @@ CREATE TABLE IF NOT EXISTS index_jobs (
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON index_jobs(status, priority, created_ts);
 """
 
+#: 旧库增量列(level/kinds);建表语句不含,统一由 _migrate 补齐
+_MIGRATE_COLS = {"level": "TEXT NOT NULL DEFAULT 'l1'",
+                 "kinds": "TEXT NOT NULL DEFAULT '[]'"}
+
 _COLS = ("id", "project", "repo_path", "priority", "status", "attempts",
-         "error", "created_ts", "updated_ts")
+         "error", "created_ts", "updated_ts", "level", "kinds")
 
 
 class IndexQueue:
@@ -37,16 +45,28 @@ class IndexQueue:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.executescript(_SCHEMA)
+        self._migrate()
         self._lock = threading.Lock()
 
-    def enqueue(self, project: str, repo_path: str, priority: int = 100) -> str:
+    def _migrate(self) -> None:
+        """幂等补齐旧库缺列(现有 ALTER TABLE ADD COLUMN 语义)。"""
+        have = {r[1] for r in self._conn.execute("PRAGMA table_info(index_jobs)")}
+        for col, ddl in _MIGRATE_COLS.items():
+            if col not in have:
+                self._conn.execute(f"ALTER TABLE index_jobs ADD COLUMN {col} {ddl}")
+        self._conn.commit()
+
+    def enqueue(self, project: str, repo_path: str, priority: int = 100, *,
+                level: str = "l1", kinds: list[str] | None = None) -> str:
         jid = uuid.uuid4().hex[:12]
         now = time.time()
         with self._lock:
             self._conn.execute(
                 "INSERT INTO index_jobs (id, project, repo_path, priority, status,"
-                " created_ts, updated_ts) VALUES (?, ?, ?, ?, 'queued', ?, ?)",
-                (jid, project, repo_path, priority, now, now),
+                " created_ts, updated_ts, level, kinds)"
+                " VALUES (?, ?, ?, ?, 'queued', ?, ?, ?, ?)",
+                (jid, project, repo_path, priority, now, now, level,
+                 json.dumps(kinds or [], ensure_ascii=False)),
             )
             self._conn.commit()
         return jid
@@ -124,4 +144,9 @@ class IndexQueue:
 
 
 def _row(r: tuple) -> dict[str, Any]:
-    return dict(zip(_COLS, r))
+    d = dict(zip(_COLS, r))
+    try:
+        d["kinds"] = json.loads(d.get("kinds") or "[]")
+    except (TypeError, ValueError):
+        d["kinds"] = []
+    return d

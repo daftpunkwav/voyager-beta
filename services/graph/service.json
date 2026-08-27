@@ -4,7 +4,8 @@
   "protocol": "0.1.0",
   "port": 8030,
   "capabilities": [
-    "enqueue_index", "cancel_index", "reorder_queue", "list_index_jobs",
+    "enqueue_index", "enqueue_l0", "l0_view", "cancel_index", "reorder_queue",
+    "list_index_jobs",
     "set_node", "set_relationship", "graph_guide",
     "query_graph", "get_subgraph", "graph_stats", "list_projects", "engine_info",
     "drop_project_graph",

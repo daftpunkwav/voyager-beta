@@ -242,5 +242,43 @@ class GraphStore:
             self._conn.commit()
         return {"nodes": n, "edges": e}
 
+    def purge_meta(self, project: str, keep_qn: set[str] | None = None) -> dict[str, int]:
+        """清掉 meta 管线的派生数据,保留 AI/手工产出(重建 L0 前调用)。
+
+        - 删 project 内 source='meta' 的边;
+        - 删 label='Resource' 且 qualified_name 不在 keep_qn 的节点
+          (AI 在其上写的边随节点级联失效,由读取层悬空容忍);
+        - 非 Resource 节点(AI 建的概念/实体)一律保留。
+        """
+        keep = keep_qn or set()
+        with self._lock:
+            e = self._conn.execute(
+                "DELETE FROM edges WHERE project = ? AND source = 'meta'",
+                (project,)).rowcount
+            if keep:
+                rows = self._conn.execute(
+                    "SELECT id FROM nodes WHERE project = ? AND label = 'Resource'"
+                    f" AND qualified_name NOT IN ({','.join('?' * len(keep))})",
+                    (project, *keep),
+                ).fetchall()
+            else:
+                rows = self._conn.execute(
+                    "SELECT id FROM nodes WHERE project = ? AND label = 'Resource'",
+                    (project,)).fetchall()
+            n = 0
+            for (nid,) in rows:
+                n += self._conn.execute(
+                    "DELETE FROM nodes WHERE id = ?", (nid,)).rowcount
+            self._conn.commit()
+        return {"nodes": n, "edges": e}
+
+    def cross_edges(self, edge_type: str = "CROSS_REPO") -> list[dict[str, Any]]:
+        """跨项目关联边(cross-repo 空间),L0 视图并入展示。"""
+        rows = self._conn.execute(
+            f"SELECT {','.join(_EDGE_COLS)} FROM edges"
+            " WHERE project = 'cross-repo' AND type = ?", (edge_type,)
+        ).fetchall()
+        return [_row(_EDGE_COLS, r) for r in rows]
+
     def close(self) -> None:
         self._conn.close()

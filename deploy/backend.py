@@ -78,6 +78,19 @@ def build(
     # gateway 自身设置项由部署入口注册(其模块注释约定,无 wiring 装配)
     settings_store.register_fresh(GATEWAY_SETTING_DEFS)
 
+    # graph L0 资源目录桥:按 kinds 从 sources 各店 fan-out 资源摘要
+    # (形状= list_sources summaries;依赖倒置,graph 不 import sources)。
+    # STORES 由下方 wire_sources→init_all 填充,闭包惰性读取故先定义无碍。
+    from services.sources.capabilities import STORES as SOURCES_STORES
+
+    def _graph_resource_provider(kinds: list[str]) -> list[dict]:
+        out: list[dict] = []
+        for k in kinds:
+            store = SOURCES_STORES.get(k)
+            if store is not None:
+                out.extend(store.summaries(limit=2000))
+        return out
+
     wirings: dict[str, Wiring] = {
         "settings": wire_settings(data_root / "settings", bus=bus, store=settings_store),
         "llm": wire_llm(data_root / "llm", secrets=secrets,
@@ -89,12 +102,12 @@ def build(
         "notes": wire_notes(data_root / "notes", bus=bus,
                             settings_store=settings_store, workspace=workspace),
         "graph": wire_graph(data_root / "graph", bus=bus,
-                            settings_store=settings_store),
+                            settings_store=settings_store,
+                            resource_provider=_graph_resource_provider),
     }
     # sources 自带文档文件只读路由(wire→init_all 已填充其 STORES)
     # notes 自带附件只读路由(/api/notes/assets/{id};wire 后可用)
     from services.notes.assets import build_assets_router as build_notes_assets_router
-    from services.sources.capabilities import STORES as SOURCES_STORES
     mounts = [MountSpec(domain=name, registry=w.registry, probe=w.probe,
                         extra_router=(
                             build_files_router(SOURCES_STORES["doc"])
