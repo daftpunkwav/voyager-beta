@@ -78,6 +78,13 @@
   background: var(--warning);
   animation: svc-pulse 1.4s ease-in-out infinite;
 }
+/* 后端不可达 · 中性灰点(区别于 loading 琥珀脉动) */
+.svc-badge--offline {
+  color: var(--text-500);
+}
+.svc-badge--offline .svc-badge__dot {
+  background: var(--text-400);
+}
 @keyframes svc-pulse {
   0%, 100% { opacity: 0.45; transform: scale(0.85); }
   50% { opacity: 1; transform: scale(1); }

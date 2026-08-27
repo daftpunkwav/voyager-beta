@@ -34,12 +34,18 @@ export function HealthPage() {
         // 该端点不是 capability(只读健康摘要,无副作用),由 vite proxy 转发到 8000。
         // 若未来需鉴权,改为 callCapability('system', 'get_health', {})。
         const healthResp = await fetch('/health');
-        if (!healthResp.ok) throw new Error(`HTTP ${healthResp.status}`);
+        if (!healthResp.ok) {
+          // 无 JSON 信封的失败(代理在后端未启动时的 500)按网络不可达提示
+          const errBody = (await healthResp.json().catch(() => null)) as { error?: { message?: string } } | null;
+          throw new Error(errBody?.error?.message ?? '无法连接后端服务，请确认后端已启动');
+        }
         const body = (await healthResp.json()) as HealthPayload;
         if (!alive) return;
         setPayload(body);
       } catch (err) {
-        if (alive) setError(err instanceof Error ? err.message : String(err));
+        if (alive) {
+          setError(err instanceof TypeError ? '无法连接后端服务，请确认后端已启动' : err instanceof Error ? err.message : String(err));
+        }
       } finally {
         if (alive) setLoading(false);
       }

@@ -34,6 +34,11 @@ export async function callCapability<T = unknown>(
 
   const body = await resp.json().catch(() => null);
   if (!resp.ok) {
+    // 无 JSON 信封的失败响应(如 dev/preview 代理在后端未启动时返回的 500 空 body)
+    // 对用户等价于"后端不可达",不展示含糊的"请求失败(500)"
+    if (body === null) {
+      throw new ServiceError('NETWORK', '无法连接后端服务', '请确认后端服务已启动', '', resp.status);
+    }
     const err = body?.error ?? {};
     throw new ServiceError(
       err.code ?? 'UNKNOWN',

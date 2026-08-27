@@ -34,7 +34,7 @@ function fmtTs(ts: string | null): string {
 export function LlmUsageDashboard() {
   const [days, setDays] = useState<(typeof DAYS_OPTIONS)[number]>(30);
 
-  const { data, isLoading, isError, refetch, isFetching } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['llm-usage', days],
     queryFn: () => getApi().getLlmUsage(days),
   });
@@ -71,7 +71,9 @@ export function LlmUsageDashboard() {
 
       {isLoading && <LoadingSpinner />}
       {isError && (
-        <p className="usage-error">[LLM_USAGE_MODULE_DOWN] 用量统计服务暂不可用</p>
+        <p className="usage-error">
+          {(error as Error | null)?.message || '用量统计服务暂不可用'}
+        </p>
       )}
 
       {usage && (

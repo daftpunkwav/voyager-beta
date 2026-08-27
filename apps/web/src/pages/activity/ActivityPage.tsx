@@ -10,6 +10,7 @@ import { GlassCard } from '@/widgets/GlassCard';
 import { LoadingSpinner } from '@/widgets/LoadingSpinner';
 import { EmptyState } from '@/widgets/EmptyState';
 import { summarize, type FeedEvent } from '@/bridge/feed';
+import { extractErrorMessage } from '@/utils/errors';
 
 interface FetchResp {
   events?: FeedEvent[];
@@ -41,12 +42,16 @@ export function ActivityPage() {
         const url = new URL('/api/activity/feed', window.location.origin);
         if (kind) url.searchParams.set('kind', kind);
         const resp = await fetch(url.toString());
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        if (!resp.ok) {
+          // 优先透出后端 JSON 信封里的 message;无信封(如代理在后端未启动时的 500)给网络提示
+          const body = (await resp.json().catch(() => null)) as { error?: { message?: string } } | null;
+          throw new Error(body?.error?.message ?? '无法连接后端服务，请确认后端已启动');
+        }
         const body = (await resp.json()) as FetchResp;
         if (!alive) return;
         setEvents(body.events ?? body.items ?? []);
       } catch (err) {
-        if (alive) setError(err instanceof Error ? err.message : String(err));
+        if (alive) setError(extractErrorMessage(err));
       } finally {
         if (alive) setLoading(false);
       }
