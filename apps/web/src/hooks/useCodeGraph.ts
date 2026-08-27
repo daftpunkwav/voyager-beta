@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getApi } from '@/api/client';
 import type { GraphIndexStatus } from '@/components/code-graph/types';
-import { toRenderGraph } from '@/components/code-graph/types';
+import { toRenderGraph } from '@/components/code-graph/renderGraph';
 
 function requireProjectId(projectId: string | undefined): string {
   if (!projectId) throw new Error('缺少 projectId');

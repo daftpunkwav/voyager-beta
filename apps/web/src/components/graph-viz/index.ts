@@ -20,7 +20,7 @@ export type {
   GraphIndexStatus,
   NodeStatus,
 } from '@/components/code-graph/types';
-export { toRenderGraph } from '@/components/code-graph/types';
+export { toRenderGraph } from '@/components/code-graph/renderGraph';
 export {
   colorForLabel,
   colorForStatus,

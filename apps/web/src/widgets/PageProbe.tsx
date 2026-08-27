@@ -11,7 +11,7 @@ import {
   reportPageView,
 } from '@/bridge/activity';
 import { subscribe } from '@/bridge/stream';
-import { PAGE_PROBES } from './probes';
+import { PAGE_PROBES } from '@/shell/pageProbes';
 
 const SUMMARY_INTERVAL_MS = 30_000;
 

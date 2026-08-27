@@ -8,7 +8,7 @@ import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import { type ChatMessage, useChatStore } from '@/bridge/chatStore';
+import { type ChatMessage, useChatStore } from '@/stores/chatStore';
 
 /**
  * Markdown 安全性:react-markdown 未启用 rehype-raw,原始 HTML 一律转义为文本

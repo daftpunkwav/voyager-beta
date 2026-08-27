@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { callCapability, ServiceError } from '@/bridge/client';
-import { useChatStore } from '@/bridge/chatStore';
+import { useChatStore } from '@/stores/chatStore';
 
 export function AskDialog() {
   const question = useChatStore((s) => s.question);

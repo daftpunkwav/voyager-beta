@@ -1,8 +1,8 @@
-/** 页面感知协议(§5.1 / §9.20):每页一个 probe,实现 report() 输出"索引行+摘要"。
- * 摘要不暴露正文;数据未加载完时返回 null,PageProbe 跳过该次上报。
- *
- * 本文件只依赖各页面的 provider 摘要出口,不直接读取页面私有 store(§10.1)。
- * 仅 AgentPage / OverviewPage / ChatPage 等已稳定上报的页面注册。 */
+/** 页面感知注册表(§5.1 / §9.20):路由 -> 该页公开 provider 摘要出口。
+ * 每页在自己的 pages/<域>/provider.ts 实现 PageProbe 协议(report() 输出“索引行+摘要”,
+ * 不暴露正文;数据未就绪返回 null,PageProbe 跳过该次上报)。
+ * 放在 shell 层:shell 负责编排页面,依赖方向 shell → pages 合法;
+ * widgets/PageProbe 组件只消费本表,不得反向 import 页面。 */
 
 import type { PageProbe } from '@/bridge/pageContext';
 import { activityProvider } from '@/pages/activity/provider';

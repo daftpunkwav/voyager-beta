@@ -1,4 +1,5 @@
-/** 主题应用与热切换:settings.changed 事件驱动,用户手点与 agent 写入走同一通道。 */
+/** 主题桥:把后端设置(初始拉取 + settings.changed 事件)应用到 DOM。
+ * 与 hooks/useTheme(UI store 读写层)职责分离:本文件只做“设置 → documentElement”单向应用,不管理 React 状态。 */
 
 import { useEffect } from 'react';
 import { callCapability } from '@/bridge/client';
@@ -28,7 +29,7 @@ export function applyFontScale(scale: number): void {
   document.documentElement.style.setProperty('--font-scale', String(scale));
 }
 
-export function useTheme() {
+export function useThemeBridge() {
   useEffect(() => {
     let alive = true;
     callCapability<{ theme: string; font_scale: number }>('settings', 'get_theme')

@@ -4,7 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App } from '@/App';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
-import { useTheme } from '@/shell/useTheme';
+import { useThemeBridge } from '@/shell/themeBridge';
 import { initActivityReport } from '@/bridge/activity';
 
 // —— 全局样式(液态玻璃设计系统 + shell + 全局 + 各 page 私有) ——
@@ -59,7 +59,7 @@ function RootErrorFallback(_error: Error, reset: () => void) {
 }
 
 function Root() {
-  useTheme();
+  useThemeBridge();
   void initActivityReport();
   return (
     <StrictMode>
