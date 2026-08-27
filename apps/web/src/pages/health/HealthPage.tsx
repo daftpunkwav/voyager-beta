@@ -60,53 +60,59 @@ export function HealthPage() {
 
   return (
     <div className="health-page page-scaffold">
-      <header className="page-scaffold__head">
-        <div>
-          <h1>服务状态</h1>
-          <p className="page-scaffold__subtitle">实时健康探测与后端服务可用性</p>
-        </div>
-      </header>
       {loading ? (
         <LoadingSpinner label="加载健康状态中…" />
       ) : error ? (
-        <EmptyState
-          title="无法获取状态"
-          message={error}
-          icon={EmptyStateIcons.health}
-          action={
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => window.location.reload()}
-            >
-              刷新页面
-            </button>
-          }
-        />
-      ) : !payload ? (
-        <EmptyState title="无数据" icon={EmptyStateIcons.health} />
-      ) : (
-        <div className="page-scaffold__body">
-          <GlassCard className={`health-overall health-overall--${payload.overall ?? 'unknown'}`}>
-            <span className="label">整体</span>
-            <span className="value">{payload.overall ?? 'unknown'}</span>
-          </GlassCard>
-          <h2 className="h3">服务</h2>
-          <div className="health-grid">
-            {(payload.services ?? []).map((s) => (
-              <GlassCard key={s.service} className={`health-card health-card--${s.status}`}>
-                <div className="health-card__head">
-                  <span className="health-card__name mono">{s.service}</span>
-                  <span className={`chip health-chip--${s.status}`}>{s.status}</span>
-                </div>
-                {s.detail ? <p className="muted small">{s.detail}</p> : null}
-                {s.ts ? (
-                  <p className="small mono">最近探测:{new Date(s.ts * 1000).toLocaleString()}</p>
-                ) : null}
-              </GlassCard>
-            ))}
-          </div>
+        <div className="page-scaffold__state">
+          <EmptyState
+            title="无法获取状态"
+            message={error}
+            icon={EmptyStateIcons.health}
+            action={
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => window.location.reload()}
+              >
+                刷新页面
+              </button>
+            }
+          />
         </div>
+      ) : !payload ? (
+        <div className="page-scaffold__state">
+          <EmptyState title="无数据" icon={EmptyStateIcons.health} />
+        </div>
+      ) : (
+        <>
+          <header className="page-scaffold__head">
+            <div>
+              <h1>服务状态</h1>
+              <p className="page-scaffold__subtitle">实时健康探测与后端服务可用性</p>
+            </div>
+          </header>
+          <div className="page-scaffold__body">
+            <GlassCard className={`health-overall health-overall--${payload.overall ?? 'unknown'}`}>
+              <span className="label">整体</span>
+              <span className="value">{payload.overall ?? 'unknown'}</span>
+            </GlassCard>
+            <h2 className="h3">服务</h2>
+            <div className="health-grid">
+              {(payload.services ?? []).map((s) => (
+                <GlassCard key={s.service} className={`health-card health-card--${s.status}`}>
+                  <div className="health-card__head">
+                    <span className="health-card__name mono">{s.service}</span>
+                    <span className={`chip health-chip--${s.status}`}>{s.status}</span>
+                  </div>
+                  {s.detail ? <p className="muted small">{s.detail}</p> : null}
+                  {s.ts ? (
+                    <p className="small mono">最近探测:{new Date(s.ts * 1000).toLocaleString()}</p>
+                  ) : null}
+                </GlassCard>
+              ))}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

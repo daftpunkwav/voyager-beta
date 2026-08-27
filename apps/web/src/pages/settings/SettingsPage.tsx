@@ -51,12 +51,6 @@ export function SettingsPage() {
     // 后端不可达,显示降级 + 重试入口(避免白屏)
     return (
       <div className="page-scaffold">
-        <header className="page-scaffold__head">
-          <div>
-            <h1>设置</h1>
-            <p className="page-scaffold__subtitle">个性化、账号、模型与数据管理</p>
-          </div>
-        </header>
         <div className="page-scaffold__state">
           <EmptyState
             title="无法加载设置"

@@ -183,12 +183,6 @@ export function GraphPage() {
   if (isError) {
     return (
       <div className="graph-page-shell page-scaffold">
-        <header className="page-scaffold__head">
-          <div>
-            <h1>网络图谱</h1>
-            <p className="page-scaffold__subtitle">项目关系、相似度与推荐边</p>
-          </div>
-        </header>
         <div className="page-scaffold__state">
           <EmptyState
             title="无法加载图谱"
@@ -208,12 +202,6 @@ export function GraphPage() {
   if ((data?.nodes.length ?? 0) < 2) {
     return (
       <div className="graph-page-shell page-scaffold">
-        <header className="page-scaffold__head">
-          <div>
-            <h1>网络图谱</h1>
-            <p className="page-scaffold__subtitle">项目关系、相似度与推荐边</p>
-          </div>
-        </header>
         <div className="page-scaffold__state">
           <EmptyState
             title="节点不足"

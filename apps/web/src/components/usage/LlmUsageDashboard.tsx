@@ -44,6 +44,14 @@ export function LlmUsageDashboard() {
 
   return (
     <section className={`usage-dashboard ${USAGE_OUTER_GLASS}`}>
+      {usage && (
+        <header className="page-scaffold__head">
+          <div>
+            <h1>用量</h1>
+            <p className="page-scaffold__subtitle">LLM 调用统计、模型分布与热力趋势</p>
+          </div>
+        </header>
+      )}
       {isLoading && (
         <div className="page-scaffold__state">
           <LoadingSpinner label="加载用量统计中…" />

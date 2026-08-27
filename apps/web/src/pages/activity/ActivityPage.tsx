@@ -61,29 +61,33 @@ export function ActivityPage() {
     };
   }, [kind]);
 
+  const hasContent = !loading && !error && events.length > 0;
+
   return (
     <div className="activity-page page-scaffold">
-      <header className="page-scaffold__head activity-page__head">
-        <div>
-          <h1>活动</h1>
-          <p className="page-scaffold__subtitle">Agent 事件流与操作审计</p>
-        </div>
-        <select
-          className="filter-native-select"
-          value={kind}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (v) setParams({ kind: v });
-            else setParams({});
-          }}
-        >
-          {KIND_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </header>
+      {hasContent && (
+        <header className="page-scaffold__head activity-page__head">
+          <div>
+            <h1>活动</h1>
+            <p className="page-scaffold__subtitle">Agent 事件流与操作审计</p>
+          </div>
+          <select
+            className="filter-native-select"
+            value={kind}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v) setParams({ kind: v });
+              else setParams({});
+            }}
+          >
+            {KIND_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </header>
+      )}
 
       {loading ? (
         <div className="page-scaffold__state">

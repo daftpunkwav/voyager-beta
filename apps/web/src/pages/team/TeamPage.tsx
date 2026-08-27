@@ -76,12 +76,6 @@ export function TeamPage() {
   if (error) {
     return (
       <div className="team-page page-scaffold">
-        <header className="page-scaffold__head">
-          <div>
-            <h1>团队</h1>
-            <p className="page-scaffold__subtitle">查看可用人格、当前工具面、注册自建 subagent</p>
-          </div>
-        </header>
         <div className="page-scaffold__state">
           <EmptyState
             title="加载失败"

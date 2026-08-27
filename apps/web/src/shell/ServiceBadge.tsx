@@ -63,14 +63,8 @@ export function ServiceBadges() {
   }
 
   if (Object.keys(services).length === 0) {
-    return (
-      <div className="svc-badges" role="status" aria-label="服务离线">
-        <span className="svc-badge svc-badge--offline" title="无法连接后端服务,将自动重试">
-          <span className="svc-badge__dot" aria-hidden />
-          服务离线
-        </span>
-      </div>
-    );
+    // 各页面错误/空态已自行提示后端不可达,避免全局重复占用顶部空间。
+    return null;
   }
 
   return (

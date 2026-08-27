@@ -786,6 +786,14 @@ img, svg { display: block; max-width: 100%; }
 .page-scaffold__state > .empty-state {
   max-width: 420px;
 }
+/* 错误/空态下无 page head 时,让空状态真正垂直居中而非贴顶 */
+.page-scaffold:has(> .page-scaffold__state:last-child:first-child) {
+  justify-content: center;
+}
+.page-scaffold:has(> .page-scaffold__state:last-child:first-child) .page-scaffold__state {
+  flex: 0 0 auto;
+  min-height: auto;
+}
 .page-scaffold > .loading-spinner,
 .page-scaffold__body > .loading-spinner {
   flex: 1;
