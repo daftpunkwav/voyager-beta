@@ -18,7 +18,6 @@ import { useUIStore } from '@/stores/uiStore';
 interface NoteEditorProps {
   onSave: () => void;
   saving?: boolean;
-  variant?: 'default' | 'notes';
 }
 
 /** 编辑器主题:全部读 CSS 变量,亮暗切换零重载。 */
@@ -76,7 +75,7 @@ function toggleLinePrefix(view: EditorView | null, prefix: string) {
   view.focus();
 }
 
-export function NoteEditor({ onSave, saving, variant = 'default' }: NoteEditorProps) {
+export function NoteEditor({ onSave, saving }: NoteEditorProps) {
   const title = useNoteStore((s) => s.editorTitle);
   const content = useNoteStore((s) => s.editorContent);
   const setTitle = useNoteStore((s) => s.setEditorTitle);
@@ -100,9 +99,10 @@ export function NoteEditor({ onSave, saving, variant = 'default' }: NoteEditorPr
         const { uploadFile } = await import('@/bridge/client');
         const { file_path, filename } = await uploadFile(file);
         const res = await (await import('@/api/client')).getApi().addAsset(file_path, filename);
-        const md = typeof res === 'object' && res && 'markdown' in res
-          ? (res as { markdown: string }).markdown
-          : `![](${String(res)})`;
+        const payload = res && typeof res === 'object' && 'data' in res
+          ? (res as { data: { markdown?: string; url?: string } }).data
+          : null;
+        const md = payload?.markdown ?? (payload?.url ? `![](${payload.url})` : `![](${String(res)})`);
         if (view) {
           view.dispatch(view.state.replaceSelection(`\n${md}\n`));
           view.focus();
@@ -233,56 +233,33 @@ export function NoteEditor({ onSave, saving, variant = 'default' }: NoteEditorPr
       >
         {uploading ? '…' : '🖼'}
       </button>
-      {variant === 'notes' && (
-        <>
-          <div className="edit-toolbar-divider" />
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            data-testid="save-note-btn"
-            style={{ marginLeft: 'auto' }}
-            onClick={onSave}
-            disabled={saving}
-          >
-            {saving ? '保存中…' : '保存'}
-          </button>
-          <span className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>
-            {wordCount} 字
-          </span>
-        </>
-      )}
+      <div className="edit-toolbar-divider" />
+      <button
+        type="button"
+        className="btn btn-primary btn-sm"
+        data-testid="save-note-btn"
+        style={{ marginLeft: 'auto' }}
+        onClick={onSave}
+        disabled={saving}
+      >
+        {saving ? '保存中…' : '保存'}
+      </button>
+      <span className="muted" style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+        {wordCount} 字
+      </span>
     </div>
   );
 
-  if (variant === 'notes') {
-    return (
-      <>
-        {toolbar}
-        <input
-          className="edit-title-input"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="无标题笔记"
-        />
-        <div className="edit-content-area edit-content-area--cm" ref={hostRef} data-testid="note-editor-cm" />
-      </>
-    );
-  }
-
   return (
-    <div className="note-editor">
-      <div className="note-editor__toolbar">
-        <button type="button" className="btn btn-primary btn-sm" data-testid="save-note-btn" onClick={onSave} disabled={saving}>
-          {saving ? '保存中…' : '保存'}
-        </button>
-      </div>
+    <>
+      {toolbar}
       <input
-        className="input note-editor__title"
+        className="edit-title-input"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        placeholder="笔记标题"
+        placeholder="无标题笔记"
       />
-      <div className="input note-editor__body note-editor__body--cm" ref={hostRef} />
-    </div>
+      <div className="edit-content-area edit-content-area--cm" ref={hostRef} data-testid="note-editor-cm" />
+    </>
   );
 }

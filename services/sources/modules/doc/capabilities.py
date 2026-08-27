@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import re
 import shutil
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,7 +25,8 @@ from platform_contracts import (
 from platform_eventbus import EventBus
 from platform_settings import SettingsStore
 
-from .store import DocStore, valid_tag
+from .._shared.utils import valid_tag
+from .store import DocStore
 
 _DOMAIN = "sources"
 registry = Registry(_DOMAIN)
@@ -123,7 +125,8 @@ async def add_document(file_path: str, title: str = "", tags: list[str] | None =
                            hint="agent 可先把文件下载/复制到 workspace/ 再导入")
     dest_dir = Path(deps.workspace) / "doc"
     dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / f"{_safe_filename(clean_title)}{ext}"
+    uid = uuid.uuid4().hex[:8]
+    dest = dest_dir / f"{_safe_filename(clean_title)}_{uid}{ext}"
     shutil.copy2(src, dest)
     status = "parsing" if ext in PARSEABLE_EXTS else "stored"
     did = deps.store.add({"title": clean_title, "filename": src.name, "ext": ext,

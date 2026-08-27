@@ -15,6 +15,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from .._shared.utils import escape_like
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS repos (
     id          TEXT PRIMARY KEY,
@@ -130,10 +132,10 @@ class RepoStore:
             params.append(status)
         if tag:
             wheres.append(r"tags LIKE ? ESCAPE '\'")
-            params.append(f'%"{_escape_like(tag)}"%')
+            params.append(f'%{escape_like(tag)}%')
         if query:
             wheres.append("(name LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')")
-            like = f"%{_escape_like(query)}%"
+            like = f"%{escape_like(query)}%"
             params += [like, like]
         sql = f"SELECT {','.join(_SUMMARY_COLS)} FROM repos"
         if wheres:
@@ -198,7 +200,3 @@ def _row(cols: tuple[str, ...], r: tuple) -> dict[str, Any]:
     d = dict(zip(cols, r))
     d["tags"] = json.loads(d.get("tags") or "[]")
     return d
-
-
-def _escape_like(s: str) -> str:
-    return s.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")

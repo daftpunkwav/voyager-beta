@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react';
-import GithubSluggerCtor from 'github-slugger';
+import GithubSlugger from 'github-slugger';
 import {
   useBacklinks,
   useEmptyTrash,
@@ -202,8 +202,8 @@ export function BacklinkPanel({ noteId }: { noteId: string }) {
   );
 }
 
-/** 与 MarkdownRenderer 同一 slug 实现(github-slugger;每次新建实例防去重串号)。 */
+// 与 MarkdownRenderer 共用 github-slugger 单实例,避免重复标题 slug 不一致。
+const _slugger = new GithubSlugger();
 function slugify(text: string): string {
-  const slugger = new GithubSluggerCtor();
-  return slugger.slug(text);
+  return _slugger.slug(text);
 }

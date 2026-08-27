@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useDocument, useDocSection, useDocumentEvents, useRemoveDocument } from '@/hooks/useSources';
 import { getApi } from '@/api/client';
 import { useUIStore } from '@/stores/uiStore';
@@ -15,6 +15,7 @@ import { MarkdownRenderer } from '@/components/common/MarkdownRenderer';
 
 export function DocReader() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { data: doc, isLoading, isError, error, refetch } = useDocument(id);
   useDocumentEvents(id);
   const removeDoc = useRemoveDocument();
@@ -80,7 +81,10 @@ export function DocReader() {
             onClick={() => {
               if (!window.confirm(`删除文档「${doc.title}」?此操作不可撤销。`)) return;
               removeDoc.mutate(doc.id, {
-                onSuccess: () => addToast({ type: 'success', message: '文档已删除' }),
+                onSuccess: () => {
+                  addToast({ type: 'success', message: '文档已删除' });
+                  navigate('/sources');
+                },
                 onError: (e) => addToast({ type: 'error', message: e instanceof Error ? e.message : '删除失败' }),
               });
             }}
@@ -196,6 +200,7 @@ function PdfPane({ docId, fileUrl }: { docId: string; fileUrl: string }) {
           cMapPacked: true,
           standardFontDataUrl: '/pdfjs/standard_fonts/',
         });
+        taskRef.current = task;
         const pdf = await task.promise;
         if (cancelled) {
           void task.destroy();
@@ -216,6 +221,7 @@ function PdfPane({ docId, fileUrl }: { docId: string; fileUrl: string }) {
   }, [fileUrl]);
 
   useEffect(() => {
+    let renderTask: import('pdfjs-dist').RenderTask | null = null;
     const render = async () => {
       const pdf = docRef.current;
       const canvas = canvasRef.current;
@@ -228,11 +234,19 @@ function PdfPane({ docId, fileUrl }: { docId: string; fileUrl: string }) {
       canvas.height = viewport.height;
       canvas.style.width = `${viewport.width / window.devicePixelRatio}px`;
       canvas.style.height = `${viewport.height / window.devicePixelRatio}px`;
-      await page.render({ canvas, canvasContext: ctx, viewport }).promise;
-      void docId;
-      page.cleanup();
+      renderTask = page.render({ canvasContext: ctx, viewport });
+      try {
+        await renderTask.promise;
+      } catch (err) {
+        if (err instanceof Error && !err.message.includes('cancelled')) throw err;
+      } finally {
+        page.cleanup();
+      }
     };
     void render();
+    return () => {
+      renderTask?.cancel();
+    };
   }, [pageNum, total, scale, docId]);
 
   const changeScale = (delta: number) => {

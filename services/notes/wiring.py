@@ -9,6 +9,7 @@ retention_days=0 时为 no-op(§9.20 惰性维护,无独立 worker 进程)。
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
 
@@ -25,9 +26,11 @@ from .store import NoteStore
 class TrashPruner:
     """回收站保留策略后台任务;Wiring.start/stop 的载体。"""
 
-    def __init__(self, store: NoteStore, settings_store: SettingsStore | None) -> None:
+    def __init__(self, store: NoteStore, settings_store: SettingsStore | None,
+                 purge_assets: Callable[[str], list[str]] | None = None) -> None:
         self._store = store
         self._settings = settings_store
+        self._purge_assets = purge_assets
         self._task: asyncio.Task | None = None
 
     def _retention_days(self) -> int:
@@ -41,7 +44,11 @@ class TrashPruner:
     async def _loop(self) -> None:
         await asyncio.sleep(5.0)  # 避让进程启动高峰
         while True:
-            self._store.purge_expired(self._retention_days())
+            purged = self._store.purge_expired(self._retention_days())
+            for nid in purged:
+                # wiring 层直接持有 asset purge;循环引用规避:capabilities 注册后再绑定
+                if self._purge_assets:
+                    self._purge_assets(nid)
             await asyncio.sleep(24 * 3600)
 
     async def start(self) -> None:
@@ -62,13 +69,13 @@ def wire(
     *,
     bus: EventBus | None = None,
     settings_store: SettingsStore | None = None,
-    workspace: str | Path = "workspace",
+    workspace: str | Path | None = None,
 ) -> Wiring:
     if settings_store is not None:
         settings_store.register_fresh(DEFS)
     history_keep = int((settings_store.get("notes.history.per_note") if settings_store else 20) or 0)
     store = NoteStore(Path(data_dir) / "notes.db", history_keep=history_keep)
-    workspace = Path(workspace)
+    workspace = Path(workspace) if workspace else Path(__file__).parents[2] / "workspace"
     asset_store = assets.AssetStore(Path(data_dir) / "assets.db")
 
     def _max_asset_mb() -> int:
@@ -81,9 +88,10 @@ def wire(
 
     assets.init_store(asset_store, workspace, max_file_mb=_max_asset_mb)
     assets.register(registry)
+    purge_assets = assets.purge_of_note
     init_deps(Deps(store=store, bus=bus, settings=settings_store,
-                   purge_assets=assets.purge_of_note))
-    pruner = TrashPruner(store, settings_store)
+                   purge_assets=purge_assets))
+    pruner = TrashPruner(store, settings_store, purge_assets=purge_assets)
 
     def close() -> None:
         store.close()

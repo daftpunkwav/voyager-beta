@@ -14,6 +14,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from .._shared.utils import escape_like, valid_tag
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS documents (
     id          TEXT PRIMARY KEY,
@@ -50,8 +52,6 @@ _COLS = ("id", "title", "filename", "ext", "local_path", "category", "tags",
 _SUMMARY_COLS = _COLS
 
 _SORTABLE = {"added": "added_ts", "updated": "updated_ts", "title": "title"}
-
-_TAG_CHARS = set("[]\"\\,")
 
 
 class DocStore:
@@ -106,10 +106,10 @@ class DocStore:
         if tag:
             # tags 为 json 数组文本:带引号整词匹配防子串误命中(与 rename 同语义)
             wheres.append(r"tags LIKE ? ESCAPE '\'")
-            params.append(f'%"{_escape_like(tag)}"%')
+            params.append(f'%{escape_like(tag)}%')
         if query:
             wheres.append("(title LIKE ? ESCAPE '\\' OR filename LIKE ? ESCAPE '\\')")
-            like = f"%{_escape_like(query)}%"
+            like = f"%{escape_like(query)}%"
             params += [like, like]
         col = _SORTABLE.get(sort, "added_ts")
         order = f"{col} {'DESC' if desc else 'ASC'}"
@@ -200,11 +200,11 @@ class DocStore:
 
     def search_sections(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
         """分章全文检索:命中返回章号与片段(不做相关度排序,LIKE 起步)。"""
-        like = f"%{_escape_like(query)}%"
+        like = f"%{escape_like(query)}%"
         rows = self._conn.execute(
             "SELECT s.doc_id, d.title, s.section_no, s.title, s.text"
             " FROM document_sections s JOIN documents d ON d.id = s.doc_id"
-            " WHERE s.text LIKE ? ESCAPE '\\' ORDER BY d.updated_ts DESC LIMIT ?",
+            " WHERE s.text LIKE ? ESCAPE '\\' ORDER BY d.added_ts DESC LIMIT ?",
             (like, limit),
         ).fetchall()
         out = []
@@ -215,6 +215,27 @@ class DocStore:
             out.append({"doc_id": doc_id, "title": doc_title,
                         "section_no": section_no, "section_title": sec_title,
                         "snippet": snippet})
+        return out
+
+    def search_summaries(self, query: str, limit: int = 100) -> list[dict[str, Any]]:
+        """聚合层 search_sources 消费:把分章命中转成统一摘要形状。"""
+        hits = self.search_sections(query, limit)
+        out = []
+        for hit in hits:
+            doc = self.get(hit["doc_id"])
+            if doc is None:
+                continue
+            out.append({
+                "id": hit["doc_id"], "kind": "doc", "title": doc["title"],
+                "subtitle": (f"第 {hit['section_no']} 章"
+                             + (f" · {hit['section_title']}"
+                                if hit["section_title"] else "")),
+                "status": doc.get("status", "ready"), "progress": doc.get("progress", "none"),
+                "tags": doc.get("tags", []), "category": doc.get("category", ""),
+                "added_ts": doc.get("added_ts", 0.0), "updated_ts": doc.get("updated_ts", 0.0),
+                "match": {"section_no": hit["section_no"],
+                          "snippet": hit["snippet"]},
+            })
         return out
 
     def summaries(self, *, status: str = "", tag: str = "", query: str = "",
@@ -247,12 +268,3 @@ def _row(r: tuple) -> dict[str, Any]:
     d = dict(zip(_SUMMARY_COLS, r))
     d["tags"] = json.loads(d.get("tags") or "[]")
     return d
-
-
-def _escape_like(s: str) -> str:
-    return s.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
-
-
-def valid_tag(tag: str) -> bool:
-    """标签字符约束:非空、≤32 字、不含 json 数组保留字符(与 notes 同语义)。"""
-    return bool(tag) and len(tag) <= 32 and not (_TAG_CHARS & set(tag))

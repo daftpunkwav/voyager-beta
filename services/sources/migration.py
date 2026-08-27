@@ -9,7 +9,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import time
 from pathlib import Path
+
+from .modules.doc.store import _SCHEMA as DOC_SCHEMA
+from .modules.web.store import _SCHEMA as WEB_SCHEMA
 
 
 def migrate_legacy_books_news(data_dir: str | Path) -> None:
@@ -34,16 +38,8 @@ def _migrate_books(old_path: Path, new_path: Path) -> None:
         old_path.rename(old_path.with_suffix(".db.bak"))
         return
     target = sqlite3.connect(str(new_path))
-    target.executescript(
-        "CREATE TABLE IF NOT EXISTS documents ("
-        " id TEXT PRIMARY KEY, title TEXT NOT NULL, filename TEXT NOT NULL DEFAULT '',"
-        " ext TEXT NOT NULL DEFAULT '', local_path TEXT NOT NULL DEFAULT '',"
-        " category TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '[]',"
-        " progress TEXT NOT NULL DEFAULT 'none', note TEXT NOT NULL DEFAULT '',"
-        " status TEXT NOT NULL DEFAULT 'importing', error TEXT NOT NULL DEFAULT '',"
-        " source TEXT NOT NULL DEFAULT 'manual', added_ts REAL NOT NULL,"
-        " updated_ts REAL NOT NULL);")
-    now = _now()
+    target.executescript(DOC_SCHEMA)
+    now = time.time()
     for bid, title, author, fmt, local_path, note, added_ts in rows:
         existing = target.execute(
             "SELECT 1 FROM documents WHERE id = ?", (bid,)).fetchone()
@@ -76,14 +72,8 @@ def _migrate_news(old_path: Path, new_path: Path) -> None:
         old_path.rename(old_path.with_suffix(".db.bak"))
         return
     target = sqlite3.connect(str(new_path))
-    target.executescript(
-        "CREATE TABLE IF NOT EXISTS webpages ("
-        " id TEXT PRIMARY KEY, title TEXT NOT NULL, url TEXT NOT NULL DEFAULT '',"
-        " domain TEXT NOT NULL DEFAULT '', summary TEXT NOT NULL DEFAULT '',"
-        " content TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '[]',"
-        " category TEXT NOT NULL DEFAULT '', meta TEXT NOT NULL DEFAULT '{}',"
-        " added_ts REAL NOT NULL, updated_ts REAL NOT NULL);")
-    now = _now()
+    target.executescript(WEB_SCHEMA)
+    now = time.time()
     from urllib.parse import urlparse
     for nid, title, url, summary, content, added_ts in rows:
         existing = target.execute(
@@ -102,6 +92,3 @@ def _migrate_news(old_path: Path, new_path: Path) -> None:
     old_path.rename(old_path.with_suffix(".db.bak"))
 
 
-def _now() -> float:
-    import time
-    return time.time()

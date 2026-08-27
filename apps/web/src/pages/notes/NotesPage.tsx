@@ -52,37 +52,55 @@ export function NotesPage() {
   const [saveState, setSaveState] = useState<'saved' | 'unsaved' | 'saving'>('saved');
   const dirtyRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastPersistedRef = useRef<{ id: string; title: string; content: string } | null>(null);
 
-  const doSave = useCallback(async () => {
+  const flush = useCallback(async () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    if (!dirtyRef.current) return;
+    const id = useNoteStore.getState().editingNoteId;
     const t = useNoteStore.getState().editorTitle;
     const c = useNoteStore.getState().editorContent;
     if (!t.trim()) return;
-    const id = useNoteStore.getState().editingNoteId;
-    setSaveState('saving');
-    try {
-      if (isPersistedNoteId(id)) {
-        await updateNote.mutateAsync({ id, title: t, content: c });
-      } else if (newProjectId) {
-        await createNote.mutateAsync({ projectId: newProjectId, title: t, content: c });
-      } else {
-        setSaveState('unsaved');
+    if (isPersistedNoteId(id)) {
+      if (lastPersistedRef.current?.id === id &&
+          lastPersistedRef.current?.title === t &&
+          lastPersistedRef.current?.content === c) {
+        dirtyRef.current = false;
+        setSaveState('saved');
         return;
       }
-      dirtyRef.current = false;
-      setSaveState('saved');
-    } catch (err) {
-      setSaveState('unsaved');
-      addToast({ type: 'error', message: err instanceof Error ? err.message : '保存失败' });
+      setSaveState('saving');
+      try {
+        await updateNote.mutateAsync({ id, title: t, content: c });
+        lastPersistedRef.current = { id, title: t, content: c };
+        dirtyRef.current = false;
+        setSaveState('saved');
+      } catch (err) {
+        setSaveState('unsaved');
+        addToast({ type: 'error', message: err instanceof Error ? err.message : '保存失败' });
+      }
+    } else if (newProjectId) {
+      setSaveState('saving');
+      try {
+        await createNote.mutateAsync({ projectId: newProjectId, title: t, content: c });
+        dirtyRef.current = false;
+        setSaveState('saved');
+      } catch (err) {
+        setSaveState('unsaved');
+        addToast({ type: 'error', message: err instanceof Error ? err.message : '保存失败' });
+      }
     }
   }, [updateNote, createNote, newProjectId, addToast]);
+
 
   // 自动保存:编辑置脏 → debounce(5s)落盘;关页/切笔记前 flush
   const markDirty = useCallback(() => {
     dirtyRef.current = true;
     setSaveState('unsaved');
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => void doSave(), 5000);
-  }, [doSave]);
+    timerRef.current = setTimeout(() => void flush(), 5000);
+  }, [flush]);
 
   // 编辑动作置脏:startEditing 初载(切笔记/回退)不视为编辑
   const loadedFor = useRef<string | null>(null);
@@ -95,28 +113,46 @@ export function NotesPage() {
   }, [editorContent, editorTitle, editingNoteId, markDirty]);
 
   useEffect(() => {
-    const flush = () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      if (dirtyRef.current && isPersistedNoteId(editingNoteId)) void doSave();
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!dirtyRef.current) return;
+      const id = useNoteStore.getState().editingNoteId;
+      const t = useNoteStore.getState().editorTitle;
+      const c = useNoteStore.getState().editorContent;
+      if (isPersistedNoteId(id) && t.trim()) {
+        const blob = new Blob(
+          [JSON.stringify({ note_id: id, title: t, content: c })],
+          { type: 'application/json' },
+        );
+        navigator.sendBeacon('/api/notes/capabilities/update_note', blob);
+      }
+      e.preventDefault();
+      e.returnValue = '';
     };
-    window.addEventListener('beforeunload', flush);
+    window.addEventListener('beforeunload', onBeforeUnload);
     return () => {
-      window.removeEventListener('beforeunload', flush);
+      window.removeEventListener('beforeunload', onBeforeUnload);
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [doSave, editingNoteId]);
+  }, []);
   const [view, setView] = useState<NotesView>('split');
   const [scribeStreaming, setScribeStreaming] = useState(false);
 
   // Agent 结果卡深链：/notes?note=<id>&project=<id>
+  const noteSeqRef = useRef(0);
   useEffect(() => {
     const noteId = searchParams.get('note');
     if (!noteId || isLoading) return;
     if (editingNoteId === noteId) return;
     const note = notes.find((n) => n.id === noteId);
     if (!note) return;
-    startEditing(note.id, note.title, note.content ?? '');
-    setNewProjectId(note.project_id);
+    const seq = ++noteSeqRef.current;
+    void fetchNoteFull(note.id).then((full) => {
+      if (seq !== noteSeqRef.current) return;
+      startEditing(full.id, full.title, full.content);
+      setNewProjectId(note.project_id);
+      dirtyRef.current = false;
+      setSaveState('saved');
+    });
   }, [searchParams, notes, isLoading, editingNoteId, startEditing]);
 
   // URL 仅带 project 时预填新建关联
@@ -140,7 +176,7 @@ export function NotesPage() {
     return notes.filter(
       (n) =>
         n.title.toLowerCase().includes(q) ||
-        n.content.toLowerCase().includes(q) ||
+        (n.excerpt ?? '').toLowerCase().includes(q) ||
         (projectNames.get(n.project_id) ?? '').toLowerCase().includes(q)
     );
   }, [notes, searchQuery, projectNames]);
@@ -150,7 +186,8 @@ export function NotesPage() {
     return ids.size;
   }, [notes]);
 
-  const handleNew = () => {
+  const handleNew = async () => {
+    await flush();
     startEditing('new', '新笔记', '');
     setNewProjectId(
       searchParams.get('project') || projectsData?.items[0]?.id || ''
@@ -209,8 +246,7 @@ export function NotesPage() {
       addToast({ type: 'warning', message: '请输入标题' });
       return;
     }
-    if (timerRef.current) clearTimeout(timerRef.current);
-    await doSave();
+    await flush();
   };
 
   if (isLoading) return <LoadingSpinner fullScreen />;
@@ -348,13 +384,13 @@ export function NotesPage() {
             notes={filtered}
             projectNames={projectNames}
             selectedId={selectedNoteId}
-            onSelect={(n) => {
-              void fetchNoteFull(n.id).then((full) => {
-                startEditing(full.id, full.title, full.content);
-                setNewProjectId(n.project_id);
-                dirtyRef.current = false;
-                setSaveState('saved');
-              });
+            onSelect={async (n) => {
+              await flush();
+              const full = await fetchNoteFull(n.id);
+              startEditing(full.id, full.title, full.content);
+              setNewProjectId(n.project_id);
+              dirtyRef.current = false;
+              setSaveState('saved');
             }}
           />
         </div>
@@ -381,9 +417,13 @@ export function NotesPage() {
                 key={n.id}
                 type="button"
                 className="note-grid-card"
-                onClick={() => {
-                  startEditing(n.id, n.title, n.content);
+                onClick={async () => {
+                  await flush();
+                  const full = await fetchNoteFull(n.id);
+                  startEditing(full.id, full.title, full.content);
                   setNewProjectId(n.project_id);
+                  dirtyRef.current = false;
+                  setSaveState('saved');
                   setView('split');
                 }}
               >
@@ -419,7 +459,6 @@ export function NotesPage() {
               </select>
             )}
             <NoteEditor
-              variant="notes"
               onSave={() => void handleSave()}
               saving={updateNote.isPending || createNote.isPending}
             />
@@ -485,10 +524,12 @@ export function NotesPage() {
       <TrashPanel
         open={trashOpen}
         onClose={() => setTrashOpen(false)}
-        onOpenNote={(id) => {
+        onOpenNote={async (id) => {
           setTrashOpen(false);
+          await flush();
           void fetchNoteFull(id).then((full) => {
             startEditing(full.id, full.title, full.content);
+            dirtyRef.current = false;
             setSaveState('saved');
           });
         }}

@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 from datetime import UTC
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from fastapi.responses import JSONResponse
 
 #: 硬顶 1GB(运输层上限;领域层有更小的业务上限)
 _MAX_BYTES = 1024 * 1024 * 1024
+_CHUNK_SIZE = 1024 * 1024  # 1MB 分片读,控制并发内存占用
 
 _UNSAFE_FILENAME_RE = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 
@@ -37,14 +39,7 @@ def build_upload_router(workspace: Path) -> APIRouter:
             return JSONResponse(status_code=400, content={
                 "error": {"code": "GATEWAY.INVALID_INPUT",
                           "message": "缺少 file 字段"}})
-        raw = await file.read()
-        if not raw:
-            return JSONResponse(status_code=400, content={
-                "error": {"code": "GATEWAY.INVALID_INPUT", "message": "空文件"}})
-        if len(raw) > _MAX_BYTES:
-            return JSONResponse(status_code=413, content={
-                "error": {"code": "GATEWAY.PAYLOAD_TOO_LARGE",
-                          "message": "文件超过 1GB 运输上限"}})
+
         import uuid
         from datetime import datetime
         safe_name = _UNSAFE_FILENAME_RE.sub("_", file.filename or "upload")
@@ -53,9 +48,34 @@ def build_upload_router(workspace: Path) -> APIRouter:
         dest_dir = Path(workspace) / "imports" / month_dir
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest = dest_dir / f"{uuid.uuid4().hex[:12]}__{safe_name}"
-        dest.write_bytes(raw)
+
+        # 分块读/写,避免并发上传把整个文件都读进内存
+        total = 0
+        try:
+            with dest.open("wb") as f:
+                while True:
+                    chunk = await file.read(_CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > _MAX_BYTES:
+                        f.close()
+                        shutil.rmtree(str(dest), ignore_errors=True)
+                        return JSONResponse(status_code=413, content={
+                            "error": {"code": "GATEWAY.PAYLOAD_TOO_LARGE",
+                                      "message": "文件超过 1GB 运输上限"}})
+                    f.write(chunk)
+        except Exception as exc:  # noqa: BLE001
+            shutil.rmtree(str(dest), ignore_errors=True)
+            return JSONResponse(status_code=400, content={
+                "error": {"code": "GATEWAY.INVALID_INPUT",
+                          "message": f"读取上传流失败: {exc}"}})
+        if total == 0:
+            dest.unlink(missing_ok=True)
+            return JSONResponse(status_code=400, content={
+                "error": {"code": "GATEWAY.INVALID_INPUT", "message": "空文件"}})
         return JSONResponse(status_code=201, content={
             "file_path": str(dest), "filename": file.filename or safe_name,
-            "size": len(raw)})
+            "size": total})
 
     return router

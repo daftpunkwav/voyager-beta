@@ -4,7 +4,7 @@ from platform_settings import SettingDef, SettingType
 
 DEFS = [
     SettingDef(key="sources.sort.default", module="sources", type=SettingType.CHOICE,
-               default="added", choices=("added", "name", "stars", "updated"),
+               default="added", choices=("added", "updated", "title"),
                description="资源库默认排序字段"),
     SettingDef(key="sources.import.clone", module="sources", type=SettingType.BOOL,
                default=True, description="导入仓库时是否克隆到本地(否则只存元数据)"),

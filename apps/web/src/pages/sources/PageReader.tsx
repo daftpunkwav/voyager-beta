@@ -1,6 +1,6 @@
 /** 网页阅读器:剪藏正文 + 原文链接;agent 剪藏与用户剪藏同源展示。 */
 
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useRemovePage, useWebPage } from '@/hooks/useSources';
 import { useUIStore } from '@/stores/uiStore';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
@@ -9,6 +9,7 @@ import { MarkdownRenderer } from '@/components/common/MarkdownRenderer';
 
 export function PageReader() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { data: page, isLoading, isError, error, refetch } = useWebPage(id);
   const removePage = useRemovePage();
   const addToast = useUIStore((s) => s.addToast);
@@ -38,8 +39,6 @@ export function PageReader() {
           <p className="muted small">
             {page.domain || '手动录入'}
             {page.meta?.chars ? ` · ${page.meta.chars} 字` : ''}
-            {' · '}
-            {new Date().getFullYear()}
           </p>
         </div>
         <div className="doc-reader__actions">
@@ -55,7 +54,10 @@ export function PageReader() {
             onClick={() => {
               if (!window.confirm(`删除剪藏「${page.title}」?此操作不可撤销。`)) return;
               removePage.mutate(page.id, {
-                onSuccess: () => addToast({ type: 'success', message: '剪藏已删除' }),
+                onSuccess: () => {
+                  addToast({ type: 'success', message: '剪藏已删除' });
+                  navigate('/sources');
+                },
                 onError: (e) => addToast({ type: 'error', message: e instanceof Error ? e.message : '删除失败' }),
               });
             }}

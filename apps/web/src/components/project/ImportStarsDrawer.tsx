@@ -184,8 +184,8 @@ export function ImportStarsDrawer({ open, onClose }: ImportStarsDrawerProps) {
     setRefreshing(true);
     try {
       const { getApi } = await import('@/api/client');
-      const res = await getApi().listStars(ghUser);
-      qc.setQueryData(['githubStars', ghUser], res.data);
+      await getApi().listStars(ghUser);
+      void qc.invalidateQueries({ queryKey: ['githubStars', ghUser] });
       addToast({
         type: 'success',
         message: `已刷新 ${res.data.total} 个 Stars`,

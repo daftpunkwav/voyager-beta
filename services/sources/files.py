@@ -44,6 +44,7 @@ def build_files_router(store: DocStore) -> APIRouter:
             str(path),
             media_type=_MEDIA_TYPES.get(doc["ext"], "application/octet-stream"),
             filename=doc["filename"] or path.name,
+            content_disposition_type="inline",
         )
 
     return router

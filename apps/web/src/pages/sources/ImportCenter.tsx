@@ -4,7 +4,7 @@
  * 网址 = save_url 抓取入库;仓库复用既有的 ImportUrlsModal 通道。
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getApi } from '@/api/client';
 import { useUIStore } from '@/stores/uiStore';
@@ -27,6 +27,9 @@ interface ImportCenterProps {
 
 export function ImportCenter({ open, initialTab = 'files', onClose }: ImportCenterProps) {
   const [tab, setTab] = useState<ImportTab>(initialTab);
+  useEffect(() => {
+    if (open) setTab(initialTab);
+  }, [open, initialTab]);
   return (
     <div className="modal-overlay" onClick={onClose} hidden={!open}>
       {open && (

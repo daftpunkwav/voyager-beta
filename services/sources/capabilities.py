@@ -104,21 +104,14 @@ def search_sources(query: str, kind: str = "", limit: int = 20) -> list[dict]:
     # 文档分章正文命中:附加到结果流,带 section_no 定位(与标题命中去重)
     if not kind or kind.strip().lower() == "doc":
         doc_store = STORES.get("doc")
-        seen = {r["id"] for r in merged}
-        for hit in doc_store.search_sections(query, 5):
-            if hit["doc_id"] in seen:
-                continue
-            merged.append({
-                "id": hit["doc_id"], "kind": "doc", "title": hit["title"],
-                "subtitle": (f"第 {hit['section_no']} 章"
-                             + (f" · {hit['section_title']}"
-                                if hit["section_title"] else "")),
-                "status": "ready", "progress": "none", "tags": [], "category": "",
-                "added_ts": 0.0, "updated_ts": 0.0,
-                "match": {"section_no": hit["section_no"],
-                          "snippet": hit["snippet"]},
-            })
-            seen.add(hit["doc_id"])
+        if doc_store is not None:
+            seen = {r["id"] for r in merged}
+            for hit in doc_store.search_summaries(query, min(limit, 100)):
+                if hit["id"] in seen:
+                    continue
+                merged.append(hit)
+                seen.add(hit["id"])
+    merged.sort(key=lambda r: float(r.get("added_ts") or 0.0), reverse=True)
     return merged[:limit]
 
 

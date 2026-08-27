@@ -211,7 +211,8 @@ def _from_docx(path: Path) -> list[Section]:
 
     for para in document.paragraphs:
         style = (para.style.name or "") if para.style is not None else ""
-        if style.startswith("Heading"):
+        style_id = (para.style.style_id or "") if para.style is not None else ""
+        if style.startswith("Heading") or style_id.lower().startswith("heading"):
             flush()
             title = para.text.strip()[:100]
             buf = [para.text]

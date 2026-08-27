@@ -5,7 +5,6 @@
  */
 
 import { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { useSourceEvents, useSourceStream } from '@/hooks/useSources';
 import { useProjectStore } from '@/stores/projectStore';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
@@ -27,7 +26,6 @@ export function SourcesPage() {
   const [tab, setTab] = useState<KindTab>('');
   const [importOpen, setImportOpen] = useState(false);
   const [importTab, setImportTab] = useState<ImportTab>('files');
-  const [searchParams] = useSearchParams();
 
   const { data: items, isLoading, isError, error, refetch } = useSourceStream({
     kind: tab || undefined,
@@ -130,7 +128,6 @@ export function SourcesPage() {
       )}
 
       <ImportCenter open={importOpen} initialTab={importTab} onClose={() => setImportOpen(false)} />
-      {searchParams.get('import') === 'stars' && null /* stars 入口在仓库面板内 */}
     </>
   );
 }

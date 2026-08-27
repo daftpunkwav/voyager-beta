@@ -26,8 +26,9 @@ from platform_contracts import ErrorSuffix, ServiceError
 
 _DOMAIN = "notes"
 
-#: 允许作为笔记图片的扩展名白名单(其他格式一律拒绝,不做格式嗅探)
-ALLOWED_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")
+#: 允许作为笔记图片的扩展名白名单(其他格式一律拒绝,不做格式嗅探)。
+# 不含 SVG:SVG 可内嵌脚本,同源内联时存在存储型 XSS 面。
+ALLOWED_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 
 _UNSAFE_FILENAME_RE = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 
@@ -37,9 +38,7 @@ _MEDIA_TYPES = {
     ".jpeg": "image/jpeg",
     ".gif": "image/gif",
     ".webp": "image/webp",
-    ".svg": "image/svg+xml",
 }
-
 
 class AssetStore:
     """note_assets 表:asset_id → 落盘路径;独立命名空间(assets.db)。"""

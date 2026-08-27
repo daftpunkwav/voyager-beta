@@ -15,6 +15,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from .._shared.utils import escape_like, valid_tag
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS webpages (
     id        TEXT PRIMARY KEY,
@@ -36,8 +38,6 @@ _COLS = ("id", "title", "url", "domain", "summary", "content", "tags",
          "category", "meta", "added_ts", "updated_ts")
 _LIST_COLS = ("id", "title", "url", "domain", "summary", "tags",
               "category", "added_ts")
-
-_TAG_CHARS = set("[]\"\\,")
 
 
 class WebStore:
@@ -87,12 +87,12 @@ class WebStore:
              limit: int = 50) -> list[dict[str, Any]]:
         wheres, params = [], []
         if query:
-            like = f"%{_escape_like(query)}%"
+            like = f"%{escape_like(query)}%"
             wheres.append("(title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\')")
             params += [like, like]
         if tag:
             wheres.append(r"tags LIKE ? ESCAPE '\'")
-            params.append(f'%"{_escape_like(tag)}"%')
+            params.append(f'%{escape_like(tag)}%')
         return self._rows(_LIST_COLS, " AND ".join(wheres), tuple(params),
                           min(limit, 500))
 
@@ -129,9 +129,9 @@ class WebStore:
         wheres, params = [], []
         if tag:
             wheres.append(r"tags LIKE ? ESCAPE '\'")
-            params.append(f'%"{_escape_like(tag)}"%')
+            params.append(f'%{escape_like(tag)}%')
         if query:
-            like = f"%{_escape_like(query)}%"
+            like = f"%{escape_like(query)}%"
             wheres.append("(title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\')")
             params += [like, like]
         cols = _LIST_COLS + ("updated_ts",)
@@ -166,14 +166,6 @@ def _row(cols: tuple[str, ...], r: tuple) -> dict[str, Any]:
     if "meta" in d:
         d["meta"] = json.loads(d.get("meta") or "{}")
     return d
-
-
-def _escape_like(s: str) -> str:
-    return s.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
-
-
-def valid_tag(tag: str) -> bool:
-    return bool(tag) and len(tag) <= 32 and not (_TAG_CHARS & set(tag))
 
 
 # ---------- 正文抽取(html_to_text 增强:段落结构化 + 首图) ----------
