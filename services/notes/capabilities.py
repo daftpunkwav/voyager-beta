@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -71,6 +72,7 @@ class Deps:
     store: NoteStore
     bus: EventBus | None
     settings: SettingsStore | None = None
+    purge_assets: Callable[[str], list[str]] | None = None  # purge 时连带清附件
 
 
 _deps: Deps | None = None
@@ -230,7 +232,9 @@ async def purge_note(note_id: str) -> dict:
     deps = _require_deps()
     note = _get_any(note_id)
     deps.store.delete(note_id)
-    await _emit("note.purged", note_id, title=note["title"])
+    removed_assets = deps.purge_assets(note_id) if deps.purge_assets else []
+    await _emit("note.purged", note_id, title=note["title"],
+                removed_assets=len(removed_assets))
     return {"purged": note_id, "title": note["title"]}
 
 

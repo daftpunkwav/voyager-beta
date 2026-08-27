@@ -19,4 +19,7 @@ DEFS = [
     SettingDef(key="notes.export.dir", module="notes", type=SettingType.STR,
                default="workspace/notes-export",
                description="导出 Markdown 文件的目录"),
+    SettingDef(key="notes.assets.max_mb", module="notes", type=SettingType.INT,
+               default=20, min=1, max=100,
+               description="单个图片附件大小上限(MB)"),
 ]

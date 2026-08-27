@@ -87,15 +87,20 @@ def build(
                                 parse_fn=parse_fn,
                                 settings_store=settings_store),
         "notes": wire_notes(data_root / "notes", bus=bus,
-                            settings_store=settings_store),
+                            settings_store=settings_store, workspace=workspace),
         "graph": wire_graph(data_root / "graph", bus=bus,
                             settings_store=settings_store),
     }
     # sources 自带文档文件只读路由(wire→init_all 已填充其 STORES)
+    # notes 自带附件只读路由(/api/notes/assets/{id};wire 后可用)
+    from services.notes.assets import build_assets_router as build_notes_assets_router
     from services.sources.capabilities import STORES as SOURCES_STORES
     mounts = [MountSpec(domain=name, registry=w.registry, probe=w.probe,
-                        extra_router=(build_files_router(SOURCES_STORES["doc"])
-                                      if name == "sources" else None))
+                        extra_router=(
+                            build_files_router(SOURCES_STORES["doc"])
+                            if name == "sources"
+                            else build_notes_assets_router() if name == "notes"
+                            else None))
               for name, w in wirings.items()]
     extra_routers = [build_upload_router(workspace)]
 

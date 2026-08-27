@@ -15,6 +15,7 @@ from platform_capability import build_router
 from platform_contracts import HealthReport, HealthStatus
 from platform_eventbus import EventBus
 
+from .assets import build_assets_router
 from .wiring import wire
 
 _DEFAULT_DATA = Path(__file__).parent / "data"
@@ -35,6 +36,8 @@ def create_app(data_dir: str | Path = _DEFAULT_DATA, bus: EventBus | None = None
 
     app = FastAPI(title="notes", lifespan=lifespan)
     app.include_router(build_router(w.registry))
+    # 附件只读路由:与聚合形态(gateway extra_router 同前缀)一致 → /api/notes/assets/...
+    app.include_router(build_assets_router(), prefix="/api/notes")
 
     @app.get("/health")
     async def health() -> dict:

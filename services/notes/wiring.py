@@ -16,6 +16,7 @@ from platform_capability import Wiring
 from platform_eventbus import EventBus
 from platform_settings import SettingsStore
 
+from . import assets
 from .capabilities import Deps, init_deps, registry
 from .settings import DEFS
 from .store import NoteStore
@@ -61,18 +62,37 @@ def wire(
     *,
     bus: EventBus | None = None,
     settings_store: SettingsStore | None = None,
+    workspace: str | Path = "workspace",
 ) -> Wiring:
     if settings_store is not None:
         settings_store.register_fresh(DEFS)
     history_keep = int((settings_store.get("notes.history.per_note") if settings_store else 20) or 0)
     store = NoteStore(Path(data_dir) / "notes.db", history_keep=history_keep)
-    init_deps(Deps(store=store, bus=bus, settings=settings_store))
+    workspace = Path(workspace)
+    asset_store = assets.AssetStore(Path(data_dir) / "assets.db")
+
+    def _max_asset_mb() -> int:
+        if settings_store is None:
+            return 20
+        try:
+            return int(settings_store.get("notes.assets.max_mb") or 20)
+        except (TypeError, ValueError):
+            return 20
+
+    assets.init_store(asset_store, workspace, max_file_mb=_max_asset_mb)
+    assets.register(registry)
+    init_deps(Deps(store=store, bus=bus, settings=settings_store,
+                   purge_assets=assets.purge_of_note))
     pruner = TrashPruner(store, settings_store)
+
+    def close() -> None:
+        store.close()
+        asset_store.close()
 
     return Wiring(
         registry=registry,
         probe=lambda: {"status": "up"},
         start=pruner.start,
         stop=pruner.stop,
-        close=store.close,
+        close=close,
     )
