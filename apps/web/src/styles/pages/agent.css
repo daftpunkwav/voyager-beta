@@ -4,21 +4,83 @@
      基于 Apple 设计库 · Voyager v1
      ========================================================================== */
 
-  /* 3 栏布局(会话列表 + 对话区 + 上下文面板);在 main.content 内,不再覆盖 .app */
+  /* 对话区单列全宽;会话列表 / 上下文面板改为浮层抽屉(overlay),打开时悬浮在对话区之上 */
   .chat-layout {
+    position: relative;
     display: grid;
-    grid-template-columns: 280px minmax(0, 1fr) 280px;
+    grid-template-columns: minmax(0, 1fr);
     height: 100%;
     min-height: 0;
     gap: 0;
   }
-  .chat-layout .session-list { grid-column: 1; min-width: 0; }
-  .chat-layout .chat-area { grid-column: 2; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
-  .chat-layout .context-panel { grid-column: 3; min-width: 0; }
-  /* 折叠变体 */
-  .chat-layout.session-collapsed { grid-template-columns: 0 minmax(0, 1fr) 280px; }
-  .chat-layout.context-collapsed { grid-template-columns: 280px minmax(0, 1fr) 0; }
-  .chat-layout.session-collapsed.context-collapsed { grid-template-columns: 0 minmax(0, 1fr) 0; }
+  .chat-layout .chat-area { grid-column: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+
+  /* ---------- 浮层抽屉 · 遮罩 + 玻璃面板 ---------- */
+  .chat-drawer-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 18;
+    border: 0;
+    padding: 0;
+    background: rgba(15, 23, 42, 0.12);
+    animation: chat-backdrop-in 0.2s var(--ease) both;
+  }
+  @keyframes chat-backdrop-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .chat-layout .session-list,
+  .chat-layout .context-panel {
+    position: absolute;
+    top: 60px;               /* 让出 chat-header,header 上的开关保持可点 */
+    bottom: 12px;
+    height: auto;            /* 覆盖基础样式的 height:100%,否则会溢出 bottom */
+    width: min(300px, calc(100% - 24px));
+    z-index: 20;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    box-shadow:
+      0 16px 48px rgba(15, 23, 42, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
+  .chat-layout .session-list {
+    left: 12px;
+    animation: chat-drawer-in-left 0.24s var(--ease-apple, cubic-bezier(0.32, 0.72, 0, 1)) both;
+  }
+  .chat-layout .context-panel {
+    right: 12px;
+    width: min(320px, calc(100% - 24px));
+    animation: chat-drawer-in-right 0.24s var(--ease-apple, cubic-bezier(0.32, 0.72, 0, 1)) both;
+  }
+  @keyframes chat-drawer-in-left {
+    from { opacity: 0; transform: translateX(-16px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes chat-drawer-in-right {
+    from { opacity: 0; transform: translateX(16px); }
+    to { opacity: 1; transform: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chat-drawer-backdrop,
+    .chat-layout .session-list,
+    .chat-layout .context-panel {
+      animation: none;
+    }
+  }
+  [data-theme='dark'] .chat-drawer-backdrop {
+    background: rgba(0, 0, 0, 0.32);
+  }
+  [data-theme='dark'] .chat-layout .session-list,
+  [data-theme='dark'] .chat-layout .context-panel {
+    background: rgba(28, 28, 32, 0.9);
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow:
+      0 16px 48px rgba(0, 0, 0, 0.44),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
 
   /* ---------- 聊天头部 popover(更多按钮) ---------- */
   .chat-more-wrap { position: relative; }
@@ -308,7 +370,7 @@
     background: var(--bg-100);
   }
 
-  /* 对话头部 · 薄玻璃条 */
+  /* ---------- 聊天头部 · 薄玻璃条 ---------- */
   .chat-header {
     flex-shrink: 0;
     padding: 10px 20px;
@@ -320,7 +382,9 @@
     display: flex;
     align-items: center;
     gap: 14px;
-    z-index: 2;
+    position: relative;
+    /* 抽屉打开时 header 保持在遮罩(18)之上、抽屉(20)之下,开关可继续点击 */
+    z-index: 19;
     min-width: 0;
   }
   .chat-title { flex: 1; min-width: 0; overflow: hidden; }

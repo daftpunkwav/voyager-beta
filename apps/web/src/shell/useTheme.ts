@@ -22,10 +22,6 @@ export function applyTheme(theme: string): void {
   document.documentElement.dataset.themeRequested = theme;
 }
 
-function readSystemPrefersDark(): boolean {
-  return window.matchMedia('(prefers-color-scheme: dark)').matches;
-}
-
 export function applyFontScale(scale: number): void {
   // 使用 CSS 变量实现全局字体缩放,避免 body.style.zoom 在部分浏览器/高分屏下
   // 导致布局模糊、定位偏移及像素不对齐问题。

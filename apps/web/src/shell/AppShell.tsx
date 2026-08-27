@@ -37,6 +37,7 @@ export function AppShell() {
   const { pathname } = useLocation();
   const activePage = resolveActivePage(pathname);
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const onChat = pathname === '/' || pathname.startsWith('/chat');
 
   return (
@@ -49,6 +50,30 @@ export function AppShell() {
         .join(' ')}
     >
       <Sidebar activePage={activePage} />
+      {/* 侧边栏收起钮：吸附在侧边栏与主列的中缝上，垂直位置固定，收起/展开只沿水平滑动 */}
+      <button
+        type="button"
+        className="sidebar-edge-toggle"
+        title={sidebarCollapsed ? '展开导航' : '折叠导航'}
+        aria-label={sidebarCollapsed ? '展开导航' : '折叠导航'}
+        aria-expanded={!sidebarCollapsed}
+        data-testid="sidebar-toggle"
+        onClick={toggleSidebar}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width={13}
+          height={13}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          {sidebarCollapsed ? <path d="M9 6l6 6-6 6" /> : <path d="M15 6l-6 6 6 6" />}
+        </svg>
+      </button>
       <div className="main">
         <Topbar />
         <div className="svc-strip">

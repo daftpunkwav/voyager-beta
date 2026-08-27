@@ -16,10 +16,10 @@ import { AGENT_INITIALS, AGENT_ROLE_LABELS } from '@/utils/labels';
 import { snapshotSubagents, snapshotToolCalls } from '@/utils/runTrace';
 
 export interface ChatPanelProps {
-  /** 左侧对话历史是否已收起 */
-  sessionListCollapsed?: boolean;
-  /** 右侧上下文是否已收起 */
-  contextPanelCollapsed?: boolean;
+  /** 左侧对话历史抽屉是否打开(浮层,不挤占对话区) */
+  sessionListOpen?: boolean;
+  /** 右侧上下文抽屉是否打开(浮层,不挤占对话区) */
+  contextPanelOpen?: boolean;
   onToggleSessionList?: () => void;
   onToggleContextPanel?: () => void;
 }
@@ -43,8 +43,8 @@ function PanelRightIcon() {
 }
 
 export function ChatPanel({
-  sessionListCollapsed = false,
-  contextPanelCollapsed = false,
+  sessionListOpen = false,
+  contextPanelOpen = false,
   onToggleSessionList,
   onToggleContextPanel,
 }: ChatPanelProps) {
@@ -212,12 +212,12 @@ export function ChatPanel({
         {onToggleSessionList && (
           <button
             type="button"
-            className={`chat-icon-btn chat-panel-toggle ${sessionListCollapsed ? '' : 'is-on'}`}
+            className={`chat-icon-btn chat-panel-toggle ${sessionListOpen ? 'is-on' : ''}`}
             onClick={onToggleSessionList}
-            aria-label={sessionListCollapsed ? '展开对话历史' : '收起对话历史'}
-            aria-pressed={!sessionListCollapsed}
+            aria-label={sessionListOpen ? '关闭对话历史' : '查看对话历史'}
+            aria-pressed={sessionListOpen}
             data-testid="session-list-toggle"
-            title={sessionListCollapsed ? '展开对话历史' : '收起对话历史'}
+            title={sessionListOpen ? '关闭对话历史' : '查看对话历史'}
           >
             <PanelLeftIcon />
           </button>
@@ -236,12 +236,12 @@ export function ChatPanel({
           {onToggleContextPanel && (
             <button
               type="button"
-              className={`chat-icon-btn chat-panel-toggle ${contextPanelCollapsed ? '' : 'is-on'}`}
+              className={`chat-icon-btn chat-panel-toggle ${contextPanelOpen ? 'is-on' : ''}`}
               onClick={onToggleContextPanel}
-              aria-label={contextPanelCollapsed ? '展开上下文面板' : '收起上下文面板'}
-              aria-pressed={!contextPanelCollapsed}
+              aria-label={contextPanelOpen ? '关闭上下文面板' : '查看上下文面板'}
+              aria-pressed={contextPanelOpen}
               data-testid="context-panel-toggle"
-              title={contextPanelCollapsed ? '展开上下文面板' : '收起上下文面板'}
+              title={contextPanelOpen ? '关闭上下文面板' : '查看上下文面板'}
             >
               <PanelRightIcon />
             </button>

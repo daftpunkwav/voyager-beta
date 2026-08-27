@@ -39,7 +39,6 @@ export function Sidebar({ activePage }: SidebarProps) {
   const { data: notes } = useAllNotes();
   const initials = userInitials(user?.username);
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
-  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
 
   // 按 group 分组渲染
   const groups: Array<{ label: string; keys: string[] }> = [
@@ -60,16 +59,6 @@ export function Sidebar({ activePage }: SidebarProps) {
             </span>
           </div>
         )}
-        <button
-          type="button"
-          className="sidebar-collapse-btn"
-          title={collapsed ? '展开导航' : '折叠导航'}
-          aria-label={collapsed ? '展开导航' : '折叠导航'}
-          aria-expanded={!collapsed}
-          onClick={toggleSidebar}
-        >
-          {collapsed ? '⟩' : '⟨'}
-        </button>
       </div>
 
       {groups.map((g) => {

@@ -61,31 +61,46 @@ export function AgentPage() {
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
   const [manageMode, setManageMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [sessionListCollapsed, setSessionListCollapsed] = useState(() => {
+  // 会话列表 / 上下文面板改为浮层抽屉(overlay):打开时悬浮在对话区之上,不再挤占中间列。
+  // 状态持久化到 localStorage;默认均关闭,保持对话区全宽。
+  const [sessionListOpen, setSessionListOpen] = useState(() => {
     try {
-      return localStorage.getItem('voyager_agent_session_collapsed') === '1';
+      return localStorage.getItem('voyager_agent_session_drawer') === '1';
     } catch {
       return false;
     }
   });
-  const [contextPanelCollapsed, setContextPanelCollapsed] = useState(() => {
+  const [contextPanelOpen, setContextPanelOpen] = useState(() => {
     try {
-      return localStorage.getItem('voyager_agent_context_collapsed') === '1';
+      return localStorage.getItem('voyager_agent_context_drawer') === '1';
     } catch {
       return false;
     }
   });
 
-  // 折叠状态持久化到 localStorage;视觉类名直接绑定到 chat-layout 根节点,
+  // 抽屉开关状态持久化到 localStorage;视觉类名直接绑定到 chat-layout 根节点,
   // 不再查询已废弃的 .agent-shell,避免 AppShell 重构后 DOM 操作失效。
   useEffect(() => {
     try {
-      localStorage.setItem('voyager_agent_session_collapsed', sessionListCollapsed ? '1' : '0');
-      localStorage.setItem('voyager_agent_context_collapsed', contextPanelCollapsed ? '1' : '0');
+      localStorage.setItem('voyager_agent_session_drawer', sessionListOpen ? '1' : '0');
+      localStorage.setItem('voyager_agent_context_drawer', contextPanelOpen ? '1' : '0');
     } catch {
       /* 隐私模式等场景下忽略 */
     }
-  }, [sessionListCollapsed, contextPanelCollapsed]);
+  }, [sessionListOpen, contextPanelOpen]);
+
+  // Esc 关闭任一打开的抽屉
+  useEffect(() => {
+    if (!sessionListOpen && !contextPanelOpen) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSessionListOpen(false);
+        setContextPanelOpen(false);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [sessionListOpen, contextPanelOpen]);
 
   useEffect(() => {
     void loadSessions();
@@ -350,32 +365,36 @@ export function AgentPage() {
   );
 
   return (
-    <div
-      className={[
-        'chat-layout',
-        sessionListCollapsed ? 'session-collapsed' : '',
-        contextPanelCollapsed ? 'context-collapsed' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
-    >
-      {sessionList}
+    <div className="chat-layout">
+      {(sessionListOpen || contextPanelOpen) && (
+        <div
+          className="chat-drawer-backdrop"
+          data-testid="chat-drawer-backdrop"
+          onClick={() => {
+            setSessionListOpen(false);
+            setContextPanelOpen(false);
+          }}
+        />
+      )}
+      {sessionListOpen && sessionList}
 
       <main className="chat-area">
         <ChatPanel
-          sessionListCollapsed={sessionListCollapsed}
-          contextPanelCollapsed={contextPanelCollapsed}
-          onToggleSessionList={() => setSessionListCollapsed((v) => !v)}
-          onToggleContextPanel={() => setContextPanelCollapsed((v) => !v)}
+          sessionListOpen={sessionListOpen}
+          contextPanelOpen={contextPanelOpen}
+          onToggleSessionList={() => setSessionListOpen((v) => !v)}
+          onToggleContextPanel={() => setContextPanelOpen((v) => !v)}
         />
       </main>
 
-      <AgentContextSidebar
-        sessionId={currentSessionId}
-        toolLogOpen={toolLogOpen}
-        onToggleToolLog={() => setToolLogOpen((v) => !v)}
-        toolCalls={toolCalls}
-      />
+      {contextPanelOpen && (
+        <AgentContextSidebar
+          sessionId={currentSessionId}
+          toolLogOpen={toolLogOpen}
+          onToggleToolLog={() => setToolLogOpen((v) => !v)}
+          toolCalls={toolCalls}
+        />
+      )}
 
       <ConfirmDialog
         open={deleteTarget !== null}
