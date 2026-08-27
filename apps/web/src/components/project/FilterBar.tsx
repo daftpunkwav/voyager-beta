@@ -157,12 +157,3 @@ export function FilterBar({ categories, tags, languages }: FilterBarProps) {
   );
 }
 
-export function useProjectLanguages(projects: Project[]): string[] {
-  return useMemo(() => {
-    const set = new Set<string>();
-    for (const p of projects) {
-      if (p.language) set.add(p.language);
-    }
-    return Array.from(set).sort();
-  }, [projects]);
-}

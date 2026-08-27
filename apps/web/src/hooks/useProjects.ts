@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useShallow } from 'zustand/react/shallow';
 import { getApi } from '@/api/client';
@@ -296,3 +297,14 @@ export function useGithubAccounts() {
 }
 
 export type { Project };
+
+/** 项目列表中出现过的语言集合(去重排序),供筛选栏使用。 */
+export function useProjectLanguages(projects: Project[]): string[] {
+  return useMemo(() => {
+    const set = new Set<string>();
+    for (const p of projects) {
+      if (p.language) set.add(p.language);
+    }
+    return Array.from(set).sort();
+  }, [projects]);
+}

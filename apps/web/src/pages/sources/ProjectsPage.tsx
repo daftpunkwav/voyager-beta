@@ -10,7 +10,8 @@ import {
 } from '@/hooks/useProjects';
 import { useProjectStore } from '@/stores/projectStore';
 import { useUIStore } from '@/stores/uiStore';
-import { FilterBar, useProjectLanguages } from '@/components/project/FilterBar';
+import { FilterBar } from '@/components/project/FilterBar';
+import { useProjectLanguages } from '@/hooks/useProjects';
 import { ProjectTable } from '@/components/project/ProjectTable';
 import { ImportStarsDrawer } from '@/components/project/ImportStarsDrawer';
 import { ImportUrlsModal } from '@/components/project/ImportUrlsModal';
