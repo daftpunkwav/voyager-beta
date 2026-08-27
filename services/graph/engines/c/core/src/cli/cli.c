@@ -5847,7 +5847,7 @@ static int cli_windows_open_user_path_key(HKEY *environment) {
 
     wchar_t key_path[CLI_BUF_128];
     int key_length = swprintf(key_path, sizeof(key_path) / sizeof(key_path[0]),
-                              L"Software\\CodebaseMemoryMCP\\Smoke\\%ls", run_id);
+                              L"Software\\GraphEngine\\Smoke\\%ls", run_id);
     if (key_length <= 0 || (size_t)key_length >= sizeof(key_path) / sizeof(key_path[0]) ||
         RegOpenKeyExW(HKEY_CURRENT_USER, key_path, 0,
                       KEY_QUERY_VALUE | KEY_SET_VALUE | KEY_WOW64_64KEY,
