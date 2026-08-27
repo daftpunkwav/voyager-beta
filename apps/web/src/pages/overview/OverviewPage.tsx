@@ -7,7 +7,7 @@ import {
   useTrending,
 } from '@/hooks/useProjects';
 import { useOverviewRecentNotes, useRecommendedProjects } from '@/hooks/useOverview';
-import { useTrendingScoutSpot } from '@/hooks/useTrendingScoutSpot';
+import { useTrendingSpotlight } from '@/hooks/useTrendingSpotlight';
 import { useQuery } from '@tanstack/react-query';
 import { getApi } from '@/api/client';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
@@ -15,9 +15,9 @@ import { formatRelativeTime, formatDateTime } from '@/utils/date';
 import { formatNumber, langCssClass, REPO_AVATAR_GRADIENTS, splitRepoName } from '@/utils/format';
 import { activityItemHref } from '@/utils/overviewLinks';
 import { GLASS_CHIP, GLASS_INNER, GLASS_OUTER } from '@/constants/glassTokens';
-import { getMorseHopPx, HERO_MORSE_BITS, HERO_MORSE_INTERVAL_MS } from '@/utils/morse';
+import { getMorseHopPx, HERO_MORSE_BITS, HERO_MORSE_INTERVAL_MS } from './morse';
 import { AgentCarousel } from '@/components/agent/AgentCarousel';
-import { TrendingScoutSpot } from '@/components/agent/TrendingScoutSpot';
+import { TrendingSpotlight } from './TrendingSpotlight';
 import type { LookTarget } from '@/components/agent/AgentAvatar';
 import type { ProjectProgress, TrendingPeriod, TrendingRepo } from '@/api/types';
 
@@ -48,7 +48,7 @@ export function OverviewPage() {
   const trendingGridRef = useRef<HTMLDivElement>(null);
   const recentNotesPanelRef = useRef<HTMLDivElement>(null);
   const [scoutBubbleWidth, setScoutBubbleWidth] = useState<number | null>(null);
-  const scout = useTrendingScoutSpot(period);
+  const scout = useTrendingSpotlight(period);
   const [chatBtnLookTarget, setChatBtnLookTarget] = useState<LookTarget | null>(null);
   const [morseTick, setMorseTick] = useState(0);
 
@@ -489,7 +489,7 @@ export function OverviewPage() {
         </div>
       </section>
 
-      <TrendingScoutSpot
+      <TrendingSpotlight
         phase={scout.phase}
         repo={scout.repo}
         content={scout.content}

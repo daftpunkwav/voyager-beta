@@ -89,7 +89,7 @@ export const LLM_PROVIDER_PRESETS: LlmProviderPreset[] = [
   {
     id: 'ollama',
     display_name: 'Ollama（本地）',
-    default_base_url: 'http://127.0.0.1:11434',
+    default_base_url: import.meta.env.VITE_OLLAMA_BASE_URL || 'http://127.0.0.1:11434',
     api_format: 'ollama',
     available_models: ['llama3.3', 'qwen2.5', 'deepseek-r1'],
     default_model: 'llama3.3',

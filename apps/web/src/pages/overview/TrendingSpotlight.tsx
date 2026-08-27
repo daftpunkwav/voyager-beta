@@ -1,11 +1,11 @@
 import { AgentAvatar, type LookTarget } from '@/components/agent/AgentAvatar';
 import { GLASS_CHIP } from '@/constants/glassTokens';
 import type { TrendingRepo } from '@/api/types';
-import type { TrendingScoutPhase } from '@/hooks/useTrendingScoutSpot';
+import type { TrendingSpotlightPhase } from '@/hooks/useTrendingSpotlight';
 import type { CSSProperties } from 'react';
 
-interface TrendingScoutSpotProps {
-  phase: TrendingScoutPhase;
+interface TrendingSpotlightProps {
+  phase: TrendingSpotlightPhase;
   repo: TrendingRepo | null;
   content: string;
   isStreaming: boolean;
@@ -13,14 +13,14 @@ interface TrendingScoutSpotProps {
   bubbleWidthPx: number | null;
 }
 
-export function TrendingScoutSpot({
+export function TrendingSpotlight({
   phase,
   repo,
   content,
   isStreaming,
   lookTarget,
   bubbleWidthPx,
-}: TrendingScoutSpotProps) {
+}: TrendingSpotlightProps) {
   if (phase === 'hidden' || !repo) return null;
 
   const name = `${repo.owner}/${repo.repo}`;

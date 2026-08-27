@@ -9,14 +9,14 @@ export const TRENDING_SCOUT_LEAVE_DELAY_MS = 3000;
 /** 与 CSS transition 时长一致 */
 export const TRENDING_SCOUT_HIDE_ANIM_MS = 380;
 
-export type TrendingScoutPhase = 'hidden' | 'visible' | 'leaving';
+export type TrendingSpotlightPhase = 'hidden' | 'visible' | 'leaving';
 
 function repoKey(repo: TrendingRepo) {
   return `${repo.owner}/${repo.repo}`;
 }
 
-export function useTrendingScoutSpot(period: TrendingPeriod) {
-  const [phase, setPhase] = useState<TrendingScoutPhase>('hidden');
+export function useTrendingSpotlight(period: TrendingPeriod) {
+  const [phase, setPhase] = useState<TrendingSpotlightPhase>('hidden');
   const [repo, setRepo] = useState<TrendingRepo | null>(null);
   const [content, setContent] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);

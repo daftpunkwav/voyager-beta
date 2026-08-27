@@ -768,7 +768,7 @@ export type SSEEventType =
 export interface SSETextDelta {
   type: 'text_delta';
   /** 运行时字段为 content(佐证:sseHandlers/agentSSEStream/ProjectDetailPage/
-   *  useTrendingScoutSpot 四处独立消费) */
+   *  useTrendingSpotlight(原 useTrendingScoutSpot)消费) */
   content: string;
 }
 
