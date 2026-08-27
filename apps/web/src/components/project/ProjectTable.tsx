@@ -4,6 +4,7 @@ import type { ChangeEvent } from 'react';
 import type { Category, Project, Tag } from '@/api/types';
 import { ProgressBadge } from './ProgressBadge';
 import { categoryCssClass, categoryLabel } from '@/utils/labels';
+import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import {
   formatNumber,
   langCssClass,
@@ -55,36 +56,30 @@ export function ProjectTable({
   if (projects.length === 0) {
     return (
       <div id="table-wrap" data-testid="project-table">
-        <div className="empty-state">
-          <div className="empty-illu" aria-hidden>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={24} height={24}>
-              <path d="M3 7l9-4 9 4v10l-9 4-9-4V7z" />
-              <path d="M3 7l9 4 9-4" />
-              <path d="M12 11v10" />
-            </svg>
-          </div>
-          <h3>还没有项目入库</h3>
-          <p>
-            从 GitHub 同步 Stars，或者粘贴仓库地址开始你的第一个项目。
-          </p>
-          <div className="empty-actions">
-            <button
-              type="button"
-              className="btn btn-primary"
-              data-testid="empty-import-stars-btn"
-              onClick={onImportClick}
-            >
-              同步 GitHub Stars
-            </button>
-            <button
-              type="button"
-              className="btn glass-card glass-card--control liquid-glass--pill liquid-glass--interactive"
-              onClick={onImportClick}
-            >
-              粘贴 URL 导入
-            </button>
-          </div>
-        </div>
+        <EmptyState
+          title="还没有项目入库"
+          description="从 GitHub 同步 Stars，或者粘贴仓库地址开始你的第一个项目。"
+          icon={EmptyStateIcons.library}
+          action={
+            <>
+              <button
+                type="button"
+                className="btn btn-primary"
+                data-testid="empty-import-stars-btn"
+                onClick={onImportClick}
+              >
+                同步 GitHub Stars
+              </button>
+              <button
+                type="button"
+                className="btn glass-card glass-card--control liquid-glass--pill liquid-glass--interactive"
+                onClick={onImportClick}
+              >
+                粘贴 URL 导入
+              </button>
+            </>
+          }
+        />
       </div>
     );
   }

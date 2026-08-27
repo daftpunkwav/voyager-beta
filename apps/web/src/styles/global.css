@@ -8,10 +8,6 @@ a {
   color: inherit;
 }
 
-/* ---------- EmptyState · 仅保留微动与特殊场景覆盖，结构与基础样式由 design-system.css 提供 ---------- */
-.empty-state__icon {
-  animation: none; /* design-system 已足够简洁，禁用旧浮动动画 */
-}
 /* ---------- GlassCard 玻璃面板精致化(全局) ---------- */
 .glass-card,
 .glass-card--panel,

@@ -781,18 +781,16 @@ img, svg { display: block; max-width: 100%; }
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 50vh;
+}
+/* 错误/空态独占页面时的精准垂直居中:
+   取消 flex 拉伸让容器产生自由空间,由 margin:auto 吸收完成居中,
+   即便内容高于视口也只会出现滚动而非裁切 */
+.page-scaffold > .page-scaffold__state:only-child {
+  flex: 0 1 auto;
+  margin: auto 0;
 }
 .page-scaffold__state > .empty-state {
-  max-width: 420px;
-}
-/* 错误/空态下无 page head 时,让空状态真正垂直居中而非贴顶 */
-.page-scaffold:has(> .page-scaffold__state:last-child:first-child) {
-  justify-content: center;
-}
-.page-scaffold:has(> .page-scaffold__state:last-child:first-child) .page-scaffold__state {
-  flex: 0 0 auto;
-  min-height: auto;
+  max-width: 100%;
 }
 .page-scaffold > .loading-spinner,
 .page-scaffold__body > .loading-spinner {
@@ -823,76 +821,110 @@ img, svg { display: block; max-width: 100%; }
 }
 .content > .empty-state {
   flex: 0 0 auto;
-  max-width: 420px;
+  max-width: 100%;
 }
 
-/* 通用空状态 · Apple 风格：无重卡片，仅居中语义图标+标题+轻量描述+幽灵操作 */
+/* 通用空/错误状态 · 统一液态玻璃卡:
+   与页面卡片同源材质(半透明白 + blur30 saturate180 + inset 高光),
+   比例收敛:64px 图标容器 / 20px 标题 / 14px 描述 / 卡宽 min(480px,100%),
+   子元素 stagger fadeUp 入场;亮暗两套完整调色 */
 .empty-state {
+  width: min(480px, 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 32px;
+  padding: 44px 40px 40px;
   text-align: center;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    var(--shadow-float);
+}
+/* 顶部品牌光晕,呼应全局背景的 radial 洗染 */
+.empty-state::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(52% 46% at 50% 0%, rgba(0, 122, 255, 0.09), transparent 70%);
+  pointer-events: none;
+}
+.empty-state > * {
+  position: relative;
+  animation: emptyStateIn 500ms var(--ease-apple) both;
+}
+.empty-state > :nth-child(2) { animation-delay: 60ms; }
+.empty-state > :nth-child(3) { animation-delay: 120ms; }
+.empty-state > :nth-child(4) { animation-delay: 180ms; }
+@keyframes emptyStateIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
 }
 .empty-state__icon {
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   display: grid;
   place-items: center;
-  border-radius: 16px;
-  margin-bottom: 18px;
-  background: rgba(0, 122, 255, 0.08);
-  color: var(--brand-500);
-  border: 1px solid rgba(0, 122, 255, 0.12);
+  border-radius: 20px;
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.14), rgba(94, 92, 230, 0.10));
+  color: var(--brand-600);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 8px 24px -6px rgba(0, 122, 255, 0.28);
 }
 .empty-state__icon svg {
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
 }
 .empty-state__title {
-  font-size: 19px;
+  font-size: 20px;
   font-weight: 600;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.02em;
   line-height: 1.25;
   color: var(--text-800);
-  margin: 0 0 6px;
+  margin: 0 0 8px;
 }
 .empty-state__desc {
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 14px;
+  line-height: 1.6;
   color: var(--text-500);
-  margin: 0 0 16px;
-  max-width: 34ch;
+  margin: 0 0 20px;
+  max-width: 36ch;
 }
-.empty-state__action { display: flex; gap: 10px; }
+.empty-state__action { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 .empty-state__action .btn {
-  height: 32px;
-  padding: 0 16px;
+  height: 36px;
+  padding: 0 18px;
   font-size: 13px;
   border-radius: var(--radius-pill);
 }
-.empty-state__action .btn-ghost {
-  background: rgba(0, 0, 0, 0.04);
-  color: var(--text-700);
+[data-theme='dark'] .empty-state {
+  background: rgba(28, 28, 30, 0.55);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 16px 40px -12px rgba(0, 0, 0, 0.55);
 }
-.empty-state__action .btn-ghost:hover {
-  background: rgba(0, 0, 0, 0.08);
-  color: var(--text-900);
+[data-theme='dark'] .empty-state::before {
+  background: radial-gradient(52% 46% at 50% 0%, rgba(10, 132, 255, 0.14), transparent 70%);
 }
 [data-theme='dark'] .empty-state__icon {
-  background: rgba(10, 132, 255, 0.14);
-  border-color: rgba(10, 132, 255, 0.22);
-  color: #66abff;
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.22), rgba(94, 92, 230, 0.16));
+  color: #64d2ff;
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 8px 24px -6px rgba(10, 132, 255, 0.35);
 }
-[data-theme='dark'] .empty-state__title { color: var(--text-100, #f5f5f7); }
-[data-theme='dark'] .empty-state__action .btn-ghost {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-200);
-}
-[data-theme='dark'] .empty-state__action .btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.12);
-}
+[data-theme='dark'] .empty-state__title { color: var(--text-800); }
 
 /* ==========================================================================
    Glass Buttons · 玻璃按钮系统
