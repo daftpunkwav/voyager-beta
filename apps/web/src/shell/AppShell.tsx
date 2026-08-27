@@ -76,9 +76,7 @@ export function AppShell() {
       </button>
       <div className="main">
         <Topbar />
-        <div className="svc-strip">
-          <ServiceBadges />
-        </div>
+        <ServiceBadges />
         <main className="content">
           <Outlet />
         </main>

@@ -53,11 +53,13 @@ export function ServiceBadges() {
 
   if (!loaded) {
     return (
-      <div className="svc-badges" role="status" aria-label="服务健康加载中">
-        <span className="svc-badge svc-badge--loading" title="正在检查服务状态">
-          <span className="svc-badge__dot" aria-hidden />
-          <span className="svc-badge__label">服务</span>
-        </span>
+      <div className="svc-strip">
+        <div className="svc-badges" role="status" aria-label="服务健康加载中">
+          <span className="svc-badge svc-badge--loading" title="正在检查服务状态">
+            <span className="svc-badge__dot" aria-hidden />
+            <span className="svc-badge__label">服务</span>
+          </span>
+        </div>
       </div>
     );
   }
@@ -68,17 +70,19 @@ export function ServiceBadges() {
   }
 
   return (
-    <div className="svc-badges" role="status" aria-label="服务健康">
-      {Object.entries(services).map(([domain, s]) => (
-        <span
-          key={domain}
-          className={`svc-badge ${s.status === 'up' ? 'svc-badge--up' : 'svc-badge--down'}`}
-          title={`${domain}: ${s.status}`}
-        >
-          <span className="svc-badge__dot" aria-hidden />
-          {domain}
-        </span>
-      ))}
+    <div className="svc-strip">
+      <div className="svc-badges" role="status" aria-label="服务健康">
+        {Object.entries(services).map(([domain, s]) => (
+          <span
+            key={domain}
+            className={`svc-badge ${s.status === 'up' ? 'svc-badge--up' : 'svc-badge--down'}`}
+            title={`${domain}: ${s.status}`}
+          >
+            <span className="svc-badge__dot" aria-hidden />
+            {domain}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
