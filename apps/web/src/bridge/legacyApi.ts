@@ -291,6 +291,7 @@ class ProjectsApi {
   searchGithubRepos(query: string) { return call('searchGithubRepos', { query }); }
 }
 
+/** 笔记域:既有 6 个旧形态方法 + 直桥能力(addAsset/回收站/版本/标签/导入导出)。 */
 class NotesApi {
   listNotes(projectId: string) { return call('listNotes', { source_id: projectId }); }
   listAllNotes() { return call('listAllNotes'); }
@@ -300,6 +301,47 @@ class NotesApi {
   }
   updateNote(id: string, d: unknown) { return call('updateNote', { id, ...(d as object) }); }
   deleteNote(id: string) { return call('deleteNote', { id }); }
+
+  // ---- 直桥(notes 能力名即 capability 名;用户与 agent 同权) ----
+  private async cap<T>(name: string, args: Record<string, unknown> = {}): Promise<ApiResponse<T>> {
+    try {
+      return wrap<T>(await callCapability('notes', name, args));
+    } catch (err) {
+      if (err instanceof ServiceError) throw new ApiRequestError(err.code, err.message, err.status);
+      throw err;
+    }
+  }
+  /** 服务端搜索(list_notes 的 query:标题+正文 LIKE,命中窗口摘要) */
+  searchNotes(query: string, extra: { tag?: string; state?: string; sort?: string; limit?: number } = {}) {
+    return this.cap('list_notes', { query, ...extra });
+  }
+  listTags() { return this.cap('list_tags'); }
+  notesStats() { return this.cap('notes_stats'); }
+  getBacklinks(id: string) { return this.cap('get_backlinks', { note_id: id }); }
+  getNoteToc(id: string) { return this.cap('get_note_toc', { note_id: id }); }
+  restoreNote(id: string) { return this.cap('restore_note', { note_id: id }); }
+  purgeNote(id: string) { return this.cap('purge_note', { note_id: id }); }
+  emptyTrash() { return this.cap('empty_trash'); }
+  listVersions(id: string) { return this.cap('list_versions', { note_id: id }); }
+  readVersion(id: string, version: number) {
+    return this.cap('read_version', { note_id: id, version });
+  }
+  restoreVersion(id: string, version: number) {
+    return this.cap('restore_version', { note_id: id, version });
+  }
+  renameTag(oldName: string, newName: string) {
+    return this.cap('rename_tag', { old: oldName, new: newName });
+  }
+  linkNote(id: string, sourceId: string | null) {
+    return this.cap('link_note', { note_id: id, source_id: sourceId });
+  }
+  importNote(filePath: string, meta: { title?: string; tags?: string[] } = {}) {
+    return this.cap('import_note', { file_path: filePath, ...meta });
+  }
+  exportNote(id: string) { return this.cap('export_note', { note_id: id }); }
+  addAsset(filePath: string, filename = '', noteId = '') {
+    return this.cap('add_asset', { file_path: filePath, filename, note_id: noteId });
+  }
 }
 
 class GraphApi {
@@ -430,6 +472,22 @@ export class LegacyApiClient {
   setProjectTags = this.projects.setProjectTags.bind(this.projects);
   searchGithubRepos = this.projects.searchGithubRepos.bind(this.projects);
   listNotes = this.notes.listNotes.bind(this.notes);
+  searchNotes = this.notes.searchNotes.bind(this.notes);
+  listNoteTags = this.notes.listTags.bind(this.notes);
+  notesStats = this.notes.notesStats.bind(this.notes);
+  getBacklinks = this.notes.getBacklinks.bind(this.notes);
+  getNoteToc = this.notes.getNoteToc.bind(this.notes);
+  restoreNote = this.notes.restoreNote.bind(this.notes);
+  purgeNote = this.notes.purgeNote.bind(this.notes);
+  emptyTrash = this.notes.emptyTrash.bind(this.notes);
+  listVersions = this.notes.listVersions.bind(this.notes);
+  readVersion = this.notes.readVersion.bind(this.notes);
+  restoreVersion = this.notes.restoreVersion.bind(this.notes);
+  renameNoteTag = this.notes.renameTag.bind(this.notes);
+  linkNote = this.notes.linkNote.bind(this.notes);
+  importNote = this.notes.importNote.bind(this.notes);
+  exportNote = this.notes.exportNote.bind(this.notes);
+  addAsset = this.notes.addAsset.bind(this.notes);
   listAllNotes = this.notes.listAllNotes.bind(this.notes);
   getNote = this.notes.getNote.bind(this.notes);
   createNote = this.notes.createNote.bind(this.notes);

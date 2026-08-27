@@ -32,7 +32,7 @@ export function NoteList({ notes, projectNames, selectedId, onSelect, variant = 
           >
             <div className="note-card-title">{n.title}</div>
             <div className="note-card-meta">
-              <Link to={`/projects/${n.project_id}`} onClick={(e) => e.stopPropagation()}>
+              <Link to={`/sources/repo/${n.project_id}`} onClick={(e) => e.stopPropagation()}>
                 {projectNames.get(n.project_id) ?? n.project_id}
               </Link>
               <span className="dot" />

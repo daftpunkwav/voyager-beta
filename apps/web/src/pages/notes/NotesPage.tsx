@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useAllNotes, useCreateNote, useDeleteNote, useUpdateNote } from '@/hooks/useNotes';
+import {
+  fetchNoteFull,
+  useAllNotes,
+  useCreateNote,
+  useDeleteNote,
+  useUpdateNote,
+} from '@/hooks/useNotes';
 import { useProjects } from '@/hooks/useProjects';
 import { useNoteStore } from '@/stores/noteStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -11,6 +17,7 @@ import { NoteEditor } from '@/components/note/NoteEditor';
 import { MarkdownRenderer } from '@/components/common/MarkdownRenderer';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { BacklinkPanel, TocPanel, TrashPanel, VersionDrawer } from './NoteFeatures';
 
 type NotesView = 'split' | 'list-only' | 'edit-only' | 'preview-only';
 
@@ -40,8 +47,65 @@ export function NotesPage() {
   const [newProjectId, setNewProjectId] = useState(
     () => searchParams.get('project') ?? ''
   );
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [saveState, setSaveState] = useState<'saved' | 'unsaved' | 'saving'>('saved');
+  const dirtyRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const doSave = useCallback(async () => {
+    const t = useNoteStore.getState().editorTitle;
+    const c = useNoteStore.getState().editorContent;
+    if (!t.trim()) return;
+    const id = useNoteStore.getState().editingNoteId;
+    setSaveState('saving');
+    try {
+      if (isPersistedNoteId(id)) {
+        await updateNote.mutateAsync({ id, title: t, content: c });
+      } else if (newProjectId) {
+        await createNote.mutateAsync({ projectId: newProjectId, title: t, content: c });
+      } else {
+        setSaveState('unsaved');
+        return;
+      }
+      dirtyRef.current = false;
+      setSaveState('saved');
+    } catch (err) {
+      setSaveState('unsaved');
+      addToast({ type: 'error', message: err instanceof Error ? err.message : '保存失败' });
+    }
+  }, [updateNote, createNote, newProjectId, addToast]);
+
+  // 自动保存:编辑置脏 → debounce(5s)落盘;关页/切笔记前 flush
+  const markDirty = useCallback(() => {
+    dirtyRef.current = true;
+    setSaveState('unsaved');
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => void doSave(), 5000);
+  }, [doSave]);
+
+  // 编辑动作置脏:startEditing 初载(切笔记/回退)不视为编辑
+  const loadedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (loadedFor.current !== editingNoteId) {
+      loadedFor.current = editingNoteId;
+      return;
+    }
+    markDirty();
+  }, [editorContent, editorTitle, editingNoteId, markDirty]);
+
+  useEffect(() => {
+    const flush = () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (dirtyRef.current && isPersistedNoteId(editingNoteId)) void doSave();
+    };
+    window.addEventListener('beforeunload', flush);
+    return () => {
+      window.removeEventListener('beforeunload', flush);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [doSave, editingNoteId]);
   const [view, setView] = useState<NotesView>('split');
-  const [saved, setSaved] = useState(true);
   const [scribeStreaming, setScribeStreaming] = useState(false);
 
   // Agent 结果卡深链：/notes?note=<id>&project=<id>
@@ -53,7 +117,6 @@ export function NotesPage() {
     if (!note) return;
     startEditing(note.id, note.title, note.content ?? '');
     setNewProjectId(note.project_id);
-    setSaved(true);
   }, [searchParams, notes, isLoading, editingNoteId, startEditing]);
 
   // URL 仅带 project 时预填新建关联
@@ -92,7 +155,8 @@ export function NotesPage() {
     setNewProjectId(
       searchParams.get('project') || projectsData?.items[0]?.id || ''
     );
-    setSaved(false);
+    dirtyRef.current = false;
+    setSaveState('unsaved');
   };
 
   const runScribe = async () => {
@@ -110,7 +174,6 @@ export function NotesPage() {
       setNewProjectId(projectId);
     }
     setScribeStreaming(true);
-    setSaved(false);
     let buf = '';
     try {
       const stream = getApi().generateNote(projectId, {
@@ -142,31 +205,12 @@ export function NotesPage() {
   };
 
   const handleSave = async () => {
-    const title = useNoteStore.getState().editorTitle;
-    const content = useNoteStore.getState().editorContent;
-    if (!title.trim()) {
+    if (!useNoteStore.getState().editorTitle.trim()) {
       addToast({ type: 'warning', message: '请输入标题' });
       return;
     }
-    try {
-      if (isPersistedNoteId(editingNoteId)) {
-        await updateNote.mutateAsync({ id: editingNoteId, title, content });
-      } else if (newProjectId) {
-        await createNote.mutateAsync({
-          projectId: newProjectId,
-          title,
-          content,
-        });
-      } else {
-        addToast({ type: 'warning', message: '请选择关联项目' });
-        return;
-      }
-      setSaved(true);
-      addToast({ type: 'success', message: '笔记已保存' });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : '保存失败';
-      addToast({ type: 'error', message });
-    }
+    if (timerRef.current) clearTimeout(timerRef.current);
+    await doSave();
   };
 
   if (isLoading) return <LoadingSpinner fullScreen />;
@@ -245,11 +289,44 @@ export function NotesPage() {
           ))}
         </div>
         {editingNoteId && (
-          <div className={`save-indicator ${saved ? 'saved' : 'saving'}`}>
+          <div className={`save-indicator ${saveState === 'saved' ? 'saved' : 'saving'}`}>
             <span className="dot" />
-            <span>{saved ? '已就绪' : '未保存'}</span>
+            <span>{saveState === 'saved' ? '已保存' : saveState === 'saving' ? '保存中…' : '未保存'}</span>
           </div>
         )}
+        {isPersistedNoteId(editingNoteId) && (
+          <>
+            <button type="button" className="topbar-action" title="版本历史" onClick={() => setVersionsOpen(true)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={16} height={16}>
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 2" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="topbar-action"
+              title="导出 Markdown"
+              onClick={async () => {
+                if (!isPersistedNoteId(editingNoteId)) return;
+                try {
+                  const res = await getApi().exportNote(editingNoteId);
+                  addToast({ type: 'success', message: `已导出:${(res.data as { path: string }).path}` });
+                } catch (err) {
+                  addToast({ type: 'error', message: err instanceof Error ? err.message : '导出失败' });
+                }
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={16} height={16}>
+                <path d="M12 3v12M7 10l5 5 5-5M4 21h16" />
+              </svg>
+            </button>
+          </>
+        )}
+        <button type="button" className="topbar-action" title="回收站" onClick={() => setTrashOpen(true)}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={16} height={16}>
+            <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6" />
+          </svg>
+        </button>
         {isPersistedNoteId(editingNoteId) && (
           <button type="button" className="topbar-action" title="删除笔记" onClick={() => setDeleteOpen(true)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={16} height={16}>
@@ -272,9 +349,12 @@ export function NotesPage() {
             projectNames={projectNames}
             selectedId={selectedNoteId}
             onSelect={(n) => {
-              startEditing(n.id, n.title, n.content);
-              setNewProjectId(n.project_id);
-              setSaved(true);
+              void fetchNoteFull(n.id).then((full) => {
+                startEditing(full.id, full.title, full.content);
+                setNewProjectId(n.project_id);
+                dirtyRef.current = false;
+                setSaveState('saved');
+              });
             }}
           />
         </div>
@@ -304,7 +384,6 @@ export function NotesPage() {
                 onClick={() => {
                   startEditing(n.id, n.title, n.content);
                   setNewProjectId(n.project_id);
-                  setSaved(true);
                   setView('split');
                 }}
               >
@@ -328,7 +407,6 @@ export function NotesPage() {
                 value={newProjectId}
                 onChange={(e) => {
                   setNewProjectId(e.target.value);
-                  setSaved(false);
                 }}
                 style={{ margin: '12px 24px 0', maxWidth: 320 }}
               >
@@ -376,6 +454,12 @@ export function NotesPage() {
             <>
               {editorTitle && <h1 className="preview-h1">{editorTitle}</h1>}
               <MarkdownRenderer content={editorContent} />
+              {isPersistedNoteId(editingNoteId) && (
+                <>
+                  <TocPanel noteId={editingNoteId} />
+                  <BacklinkPanel noteId={editingNoteId} />
+                </>
+              )}
             </>
           ) : (
             <p className="muted">预览区</p>
@@ -397,6 +481,18 @@ export function NotesPage() {
         </div>
       </div>
 
+      <VersionDrawer noteId={editingNoteId} open={versionsOpen} onClose={() => setVersionsOpen(false)} />
+      <TrashPanel
+        open={trashOpen}
+        onClose={() => setTrashOpen(false)}
+        onOpenNote={(id) => {
+          setTrashOpen(false);
+          void fetchNoteFull(id).then((full) => {
+            startEditing(full.id, full.title, full.content);
+            setSaveState('saved');
+          });
+        }}
+      />
       <ConfirmDialog
         open={deleteOpen}
         title="删除笔记"
