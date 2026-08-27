@@ -1331,3 +1331,21 @@
 [data-theme='dark'] .import-tab.active {
   background: rgba(255, 255, 255, 0.16);
 }
+
+/* Stars 抽屉:用户名输入(真桥接 list_starred_repos 需要用户名) */
+.import-biz-username {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.import-biz-username input {
+  width: 220px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(120, 120, 128, 0.28);
+  background: var(--bg-elev, #fff);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+}

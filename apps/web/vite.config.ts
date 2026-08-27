@@ -1,16 +1,31 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { viteStaticCopy } from 'vite-plugin-static-copy';
 import path from 'path';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 const reactDir = path.dirname(require.resolve('react/package.json'));
 const reactDomDir = path.dirname(require.resolve('react-dom/package.json'));
+// pdf.js 中文 PDF 必需的字符映射与标准字体(阅读器按 /pdfjs/ 引用)
+// glob 库不认 Windows 反斜杠:统一为 posix 分隔符
+const pdfjsDir = path
+  .dirname(require.resolve('pdfjs-dist/package.json'))
+  .split(path.sep)
+  .join('/');
 
 const BACKEND = process.env.VITE_API_TARGET || 'http://127.0.0.1:8000';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    viteStaticCopy({
+      targets: [
+        { src: `${pdfjsDir}/cmaps`, dest: 'pdfjs' },
+        { src: `${pdfjsDir}/standard_fonts`, dest: 'pdfjs' },
+      ],
+    }),
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

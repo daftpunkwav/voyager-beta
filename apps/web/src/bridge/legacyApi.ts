@@ -23,7 +23,7 @@
  *  - getApi() 单例在 app 启动时懒初始化,旧 store / hook 仍调 getApi()(经桥接,功能等价)。
  */
 
-import { callCapability, ServiceError } from './client';
+import { callCapability, ServiceError, uploadFile } from './client';
 
 // ==================== 类型别名(与旧 types 对齐) ====================
 
@@ -180,7 +180,92 @@ class AuthApi {
   async listGithubAccounts() { return wrap([]); }
   async bindGithub() { throw new ApiRequestError('NOT_IMPLEMENTED', '请用 sources.set_github_token'); }
   async unbindGithub() { return wrap({ success: true }); }
-  async listStars() { return wrap({ items: [], total: 0 }); }
+  /** GitHub stars(真桥接:list_starred_repos;未配 token 时后端限流报错引导设置页) */
+  listStars(username: string, limit = 100) {
+    return callCapability('sources', 'list_starred_repos', { username, limit })
+      .then((items) => wrap({ items, total: Array.isArray(items) ? items.length : 0 }))
+      .catch((err) => {
+        if (err instanceof ServiceError) throw new ApiRequestError(err.code, err.message, err.status);
+        throw err;
+      });
+  }
+  setGithubToken(token: string) {
+    return callCapability('sources', 'set_github_token', { token })
+      .then((r) => wrap(r))
+      .catch((err) => {
+        if (err instanceof ServiceError) throw new ApiRequestError(err.code, err.message, err.status);
+        throw err;
+      });
+  }
+}
+
+/** 统一资源库(repo/doc/web 三类资源 + 跨类型资源流)。 */
+class SourcesApi {
+  // ---- 仓库(repo) ----
+  importRepo(url: string, category = '') {
+    return callCapability('sources', 'import_repo', { url, category }).then((r) => wrap(r));
+  }
+
+  // ---- 跨类型 ----
+  listSources(p?: { kind?: string; status?: string; tag?: string; query?: string; sort?: string; desc?: boolean; limit?: number }) {
+    return callCapability('sources', 'list_sources', p ?? {}).then((r) => wrap(r));
+  }
+  searchSources(query: string, kind = '', limit = 20) {
+    return callCapability('sources', 'search_sources', { query, kind, limit }).then((r) => wrap(r));
+  }
+  sourcesStats() { return callCapability('sources', 'sources_stats', {}).then((r) => wrap(r)); }
+
+  // ---- 文档(doc) ----
+  uploadDocument(file: File, meta: { title?: string; tags?: string[]; category?: string } = {}) {
+    // 组合流:上传落盘 → 能力入库(两步都必须,缺一不可)
+    return uploadFile(file).then(({ file_path, filename }) =>
+      callCapability('sources', 'add_document', {
+        file_path, title: meta.title || filename, tags: meta.tags, category: meta.category,
+      }).then((r) => wrap(r)));
+  }
+  addDocument(filePath: string, meta: { title?: string; tags?: string[]; category?: string } = {}) {
+    return callCapability('sources', 'add_document', { file_path: filePath, ...meta }).then((r) => wrap(r));
+  }
+  listDocuments(p?: { status?: string; tag?: string; query?: string; sort?: string; desc?: boolean; limit?: number }) {
+    return callCapability('sources', 'list_documents', p ?? {}).then((r) => wrap(r));
+  }
+  getDocument(docId: string) {
+    return callCapability('sources', 'get_document', { doc_id: docId }).then((r) => wrap(r));
+  }
+  getDocSection(docId: string, sectionNo: number) {
+    return callCapability('sources', 'get_doc_section', { doc_id: docId, section_no: sectionNo }).then((r) => wrap(r));
+  }
+  searchDocuments(query: string, limit = 20) {
+    return callCapability('sources', 'search_documents', { query, limit }).then((r) => wrap(r));
+  }
+  setDocumentMeta(docId: string, d: { title?: string; category?: string; tags?: string[]; progress?: string; note?: string }) {
+    return callCapability('sources', 'set_document_meta', { doc_id: docId, ...d }).then((r) => wrap(r));
+  }
+  removeDocument(docId: string) {
+    return callCapability('sources', 'remove_document', { doc_id: docId }).then((r) => wrap(r));
+  }
+  /** 文档原文件下载 URL(内联预览,如 PDF 直开) */
+  docFileUrl(docId: string) { return `/api/sources/files/doc/${docId}`; }
+
+  // ---- 网页剪藏(web) ----
+  saveUrl(url: string, meta: { title?: string; tags?: string[]; category?: string } = {}) {
+    return callCapability('sources', 'save_url', { url, ...meta }).then((r) => wrap(r));
+  }
+  addPage(d: { title: string; content?: string; url?: string; tags?: string[] }) {
+    return callCapability('sources', 'add_page', d).then((r) => wrap(r));
+  }
+  listPages(p?: { query?: string; tag?: string; limit?: number }) {
+    return callCapability('sources', 'list_pages', p ?? {}).then((r) => wrap(r));
+  }
+  getPage(pageId: string) {
+    return callCapability('sources', 'get_page', { page_id: pageId }).then((r) => wrap(r));
+  }
+  setPageMeta(pageId: string, d: { title?: string; tags?: string[]; category?: string }) {
+    return callCapability('sources', 'set_page_meta', { page_id: pageId, ...d }).then((r) => wrap(r));
+  }
+  removePage(pageId: string) {
+    return callCapability('sources', 'remove_page', { page_id: pageId }).then((r) => wrap(r));
+  }
 }
 
 /** Projects / Categories / Tags — 全部走 sources */
@@ -292,6 +377,7 @@ class AgentApi {
 
 export class LegacyApiClient {
   readonly auth: AuthApi = new AuthApi();
+  readonly sources: SourcesApi = new SourcesApi();
   readonly projects: ProjectsApi = new ProjectsApi();
   readonly notes: NotesApi = new NotesApi();
   readonly graph: GraphApi = new GraphApi();
@@ -304,6 +390,26 @@ export class LegacyApiClient {
   bindGithub = this.auth.bindGithub.bind(this.auth);
   unbindGithub = this.auth.unbindGithub.bind(this.auth);
   listStars = this.auth.listStars.bind(this.auth);
+  setGithubToken = this.auth.setGithubToken.bind(this.auth);
+  importRepo = this.sources.importRepo.bind(this.sources);
+  listSources = this.sources.listSources.bind(this.sources);
+  searchSources = this.sources.searchSources.bind(this.sources);
+  sourcesStats = this.sources.sourcesStats.bind(this.sources);
+  uploadDocument = this.sources.uploadDocument.bind(this.sources);
+  addDocument = this.sources.addDocument.bind(this.sources);
+  listDocuments = this.sources.listDocuments.bind(this.sources);
+  getDocument = this.sources.getDocument.bind(this.sources);
+  getDocSection = this.sources.getDocSection.bind(this.sources);
+  searchDocuments = this.sources.searchDocuments.bind(this.sources);
+  setDocumentMeta = this.sources.setDocumentMeta.bind(this.sources);
+  removeDocument = this.sources.removeDocument.bind(this.sources);
+  docFileUrl = this.sources.docFileUrl.bind(this.sources);
+  saveUrl = this.sources.saveUrl.bind(this.sources);
+  addPage = this.sources.addPage.bind(this.sources);
+  listPages = this.sources.listPages.bind(this.sources);
+  getPage = this.sources.getPage.bind(this.sources);
+  setPageMeta = this.sources.setPageMeta.bind(this.sources);
+  removePage = this.sources.removePage.bind(this.sources);
   importProjects = this.projects.importProjects.bind(this.projects);
   listProjects = this.projects.listProjects.bind(this.projects);
   getProject = this.projects.getProject.bind(this.projects);

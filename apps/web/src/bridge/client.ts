@@ -50,3 +50,34 @@ export async function callCapability<T = unknown>(
   }
   return (body?.result ?? body) as T;
 }
+
+/** 浏览器文件上传(运输动作,非能力):落 workspace/imports/,返回服务器路径。
+ *  业务校验(类型/大小上限)由后续领域能力(add_document / add_asset)强制。 */
+export async function uploadFile(
+  file: File,
+): Promise<{ file_path: string; filename: string; size: number }> {
+  const form = new FormData();
+  form.append('file', file);
+  let resp: Response;
+  try {
+    resp = await fetch('/api/uploads', {
+      method: 'POST',
+      body: form,
+      headers: { 'X-Trace-Id': crypto.randomUUID() },
+    });
+  } catch {
+    throw new ServiceError('NETWORK', '无法连接后端服务', '请确认后端已启动');
+  }
+  const body = await resp.json().catch(() => null);
+  if (!resp.ok) {
+    const err = body?.error ?? {};
+    throw new ServiceError(
+      err.code ?? 'UNKNOWN',
+      err.message ?? `上传失败(${resp.status})`,
+      err.hint ?? '',
+      err.trace_id ?? '',
+      resp.status,
+    );
+  }
+  return body as { file_path: string; filename: string; size: number };
+}

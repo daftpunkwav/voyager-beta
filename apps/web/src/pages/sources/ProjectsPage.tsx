@@ -47,7 +47,7 @@ const STAT_ICONS = {
   ),
 };
 
-export function ProjectsPage() {
+export function ProjectsPage({ embedded = false }: { embedded?: boolean }) {
   const { data, isLoading, isError, error, refetch } = useProjects();
   const { data: categories = [] } = useCategories();
   const { data: tags = [] } = useTags();
@@ -166,37 +166,39 @@ export function ProjectsPage() {
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>我的项目库</h1>
-          <p className="subtitle">{subtitle}</p>
+      {!embedded && (
+        <div className="page-head">
+          <div>
+            <h1>我的项目库</h1>
+            <p className="subtitle">{subtitle}</p>
+          </div>
+          <div className="actions">
+            <button
+              type="button"
+              className="btn glass-card glass-card--control liquid-glass--pill liquid-glass--interactive"
+              onClick={() => setMgrOpen(true)}
+            >
+              分类/标签
+            </button>
+            <button
+              type="button"
+              className="btn glass-card glass-card--control liquid-glass--pill liquid-glass--interactive"
+              data-testid="import-stars-btn"
+              onClick={() => setStarsOpen(true)}
+            >
+              <span className="gh-dot" />
+              GitHub 同步
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setUrlsOpen(true)}
+            >
+              导入项目
+            </button>
+          </div>
         </div>
-        <div className="actions">
-          <button
-            type="button"
-            className="btn glass-card glass-card--control liquid-glass--pill liquid-glass--interactive"
-            onClick={() => setMgrOpen(true)}
-          >
-            分类/标签
-          </button>
-          <button
-            type="button"
-            className="btn glass-card glass-card--control liquid-glass--pill liquid-glass--interactive"
-            data-testid="import-stars-btn"
-            onClick={() => setStarsOpen(true)}
-          >
-            <span className="gh-dot" />
-            GitHub 同步
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => setUrlsOpen(true)}
-          >
-            导入项目
-          </button>
-        </div>
-      </div>
+      )}
 
       {stats && (
         <section className="stat-grid" data-testid="stats-cards">

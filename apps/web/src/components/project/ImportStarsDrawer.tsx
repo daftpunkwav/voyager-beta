@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import type { SelectReposEvent, StarRepo } from '@/api/types';
 import { useGithubStars, useImportProjects, useProjects } from '@/hooks/useProjects';
-import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import {
   collectRepoLanguages,
@@ -26,11 +24,14 @@ function repoKey(s: Pick<StarRepo, 'owner' | 'repo'>): string {
   return `${s.owner}/${s.repo}`;
 }
 
+const GH_USER_KEY = 'voyager-github-username';
+
 export function ImportStarsDrawer({ open, onClose }: ImportStarsDrawerProps) {
-  const user = useAuthStore((s) => s.user);
   const qc = useQueryClient();
+  const [ghUser, setGhUser] = useState(() => localStorage.getItem(GH_USER_KEY) ?? '');
   const { data: starsResult, isLoading, isFetching } = useGithubStars({
-    enabled: open && Boolean(user?.github_bound),
+    username: ghUser,
+    enabled: open && Boolean(ghUser),
   });
   const { data: projectsPage } = useProjects();
   const importMutation = useImportProjects();
@@ -42,8 +43,19 @@ export function ImportStarsDrawer({ open, onClose }: ImportStarsDrawerProps) {
     DEFAULT_IMPORT_REPO_FILTER
   );
 
-  // 兜底空数组包进 useMemo，避免每次渲染生成新引用导致下游 useMemo 依赖失稳
-  const stars = useMemo(() => starsResult?.items ?? [], [starsResult?.items]);
+  // 兜底空数组包进 useMemo，避免每次渲染生成新引用导致下游 useMemo 依赖失稳;
+  // already_imported 由本地已导入项目名合并(stars 原始数据无此标记)
+  const importedNames = useMemo(
+    () => new Set((projectsPage?.items ?? []).map((p) => p.name)),
+    [projectsPage?.items],
+  );
+  const stars = useMemo(
+    () => (starsResult?.items ?? []).map((s) => ({
+      ...s,
+      already_imported: importedNames.has(s.repo),
+    })),
+    [starsResult?.items, importedNames],
+  );
 
   const filteredStars = useMemo(
     () => filterAndSortStarRepos(stars, filters),
@@ -172,8 +184,8 @@ export function ImportStarsDrawer({ open, onClose }: ImportStarsDrawerProps) {
     setRefreshing(true);
     try {
       const { getApi } = await import('@/api/client');
-      const res = await getApi().listStars({ refresh: true });
-      qc.setQueryData(['githubStars'], res.data);
+      const res = await getApi().listStars(ghUser);
+      qc.setQueryData(['githubStars', ghUser], res.data);
       addToast({
         type: 'success',
         message: `已刷新 ${res.data.total} 个 Stars`,
@@ -184,8 +196,6 @@ export function ImportStarsDrawer({ open, onClose }: ImportStarsDrawerProps) {
       setRefreshing(false);
     }
   };
-
-  const githubBound = user?.github_bound ?? false;
 
   return (
     <ImportAgentModal
@@ -218,12 +228,30 @@ export function ImportStarsDrawer({ open, onClose }: ImportStarsDrawerProps) {
         )
       }
     >
-      {!githubBound ? (
+      {!ghUser ? (
         <div className="import-biz-empty">
-          <p>请先在设置中绑定 GitHub 账号（需要 PAT）。</p>
-          <Link to="/settings" className="btn btn-primary" onClick={onClose}>
-            去设置绑定
-          </Link>
+          <p>输入 GitHub 用户名以同步你的 Stars(只读公开数据,无需 PAT)。</p>
+          <div className="import-biz-username">
+            <input
+              value={ghUser}
+              placeholder="例如: torvalds"
+              onChange={(e) => setGhUser(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && ghUser.trim()) {
+                  localStorage.setItem(GH_USER_KEY, ghUser.trim());
+                  setGhUser(ghUser.trim());
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!ghUser.trim()}
+              onClick={() => localStorage.setItem(GH_USER_KEY, ghUser.trim())}
+            >
+              同步
+            </button>
+          </div>
         </div>
       ) : isLoading ? (
         <LoadingSpinner />

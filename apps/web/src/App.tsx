@@ -21,8 +21,10 @@ import { AppShell } from '@/shell/AppShell';
 import { AgentPage } from '@/pages/agent/AgentPage';
 import { TeamPage } from '@/pages/team/TeamPage';
 import { NotesPage } from '@/pages/notes/NotesPage';
-import { ProjectsPage } from '@/pages/sources/ProjectsPage';
+import { SourcesPage } from '@/pages/sources/SourcesPage';
 import { ProjectDetailPage } from '@/pages/sources/ProjectDetailPage';
+import { DocReader } from '@/pages/sources/DocReader';
+import { PageReader } from '@/pages/sources/PageReader';
 import { GraphPage } from '@/pages/graph/GraphPage';
 import { CodeGraphPage } from '@/pages/code-graph/CodeGraphPage';
 import { OverviewPage } from '@/pages/overview/OverviewPage';
@@ -40,7 +42,10 @@ export function App() {
         <Route path="chat/:sessionId" element={<AgentPage />} />
         <Route path="team" element={<TeamPage />} />
         <Route path="notes" element={<NotesPage />} />
-        <Route path="sources" element={<ProjectsPage />} />
+        <Route path="sources" element={<SourcesPage />} />
+        <Route path="sources/repo/:id" element={<ProjectDetailPage />} />
+        <Route path="sources/doc/:id" element={<DocReader />} />
+        <Route path="sources/web/:id" element={<PageReader />} />
         <Route path="sources/:id" element={<ProjectDetailPage />} />
         <Route path="graph" element={<GraphPage />} />
         <Route path="code-graph" element={<CodeGraphPage />} />

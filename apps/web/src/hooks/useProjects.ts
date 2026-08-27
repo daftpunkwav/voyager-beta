@@ -271,16 +271,37 @@ export function useSetProjectTags() {
   });
 }
 
-export function useGithubStars(options?: { enabled?: boolean }) {
+/** GitHub stars 真桥接:list_starred_repos 需要用户名(本机单用户无内建账号,
+ *  由抽屉让用户填一次,localStorage 记住)。原始 GitHub 条目适配 StarRepo 形态。 */
+export function useGithubStars(options?: { username?: string; enabled?: boolean }) {
+  const username = options?.username ?? '';
   return useQuery({
-    queryKey: ['githubStars'],
+    queryKey: ['githubStars', username],
     queryFn: async () => {
       const api = getApi();
-      // 默认走服务端缓存；强制刷新由 mutate/invalidate + listStars({refresh:true}) 触发
-      const res = await api.listStars();
-      return res.data;
+      const res = await api.listStars(username);
+      const raw = (res.data?.items ?? []) as Array<{
+        name?: string; html_url?: string; description?: string;
+        stargazers_count?: number; language?: string | null;
+        owner?: { login?: string };
+      }>;
+      const items = raw.map((r) => {
+        const owner = r.owner?.login ?? '';
+        const repo = r.name ?? '';
+        return {
+          full_name: `${owner}/${repo}`,
+          owner,
+          repo,
+          description: r.description ?? '',
+          stars: r.stargazers_count ?? 0,
+          language: r.language,
+          html_url: r.html_url ?? `https://github.com/${owner}/${repo}`,
+          url: r.html_url ?? `https://github.com/${owner}/${repo}`,
+        };
+      });
+      return { items, total: items.length, cached: false, fetched_at: Date.now() / 1000 };
     },
-    enabled: options?.enabled !== false,
+    enabled: (options?.enabled ?? true) && Boolean(username),
     staleTime: 5 * 60 * 1000,
   });
 }
