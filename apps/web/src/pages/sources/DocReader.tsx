@@ -6,12 +6,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useDocument, useDocSection, useDocumentEvents, useRemoveDocument } from '@/hooks/useSources';
+import { useDocument, useDocSection, useDocumentEvents, useRemoveDocument, useSetDocumentMeta } from '@/hooks/useSources';
 import { getApi } from '@/api/client';
 import { useUIStore } from '@/stores/uiStore';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { MarkdownRenderer } from '@/components/common/MarkdownRenderer';
+import { TagEditor } from './TagEditor';
 
 export function DocReader() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +20,7 @@ export function DocReader() {
   const { data: doc, isLoading, isError, error, refetch } = useDocument(id);
   useDocumentEvents(id);
   const removeDoc = useRemoveDocument();
+  const setMeta = useSetDocumentMeta();
   const addToast = useUIStore((s) => s.addToast);
   const [view, setView] = useState<'original' | 'text'>('original');
   const [sectionNo, setSectionNo] = useState(1);
@@ -57,6 +59,15 @@ export function DocReader() {
             {doc.filename} · {doc.total_sections > 0 ? `${doc.total_sections} 章` : doc.ext}
             {doc.status === 'parsing' && ' · 解析中…'}
           </p>
+          <TagEditor
+            tags={doc.tags ?? []}
+            onChange={(tags) =>
+              setMeta.mutate(
+                { docId: doc.id, meta: { tags } },
+                { onError: (e) => addToast({ type: 'error', message: e instanceof Error ? e.message : '标签保存失败' }) },
+              )
+            }
+          />
         </div>
         <div className="doc-reader__actions">
           {parseable && (
@@ -234,7 +245,7 @@ function PdfPane({ docId, fileUrl }: { docId: string; fileUrl: string }) {
       canvas.height = viewport.height;
       canvas.style.width = `${viewport.width / window.devicePixelRatio}px`;
       canvas.style.height = `${viewport.height / window.devicePixelRatio}px`;
-      renderTask = page.render({ canvasContext: ctx, viewport });
+      renderTask = page.render({ canvas, canvasContext: ctx, viewport });
       try {
         await renderTask.promise;
       } catch (err) {

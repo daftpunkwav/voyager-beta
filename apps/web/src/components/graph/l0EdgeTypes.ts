@@ -1,12 +1,9 @@
 /**
- * L0 关系边类型与图例色（对齐原生引擎 分色细线）
+ * L0 关系边类型与图例色（对齐后端 L0 管线实际产出的边类型）
  */
 export const L0_EDGE_TYPES = [
-  { id: 'similarity', label: '相似', color: '#2dd4bf' },
-  { id: 'depends_on', label: '依赖', color: '#fb923c' },
-  { id: 'recommend_learn', label: '推荐学习', color: '#f472b6' },
-  { id: 'cross_http', label: '跨服务 HTTP', color: '#a78bfa' },
-  { id: 'cross_async', label: '异步调用', color: '#fbbf24' },
+  { id: 'related', label: '标签关联', color: '#2dd4bf' },
+  { id: 'cross_repo', label: '跨仓依赖', color: '#fb923c' },
 ] as const;
 
 export type L0EdgeTypeId = (typeof L0_EDGE_TYPES)[number]['id'];

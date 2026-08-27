@@ -102,9 +102,7 @@ const METHOD_MAP: Record<string, { domain: string; name: string; argMap?: Record
   deleteNote: { domain: 'notes', name: 'delete_note', argMap: { id: 'note_id' } },
 
   // ---- graph ----
-  getGraph: { domain: 'graph', name: 'query_graph' },
-  getCrossEdges: { domain: 'graph', name: 'get_subgraph' },
-  getRecommendEdges: { domain: 'graph', name: 'expand_neighbors' },
+  getGraph: { domain: 'graph', name: 'l0_view' },
   listCodeGraphIndexStatuses: { domain: 'graph', name: 'list_index_jobs' },
   cancelCodeGraphIndex: { domain: 'graph', name: 'cancel_index', argMap: { projectId: 'project' } },
   getCodeGraphStatus: { domain: 'graph', name: 'engine_info' /* 降级 */ },
@@ -116,6 +114,7 @@ const METHOD_MAP: Record<string, { domain: string; name: string; argMap?: Record
   traceCodeGraph: { domain: 'graph', name: 'find_path', argMap: { projectId: 'project' } },
   searchCodeGraph: { domain: 'graph', name: 'query_graph', argMap: { projectId: 'project' } },
   batchIndexCodeGraph: { domain: 'graph', name: 'enqueue_index' /* 逐个循环 */ },
+  enqueueL0: { domain: 'graph', name: 'enqueue_l0' },
 
   // ---- settings ----
   getSettings: { domain: 'settings', name: 'get_settings' },
@@ -345,9 +344,14 @@ class NotesApi {
 }
 
 class GraphApi {
-  getGraph(p?: unknown) { return call('getGraph', p as Record<string, unknown>); }
-  getCrossEdges() { return call('getCrossEdges'); }
-  getRecommendEdges() { return call('getRecommendEdges'); }
+  /** L0 视图:kinds 选资源种类子集([]/undefined=全部) */
+  getGraph(p?: { kinds?: string[]; limit?: number }) {
+    return call('getGraph', p as Record<string, unknown> | undefined);
+  }
+  /** L0 关联分析入队(kinds ⊆ repo/doc/web) */
+  enqueueL0(kinds: string[], priority = 100) {
+    return call('enqueueL0', { kinds, priority });
+  }
   listCodeGraphIndexStatuses() { return call('listCodeGraphIndexStatuses'); }
   cancelCodeGraphIndex(projectId: string) { return call('cancelCodeGraphIndex', { projectId }); }
   getCodeGraphStatus(projectId: string) { return call('getCodeGraphStatus', { projectId }); }
@@ -494,8 +498,7 @@ export class LegacyApiClient {
   updateNote = this.notes.updateNote.bind(this.notes);
   deleteNote = this.notes.deleteNote.bind(this.notes);
   getGraph = this.graph.getGraph.bind(this.graph);
-  getCrossEdges = this.graph.getCrossEdges.bind(this.graph);
-  getRecommendEdges = this.graph.getRecommendEdges.bind(this.graph);
+  enqueueL0 = this.graph.enqueueL0.bind(this.graph);
   listCodeGraphIndexStatuses = this.graph.listCodeGraphIndexStatuses.bind(this.graph);
   cancelCodeGraphIndex = this.graph.cancelCodeGraphIndex.bind(this.graph);
   getCodeGraphStatus = this.graph.getCodeGraphStatus.bind(this.graph);

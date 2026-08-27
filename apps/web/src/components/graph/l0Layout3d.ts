@@ -8,15 +8,6 @@ import type { GraphData, GraphEdge, GraphNode } from '@/api/types';
 import type { CodeGraphData, CodeGraphNode } from '@/components/code-graph/types';
 import type { GraphLayoutMode } from '@/stores/graphStore';
 
-const CATEGORY_COLORS: Record<string, string> = {
-  frontend: '#007aff',
-  backend: '#30d158',
-  ai: '#ff3b30',
-  data: '#ff9f0a',
-  devops: '#5e5ce6',
-  tool: '#6e6e73',
-};
-
 const FORCE_ITERS_CAP = 90;
 /** 黄金角：圆内均匀铺开，避免扇区挤成一团 */
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
@@ -27,13 +18,16 @@ export function hashId(s: string): number {
   return Math.abs(h) || 1;
 }
 
+/** 资源种类着色(repo/doc/web;未知 kind 走灰蓝兜底) */
+const KIND_COLORS: Record<string, string> = {
+  repo: '#007aff',
+  doc: '#30d158',
+  web: '#ff9f0a',
+};
+const KIND_FALLBACK = '#5e5ce6';
+
 function colorForProject(n: GraphNode): string {
-  const key = (n.category_id || '').toLowerCase();
-  for (const [k, c] of Object.entries(CATEGORY_COLORS)) {
-    if (key.includes(k)) return c;
-  }
-  const palette = Object.values(CATEGORY_COLORS);
-  return palette[hashId(n.id) % palette.length]!;
+  return KIND_COLORS[(n.kind || '').toLowerCase()] ?? KIND_FALLBACK;
 }
 
 type Vec = {
@@ -727,6 +721,7 @@ export function projectGraphToScene(
   else forceLayout3d(vecs, links, iters);
 
   const pos = new Map(vecs.map((v) => [v.id, v]));
+  const idMap = new Map(data.nodes.map((node) => [node.id, hashId(node.id)]));
   const nodes: CodeGraphNode[] = data.nodes.map((node) => {
     const p = pos.get(node.id)!;
     return {
@@ -734,9 +729,9 @@ export function projectGraphToScene(
       x: p.x,
       y: p.y,
       z: p.z,
-      label: 'Project',
+      label: node.kind ? `Resource:${node.kind}` : 'Project',
       name: node.name,
-      kind: 'Project',
+      kind: node.kind ? `Resource:${node.kind}` : 'Project',
       size: p.size,
       color: colorForProject(node),
       status: 'normal',
@@ -745,13 +740,12 @@ export function projectGraphToScene(
     };
   });
 
-  const idMap = new Map(data.nodes.map((node) => [node.id, hashId(node.id)]));
   const edges = data.edges
     .map((e) => ({
       source: idMap.get(e.source)!,
       target: idMap.get(e.target)!,
-      type: e.edge_type || e.relation || 'similarity',
-      relation: e.edge_type || e.relation || 'similarity',
+      type: e.edge_type || e.relation || 'related',
+      relation: e.edge_type || e.relation || 'related',
     }))
     .filter((e) => e.source && e.target);
 

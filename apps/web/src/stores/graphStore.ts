@@ -12,8 +12,9 @@ interface GraphState {
   searchQuery: string;
   minSimilarity: number;
   maxEdges: number;
-  categoryFilter: string | null;
-  /** L0 边类型：similarity | cross_http | cross_async | all */
+  /** L0 资源种类筛选:null=全部;否则为选中的 kind 集合(repo/doc/web) */
+  kindsFilter: Set<string> | null;
+  /** L0 边类型:related | cross_repo | all */
   edgeTypeFilter: string | null;
   /** L0 视图模式 */
   viewMode: GraphViewMode;
@@ -31,7 +32,8 @@ interface GraphState {
   setSearchQuery: (query: string) => void;
   setMinSimilarity: (value: number) => void;
   setMaxEdges: (value: number) => void;
-  setCategoryFilter: (categoryId: string | null) => void;
+  toggleKindFilter: (kind: string) => void;
+  setKindsFilter: (kinds: Set<string> | null) => void;
   setEdgeTypeFilter: (edgeType: string | null) => void;
   setViewMode: (mode: GraphViewMode) => void;
   setLayoutMode: (mode: GraphLayoutMode) => void;
@@ -49,7 +51,7 @@ export const useGraphStore = create<GraphState>((set) => ({
   minSimilarity: 0.08,
   /** 与 API Query le 对齐；过大会导致未热更后端时 422「参数校验失败」 */
   maxEdges: 1000,
-  categoryFilter: null,
+  kindsFilter: null,
   edgeTypeFilter: null,
   viewMode: 'force',
   layoutMode: 'force',
@@ -65,7 +67,16 @@ export const useGraphStore = create<GraphState>((set) => ({
   setMinSimilarity: (value) =>
     set({ minSimilarity: Math.max(0, Math.min(1, value)) }),
   setMaxEdges: (value) => set({ maxEdges: Math.max(10, Math.min(1000, value)) }),
-  setCategoryFilter: (categoryId) => set({ categoryFilter: categoryId }),
+  toggleKindFilter: (kind) =>
+    set((state) => {
+      const base = state.kindsFilter ?? new Set(['repo', 'doc', 'web']);
+      const next = new Set(base);
+      if (next.has(kind)) next.delete(kind);
+      else next.add(kind);
+      // 全选/全不选都回到 null(=全部),避免空集死图
+      return { kindsFilter: next.size === 0 || next.size === 3 ? null : next };
+    }),
+  setKindsFilter: (kinds) => set({ kindsFilter: kinds }),
   setEdgeTypeFilter: (edgeType) => set({ edgeTypeFilter: edgeType }),
   setViewMode: (mode) => set({ viewMode: mode }),
   setLayoutMode: (mode) => set({ layoutMode: mode }),

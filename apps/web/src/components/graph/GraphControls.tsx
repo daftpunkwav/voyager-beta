@@ -61,10 +61,19 @@ export function GraphControls({
   const setLayoutMode = useGraphStore((s) => s.setLayoutMode);
   const edgeTypeFilter = useGraphStore((s) => s.edgeTypeFilter);
   const setEdgeTypeFilter = useGraphStore((s) => s.setEdgeTypeFilter);
+  const kindsFilter = useGraphStore((s) => s.kindsFilter);
+  const toggleKindFilter = useGraphStore((s) => s.toggleKindFilter);
   const leftPanelCollapsed = useGraphStore((s) => s.leftPanelCollapsed);
   const setLeftPanelCollapsed = useGraphStore((s) => s.setLeftPanelCollapsed);
 
   const showUniverseExtras = showLayout && viewMode !== 'list';
+
+  const KIND_CHIPS: { id: string; label: string }[] = [
+    { id: 'repo', label: '仓库' },
+    { id: 'doc', label: '文档' },
+    { id: 'web', label: '网页' },
+  ];
+  const isKindActive = (id: string) => !kindsFilter || kindsFilter.has(id);
 
   const handlePanelClick = (e: MouseEvent<HTMLDivElement>) => {
     if (leftPanelCollapsed) return;
@@ -148,6 +157,25 @@ export function GraphControls({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {showUniverseExtras && (
+            <div className="graph-toolbar__row">
+              <span className="graph-toolbar__label">类型</span>
+              <div className="view-switch" role="group" aria-label="参与关联的资源种类">
+                {KIND_CHIPS.map((k) => (
+                  <button
+                    key={k.id}
+                    type="button"
+                    className={isKindActive(k.id) ? 'active' : undefined}
+                    title={kindsFilter?.has(k.id) === false ? `纳入${k.label}参与关联` : `从关联分析中排除${k.label}`}
+                    onClick={() => toggleKindFilter(k.id)}
+                  >
+                    {k.label}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

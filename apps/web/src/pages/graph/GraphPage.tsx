@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useGraph } from '@/hooks/useGraph';
 import { useGraphStore } from '@/stores/graphStore';
 import type { GraphViewMode } from '@/stores/graphStore';
@@ -11,13 +11,18 @@ import { GraphGuidePanel } from '@/components/graph/GraphGuidePanel';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { formatNumber, REPO_AVATAR_GRADIENTS, splitRepoName } from '@/utils/format';
-import { categoryLabel } from '@/utils/labels';
 import { getApi } from '@/api/client';
-import type { GraphEdge, GraphNode } from '@/api/types';
+import type { GraphNode } from '@/api/types';
 // 玻璃层级 token(旧 OVERVIEW_OUTER_GLASS / OVERVIEW_INNER_GLASS 已统一至此)
 import { GLASS_INNER, GLASS_OUTER } from '@/constants/glassTokens';
 
 const SIMILAR_PREVIEW_COUNT = 3;
+
+const KIND_LABELS: Record<string, string> = {
+  repo: '仓库',
+  doc: '文档',
+  web: '网页',
+};
 
 /** 展示形态：分类聚合已移除（信息密度差且与列表/图例重复） */
 const VIEW_MODES: { id: GraphViewMode; label: string }[] = [
@@ -27,16 +32,6 @@ const VIEW_MODES: { id: GraphViewMode; label: string }[] = [
 
 export function GraphPage() {
   const { data, isLoading, isError, error, refetch } = useGraph();
-  const crossQ = useQuery({
-    queryKey: ['graph-cross-edges'],
-    queryFn: () => getApi().getCrossEdges(),
-    staleTime: 60_000,
-  });
-  const recommendQ = useQuery({
-    queryKey: ['graph-recommend-edges'],
-    queryFn: () => getApi().getRecommendEdges(),
-    staleTime: 60_000,
-  });
   const containerRef = useRef<HTMLDivElement>(null);
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchSelected, setBatchSelected] = useState<Set<string>>(new Set());
@@ -46,8 +41,9 @@ export function GraphPage() {
   const selectNode = useGraphStore((s) => s.selectNode);
   const highlightNode = useGraphStore((s) => s.highlightNode);
   const searchQuery = useGraphStore((s) => s.searchQuery);
-  const categoryFilter = useGraphStore((s) => s.categoryFilter);
+  const kindsFilter = useGraphStore((s) => s.kindsFilter);
   const edgeTypeFilter = useGraphStore((s) => s.edgeTypeFilter);
+  const minSimilarity = useGraphStore((s) => s.minSimilarity);
   const viewModeRaw = useGraphStore((s) => s.viewMode);
   /** 废弃的 cluster/edges 归一到宇宙图或列表 */
   const viewMode: GraphViewMode = viewModeRaw === 'list' ? 'list' : 'force';
@@ -84,38 +80,35 @@ export function GraphPage() {
     onError: () => addToast({ type: 'error', message: '批量索引请求失败' }),
   });
 
-  const mergedData = useMemo(() => {
-    if (!data) return { nodes: [] as GraphNode[], edges: [] as GraphEdge[] };
-    const cross = (crossQ.data?.data?.edges || []) as unknown as GraphEdge[];
-    const recommend = (recommendQ.data?.data?.edges || []) as unknown as GraphEdge[];
-    const edges: GraphEdge[] = [
-      ...data.edges.map((e) => ({ ...e, edge_type: e.edge_type || 'similarity' })),
-      ...cross.map((e) => ({
-        ...e,
-        similarity: e.similarity ?? 1,
-        edge_type: e.edge_type || e.relation || 'cross_http',
-      })),
-      ...recommend.map((e) => ({
-        ...e,
-        similarity: e.similarity ?? 1,
-        edge_type: e.edge_type || e.relation || 'recommend_learn',
-      })),
-    ];
-    return { nodes: data.nodes, edges };
-  }, [data, crossQ.data, recommendQ.data]);
+  const analyzeL0 = useMutation({
+    mutationFn: (kinds: string[]) => getApi().enqueueL0(kinds),
+    onSuccess: () => {
+      addToast({ type: 'success', message: 'L0 关联分析已入队，完成后图谱自动更新' });
+      void queryClient.invalidateQueries({ queryKey: ['graph-index-statuses'] });
+    },
+    onError: (e) =>
+      addToast({
+        type: 'error',
+        message: e instanceof Error ? e.message : '关联分析请求失败',
+      }),
+  });
+
+  // L0 关联分析范围:未筛选=全部种类;筛选=选中种类
+  const analyzeKinds = kindsFilter ? [...kindsFilter].sort() : ['repo', 'doc', 'web'];
 
   const filteredData = useMemo(() => {
-    let nodes = mergedData.nodes;
-    if (categoryFilter) {
-      nodes = nodes.filter((n) => n.category_id === categoryFilter);
+    let nodes = data?.nodes ?? [];
+    let edges = data?.edges ?? [];
+    if (minSimilarity > 0) {
+      edges = edges.filter((e) => e.similarity >= minSimilarity);
     }
     const ids = new Set(nodes.map((n) => n.id));
-    let edges = mergedData.edges.filter((e) => ids.has(e.source) && ids.has(e.target));
+    edges = edges.filter((e) => ids.has(e.source) && ids.has(e.target));
     if (edgeTypeFilter) {
-      edges = edges.filter((e) => (e.edge_type || 'similarity') === edgeTypeFilter);
+      edges = edges.filter((e) => (e.edge_type || 'related') === edgeTypeFilter);
     }
     return { nodes, edges };
-  }, [mergedData, categoryFilter, edgeTypeFilter]);
+  }, [data, minSimilarity, edgeTypeFilter]);
 
   useEffect(() => {
     if (!searchQuery || !data) {
@@ -202,18 +195,40 @@ export function GraphPage() {
       <div className="graph-page-shell page-scaffold">
         <div className="page-scaffold__state">
           <EmptyState
-            title="节点不足"
-            description="至少需要 2 个项目才能生成关系图谱"
+            title="图谱还是空的"
+            description="先在资源库导入资源并打上标签，再运行「分析关联」生成 L0 关联图"
             icon={EmptyStateIcons.graph}
+            action={
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={analyzeL0.isPending}
+                onClick={() => analyzeL0.mutate(analyzeKinds)}
+              >
+                {analyzeL0.isPending ? '提交中…' : '分析关联'}
+              </button>
+            }
           />
         </div>
       </div>
     );
   }
 
+  /** 批量 L1 代码索引只对 repo 资源有意义 */
+  const repoNodes = filteredData.nodes.filter((n) => !n.kind || n.kind === 'repo');
+
   const batchSlot = (
     <>
       <div className="graph-batch-actions">
+        <button
+          type="button"
+          className="graph-batch-btn graph-batch-btn--inline"
+          disabled={analyzeL0.isPending}
+          onClick={() => analyzeL0.mutate(analyzeKinds)}
+          title={`对当前选中的资源种类（${analyzeKinds.join(' / ')}）运行 L0 关联分析`}
+        >
+          {analyzeL0.isPending ? '分析中…' : '分析关联'}
+        </button>
         <button
           type="button"
           className={`graph-batch-btn graph-batch-btn--inline${batchOpen ? ' is-active' : ''}`}
@@ -235,7 +250,7 @@ export function GraphPage() {
       {batchOpen && (
         <div className="graph-batch-panel graph-batch-panel--inline glass-card glass-card--overview-inner">
           <div className="graph-batch-panel__head">
-            <span>选择项目批量建索引</span>
+            <span>选择仓库批量建代码索引（L1）</span>
             <button
               type="button"
               className="graph-batch-panel__close"
@@ -245,7 +260,7 @@ export function GraphPage() {
             </button>
           </div>
           <div className="graph-batch-panel__list">
-            {filteredData.nodes.map((n) => (
+            {repoNodes.map((n) => (
               <label key={n.id} className="graph-batch-item">
                 <input
                   type="checkbox"
@@ -274,7 +289,7 @@ export function GraphPage() {
               type="button"
               className="btn btn-sm"
               onClick={() =>
-                setBatchSelected(new Set(filteredData.nodes.map((n) => n.id)))
+                setBatchSelected(new Set(repoNodes.map((n) => n.id)))
               }
             >
               全选
@@ -308,25 +323,34 @@ export function GraphPage() {
               data={filteredData}
               cameraResetTick={cameraResetTick}
               onNodeClick={(n) => selectNode(n.id)}
-              onNodeDoubleClick={(n) => navigate(`/graph/projects/${n.id}`)}
+              onNodeDoubleClick={(n) =>
+                navigate(n.kind === 'doc' || n.kind === 'web'
+                  ? `/sources/${n.kind}/${n.resourceId}`
+                  : `/graph/projects/${n.resourceId ?? n.id}`)
+              }
             />
           )}
 
           {viewMode === 'list' && (
             <div className="graph-list-view">
               <div className="graph-list-view__head">
-                <h2>项目列表</h2>
-                <span>{filteredData.nodes.length} 个项目</span>
+                <h2>资源列表</h2>
+                <span>{filteredData.nodes.length} 个资源</span>
               </div>
               {filteredData.nodes.map((n, idx) => {
                 const similar = getSimilarNodes(filteredData, n.id).slice(0, 3);
+                const isRepo = !n.kind || n.kind === 'repo';
                 return (
                   <button
                     key={n.id}
                     type="button"
                     className={`graph-list-item${selectedNodeId === n.id ? ' is-selected' : ''}`}
                     onClick={() => selectNode(n.id)}
-                    onDoubleClick={() => navigate(`/graph/projects/${n.id}`)}
+                    onDoubleClick={() =>
+                      navigate(n.kind === 'doc' || n.kind === 'web'
+                        ? `/sources/${n.kind}/${n.resourceId}`
+                        : `/sources/repo/${n.resourceId}`)
+                    }
                   >
                     <div
                       className="graph-list-avatar"
@@ -334,40 +358,52 @@ export function GraphPage() {
                         background: REPO_AVATAR_GRADIENTS[idx % REPO_AVATAR_GRADIENTS.length],
                       }}
                     >
-                      {(splitRepoName(n.name).repo[0] ?? 'P').toUpperCase()}
+                      {(n.name[0] ?? 'R').toUpperCase()}
                     </div>
                     <div className="graph-list-body">
                       <div className="graph-list-name">{n.name}</div>
                       <div className="graph-list-meta">
-                        <span>{categoryLabel(n.category_id)}</span>
-                        <span>·</span>
-                        <span>{formatNumber(n.stars)} ★</span>
-                        {n.language && (
+                        <span>{KIND_LABELS[n.kind ?? 'repo']}</span>
+                        {n.category && (
                           <>
                             <span>·</span>
-                            <span>{n.language}</span>
+                            <span>{n.category}</span>
+                          </>
+                        )}
+                        {isRepo && (
+                          <>
+                            <span>·</span>
+                            <span>{formatNumber(n.stars)} ★</span>
+                          </>
+                        )}
+                        {n.tags && n.tags.length > 0 && (
+                          <>
+                            <span>·</span>
+                            <span>{n.tags.slice(0, 3).join(' / ')}</span>
                           </>
                         )}
                         {similar.length > 0 && (
                           <>
                             <span>·</span>
                             <span className="graph-list-similar">
-                              相似：
-                              {similar.map((s) => splitRepoName(s.node.name).repo).join('、')}
+                              关联：
+                              {similar.map((s) => s.node.name).join('、')}
                             </span>
                           </>
                         )}
                       </div>
                     </div>
-                    <div
-                      className="graph-list-action"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/graph/projects/${n.id}`);
-                      }}
-                    >
-                      代码图谱 →
-                    </div>
+                    {isRepo && (
+                      <div
+                        className="graph-list-action"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/graph/projects/${n.resourceId ?? n.id}`);
+                        }}
+                      >
+                        代码图谱 →
+                      </div>
+                    )}
                   </button>
                 );
               })}
@@ -378,12 +414,15 @@ export function GraphPage() {
             <div className={`node-detail ${GLASS_OUTER}`}>
               <div className="node-detail-head">
                 <div className="node-avatar" style={{ background: REPO_AVATAR_GRADIENTS[0] }}>
-                  {(selectedRepo?.repo[0] ?? 'P').toUpperCase()}
+                  {(selectedRepo?.repo[0] ?? selectedNode.name[0] ?? 'R').toUpperCase()}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="node-meta-name" title={selectedNode.name}>
                     {selectedRepo?.repo || selectedNode.name}
                   </div>
+                  {selectedNode.kind && selectedNode.kind !== 'repo' && (
+                    <div className="node-meta-kind">{KIND_LABELS[selectedNode.kind]}</div>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -395,32 +434,89 @@ export function GraphPage() {
                 </button>
               </div>
               <div className="node-detail-body">
-                  <div className="node-detail-section">
-                    <div className="detail-label">概览</div>
-                    <div className="detail-row">
-                      <span className="muted">所有者</span>
-                      <strong className="detail-owner">{selectedRepo?.owner || '—'}</strong>
-                    </div>
-                    <div className="detail-row">
-                      <span className="muted">GitHub</span>
-                      {selectedGithubUrl ? (
-                        <a
-                          className="detail-github-link"
-                          href={selectedGithubUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title={selectedGithubUrl}
+                  {selectedNode.kind === 'doc' || selectedNode.kind === 'web' ? (
+                    <>
+                      <div className="node-detail-section">
+                        <div className="detail-label">概览</div>
+                        <div className="detail-row">
+                          <span className="muted">类型</span>
+                          <strong>{KIND_LABELS[selectedNode.kind]}</strong>
+                        </div>
+                        <div className="detail-row">
+                          <span className="muted">分类</span>
+                          <strong>{selectedNode.category || '—'}</strong>
+                        </div>
+                        <div className="detail-row">
+                          <span className="muted">标签</span>
+                          <strong>
+                            {selectedNode.tags && selectedNode.tags.length > 0
+                              ? selectedNode.tags.join('、')
+                              : '—'}
+                          </strong>
+                        </div>
+                      </div>
+                      <div className="detail-actions">
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-block"
+                          onClick={() =>
+                            navigate(`/sources/${selectedNode.kind}/${selectedNode.resourceId}`)
+                          }
                         >
-                          {`${selectedRepo?.owner}/${selectedRepo?.repo}`}
-                        </a>
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                    </div>
-                  </div>
+                          打开资源
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="node-detail-section">
+                        <div className="detail-label">概览</div>
+                        <div className="detail-row">
+                          <span className="muted">所有者</span>
+                          <strong className="detail-owner">{selectedRepo?.owner || '—'}</strong>
+                        </div>
+                        <div className="detail-row">
+                          <span className="muted">GitHub</span>
+                          {selectedGithubUrl ? (
+                            <a
+                              className="detail-github-link"
+                              href={selectedGithubUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={selectedGithubUrl}
+                            >
+                              {`${selectedRepo?.owner}/${selectedRepo?.repo}`}
+                            </a>
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="detail-actions">
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-block"
+                          onClick={() =>
+                            navigate(`/graph/projects/${selectedNode.resourceId ?? selectedNode.id}`)
+                          }
+                        >
+                          打开代码图谱
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--secondary btn-block"
+                          onClick={() =>
+                            navigate(`/sources/repo/${selectedNode.resourceId ?? selectedNode.id}`)
+                          }
+                        >
+                          项目详情
+                        </button>
+                      </div>
+                    </>
+                  )}
                   {similarNodes.length > 0 && (
                     <div className="node-detail-section node-detail-section--similar">
-                      <div className="detail-label">相似项目</div>
+                      <div className="detail-label">关联资源</div>
                       <div className="similar-list">
                         {visibleSimilarNodes.map(({ node, similarity }) => {
                           const { owner, repo } = splitRepoName(node.name);
@@ -441,7 +537,9 @@ export function GraphPage() {
                                 <span className="similar-score">{similarity.toFixed(2)}</span>
                               </button>
                               <div className="similar-item__meta">
-                                <span className="similar-owner">{owner || '—'}</span>
+                                <span className="similar-owner">
+                                  {KIND_LABELS[node.kind ?? 'repo']}
+                                </span>
                                 {githubUrl ? (
                                   <a
                                     className="similar-github"
@@ -488,22 +586,6 @@ export function GraphPage() {
                       )}
                     </div>
                   )}
-                  <div className="detail-actions">
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-block"
-                      onClick={() => navigate(`/graph/projects/${selectedNode.id}`)}
-                    >
-                      打开代码图谱
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn--secondary btn-block"
-                      onClick={() => navigate(`/projects/${selectedNode.id}`)}
-                    >
-                      项目详情
-                    </button>
-                  </div>
               </div>
             </div>
           )}

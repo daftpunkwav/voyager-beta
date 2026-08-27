@@ -209,3 +209,16 @@ export function useRemovePage() {
     },
   });
 }
+
+export function useSetPageMeta() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { pageId: string; meta: { title?: string; tags?: string[]; category?: string } }) => {
+      await getApi().setPageMeta(input.pageId, input.meta);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['webpages'] });
+      void qc.invalidateQueries({ queryKey: ['sourcesStream'] });
+    },
+  });
+}

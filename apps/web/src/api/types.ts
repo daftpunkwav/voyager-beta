@@ -259,6 +259,13 @@ export interface GraphNode {
   cluster_id?: string | null;
   cluster_size?: number;
   description?: string | null;
+  /** L0 资源节点扩展:资源种类(repo/doc/web)与元数据 */
+  kind?: 'repo' | 'doc' | 'web';
+  tags?: string[];
+  category?: string;
+  status?: string;
+  /** L0 资源在资源库中的 id(qualified_name 去掉 kind 前缀),供跳转详情 */
+  resourceId?: string;
 }
 
 export interface GraphEdge {

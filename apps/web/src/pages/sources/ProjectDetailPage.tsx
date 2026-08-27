@@ -701,7 +701,6 @@ export function ProjectDetailPage() {
             ) : (
               <div className={`pd-notes-editor ${GLASS_INNER}`}>
                 <NoteEditor
-                  variant="notes"
                   onSave={() => void handleSaveNote()}
                   saving={createNote.isPending || updateNote.isPending}
                 />

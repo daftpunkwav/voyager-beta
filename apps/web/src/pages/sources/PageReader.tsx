@@ -1,17 +1,19 @@
 /** 网页阅读器:剪藏正文 + 原文链接;agent 剪藏与用户剪藏同源展示。 */
 
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useRemovePage, useWebPage } from '@/hooks/useSources';
+import { useRemovePage, useSetPageMeta, useWebPage } from '@/hooks/useSources';
 import { useUIStore } from '@/stores/uiStore';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { MarkdownRenderer } from '@/components/common/MarkdownRenderer';
+import { TagEditor } from './TagEditor';
 
 export function PageReader() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: page, isLoading, isError, error, refetch } = useWebPage(id);
   const removePage = useRemovePage();
+  const setMeta = useSetPageMeta();
   const addToast = useUIStore((s) => s.addToast);
 
   if (isLoading) {
@@ -40,6 +42,15 @@ export function PageReader() {
             {page.domain || '手动录入'}
             {page.meta?.chars ? ` · ${page.meta.chars} 字` : ''}
           </p>
+          <TagEditor
+            tags={page.tags ?? []}
+            onChange={(tags) =>
+              setMeta.mutate(
+                { pageId: page.id, meta: { tags } },
+                { onError: (e) => addToast({ type: 'error', message: e instanceof Error ? e.message : '标签保存失败' }) },
+              )
+            }
+          />
         </div>
         <div className="doc-reader__actions">
           {page.url && (
