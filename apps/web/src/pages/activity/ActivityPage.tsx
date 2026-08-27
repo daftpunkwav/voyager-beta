@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { GlassCard } from '@/widgets/GlassCard';
 import { LoadingSpinner } from '@/widgets/LoadingSpinner';
-import { EmptyState } from '@/widgets/EmptyState';
+import { EmptyState, EmptyStateIcons } from '@/widgets/EmptyState';
 import { summarize, type FeedEvent } from '@/bridge/feed';
 import { extractErrorMessage } from '@/utils/errors';
 
@@ -91,11 +91,24 @@ export function ActivityPage() {
         </div>
       ) : error ? (
         <div className="page-scaffold__state">
-          <EmptyState title="加载失败" message={error} />
+          <EmptyState
+            title="加载失败"
+            message={error}
+            icon={EmptyStateIcons.activity}
+            action={
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => window.location.reload()}
+              >
+                刷新页面
+              </button>
+            }
+          />
         </div>
       ) : events.length === 0 ? (
         <div className="page-scaffold__state">
-          <EmptyState title="暂无活动" message="(此时间段内无事件)" />
+          <EmptyState title="暂无活动" message="(此时间段内无事件)" icon={EmptyStateIcons.activity} />
         </div>
       ) : (
         <div className="page-scaffold__body">

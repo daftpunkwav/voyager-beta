@@ -10,7 +10,7 @@ import { UniverseGraphView } from '@/components/graph/UniverseGraphView';
 import { GraphControls, getSimilarNodes } from '@/components/graph/GraphControls';
 import { GraphGuidePanel } from '@/components/graph/GraphGuidePanel';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import { EmptyState } from '@/components/common/EmptyState';
+import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { formatNumber, REPO_AVATAR_GRADIENTS, splitRepoName } from '@/utils/format';
 import { categoryLabel } from '@/utils/labels';
 import { getApi } from '@/api/client';
@@ -193,8 +193,9 @@ export function GraphPage() {
           <EmptyState
             title="无法加载图谱"
             description={error instanceof Error ? error.message : '请检查后端服务后重试'}
+            icon={EmptyStateIcons.graph}
             action={
-              <button type="button" className="btn btn-primary" onClick={() => void refetch()}>
+              <button type="button" className="btn btn-ghost" onClick={() => void refetch()}>
                 重试
               </button>
             }
@@ -214,7 +215,11 @@ export function GraphPage() {
           </div>
         </header>
         <div className="page-scaffold__state">
-          <EmptyState title="节点不足" description="至少需要 2 个项目才能生成关系图谱" />
+          <EmptyState
+            title="节点不足"
+            description="至少需要 2 个项目才能生成关系图谱"
+            icon={EmptyStateIcons.graph}
+          />
         </div>
       </div>
     );

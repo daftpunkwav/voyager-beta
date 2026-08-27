@@ -10,7 +10,7 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { LlmSettingsSection } from '@/components/settings/LlmSettingsSection';
 import { AgentSettingsSection } from '@/components/settings/AgentSettingsSection';
-import { EmptyState } from '@/components/common/EmptyState';
+import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { useSettingsStore } from '@/stores/settingsStore';
 
 type Section = 'appearance' | 'github' | 'llm' | 'agent' | 'data' | 'about';
@@ -61,10 +61,11 @@ export function SettingsPage() {
           <EmptyState
             title="无法加载设置"
             description={error ?? '后端服务未启动或不可达。请检查 gateway 是否运行后重试。'}
+            icon={EmptyStateIcons.settings}
             action={
               <button
                 type="button"
-                className="btn btn-primary"
+                className="btn btn-ghost"
                 onClick={() => void loadSettings()}
               >
                 重试

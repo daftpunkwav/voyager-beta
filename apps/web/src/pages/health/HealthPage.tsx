@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { GlassCard } from '@/widgets/GlassCard';
 import { LoadingSpinner } from '@/widgets/LoadingSpinner';
-import { EmptyState } from '@/widgets/EmptyState';
+import { EmptyState, EmptyStateIcons } from '@/widgets/EmptyState';
 
 interface HealthRecord {
   service: string;
@@ -69,9 +69,22 @@ export function HealthPage() {
       {loading ? (
         <LoadingSpinner label="加载健康状态中…" />
       ) : error ? (
-        <EmptyState title="无法获取状态" message={error} />
+        <EmptyState
+          title="无法获取状态"
+          message={error}
+          icon={EmptyStateIcons.health}
+          action={
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => window.location.reload()}
+            >
+              刷新页面
+            </button>
+          }
+        />
       ) : !payload ? (
-        <EmptyState title="无数据" />
+        <EmptyState title="无数据" icon={EmptyStateIcons.health} />
       ) : (
         <div className="page-scaffold__body">
           <GlassCard className={`health-overall health-overall--${payload.overall ?? 'unknown'}`}>

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getApi } from '@/api/client';
-import { EmptyState } from '@/components/common/EmptyState';
+import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import {
   USAGE_CHIP_GLASS,
@@ -44,32 +44,6 @@ export function LlmUsageDashboard() {
 
   return (
     <section className={`usage-dashboard ${USAGE_OUTER_GLASS}`}>
-      <div className="usage-toolbar">
-        <div className="usage-toolbar-left">
-          <span className="usage-toolbar-label">时间范围</span>
-          <div className={`layout-switch ${USAGE_INNER_GLASS}`}>
-            {DAYS_OPTIONS.map((d) => (
-              <button
-                key={d}
-                type="button"
-                className={days === d ? 'active' : ''}
-                onClick={() => setDays(d)}
-              >
-                最近 {d} 天
-              </button>
-            ))}
-          </div>
-        </div>
-        <button
-          type="button"
-          className={`btn btn-sm ${USAGE_INNER_GLASS}`}
-          disabled={isFetching}
-          onClick={() => void refetch()}
-        >
-          刷新
-        </button>
-      </div>
-
       {isLoading && (
         <div className="page-scaffold__state">
           <LoadingSpinner label="加载用量统计中…" />
@@ -80,8 +54,9 @@ export function LlmUsageDashboard() {
           <EmptyState
             title="用量统计服务暂不可用"
             description={(error as Error | null)?.message || '无法连接后端服务'}
+            icon={EmptyStateIcons.usage}
             action={
-              <button type="button" className="btn btn-primary btn-sm" onClick={() => void refetch()}>
+              <button type="button" className="btn btn-ghost" onClick={() => void refetch()}>
                 重试
               </button>
             }
@@ -90,7 +65,34 @@ export function LlmUsageDashboard() {
       )}
 
       {usage && (
-        <div className="usage-dashboard-body">
+        <>
+          <div className="usage-toolbar">
+            <div className="usage-toolbar-left">
+              <span className="usage-toolbar-label">时间范围</span>
+              <div className={`layout-switch ${USAGE_INNER_GLASS}`}>
+                {DAYS_OPTIONS.map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    className={days === d ? 'active' : ''}
+                    onClick={() => setDays(d)}
+                  >
+                    最近 {d} 天
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button
+              type="button"
+              className={`btn btn-sm ${USAGE_INNER_GLASS}`}
+              disabled={isFetching}
+              onClick={() => void refetch()}
+            >
+              刷新
+            </button>
+          </div>
+
+          <div className="usage-dashboard-body">
           <UsageKpiCards usage={usage} />
           <div className="usage-mid-row">
             <UsageHeatmap heatmap={usage.heatmap} />
@@ -123,7 +125,8 @@ export function LlmUsageDashboard() {
               </ul>
             </div>
           ) : null}
-        </div>
+          </div>
+        </>
       )}
     </section>
   );
