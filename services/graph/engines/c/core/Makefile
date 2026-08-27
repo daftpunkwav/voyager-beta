@@ -136,9 +136,9 @@ MIMALLOC_WRAP_FLAGS :=
 ifeq ($(IS_MINGW),yes)
 MIMALLOC_WRAP_FLAGS := $(foreach sym,$(MIMALLOC_WRAP_SYMS),-Wl,--wrap=$(sym))
 endif
-# Linux wraps a smaller set for MEASUREMENT only (see mem_override_posix.c):
-# allocations already reach mimalloc here, but the profiler needs the same
-# observation point as Windows or the platform comparison is not like-for-like.
+# Linux wraps a smaller set for MEASUREMENT only (the old mem-profile lane was
+# removed with src/foundation/mem_profile.c; the wrap flags themselves are kept
+# so the POSIX link behaviour stays byte-identical to upstream):
 # macOS ld has no --wrap, so it stays census-only.
 IS_LINUX := $(shell uname -s 2>/dev/null | grep -q Linux && echo yes || echo no)
 MIMALLOC_WRAP_SYMS_POSIX := malloc calloc realloc free strdup
