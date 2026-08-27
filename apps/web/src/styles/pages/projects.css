@@ -1,7 +1,7 @@
 /* ==========================================================================
    项目库页 (Projects Page) · 玻璃分层
-   沿用总览页 liquid-glass 体系，与 OVERVIEW_OUTER_GLASS / OVERVIEW_INNER_GLASS
-   对齐；玻璃常量见 src/constants/projectsGlass.ts
+   沿用总览页 liquid-glass 体系，与 GLASS_OUTER / GLASS_INNER 分层对齐；
+   玻璃常量见 src/constants/glassTokens.ts
    ========================================================================== */
 
 /* ---------- Page Head · 排版式标题（与 page-scaffold__head 同规格） ---------- */

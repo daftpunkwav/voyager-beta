@@ -73,8 +73,32 @@ export default [
       ],
     },
   },
+  // 数据门面单点(非页面文件):业务代码禁止绕过 @/api/client 直引实现层。
+  // 注意:flat config 中同规则后块覆盖前块,故按文件集拆两块、各自持有完整 pattern 集,
+  // pages 的规则见下一块(含跨页互引限制),两块文件集互斥。
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/pages/**', 'src/api/client.ts', 'src/api/types.ts', 'src/bridge/legacyApi.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@/bridge/legacyApi'],
+              message: '数据门面单一入口:@/api/client(getApi)。实现层 bridge/legacyApi 不得被业务直接引用。',
+            },
+            {
+              group: ['@/api/real', '@/api/real/*'],
+              message: '@/api/real 已删除;改用 getApi() 或 callCapability。',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  // pages 专属:跨页互引禁令 + 与全局相同的门面单点限制(flat config 需整集重申)。
   // §10.1 页面即模块:page 目录之间互不 import;共享只经 bridge/contracts/基础 UI。
-  // 旧 page 标 @ts-nocheck 跳过本规则;新 page / 重构后的 page 受强制。
   {
     files: ['src/pages/**/*.tsx'],
     rules: {
@@ -87,27 +111,12 @@ export default [
               message: '页面之间互不 import(§10.1 铁律 1);共享物只能经 bridge/contracts/基础 UI 包。',
             },
             {
-              group: ['@/api/real', '@/api/real/*'],
-              message: '@/api/real 已删除;旧调用应改用 getApi()(经 legacyApi 桥接)或 callCapability(新代码)。',
-            },
-          ],
-        },
-      ],
-    },
-  },
-  // 数据门面单点(全仓生效):业务代码禁止绕过 @/api/client 直引实现层;
-  // shell/pageProbes.ts 是唯一例外(shell 编排页面公开 provider,该文件内行内豁免)。
-  {
-    files: ['src/**/*.{ts,tsx}'],
-    ignores: ['src/api/client.ts', 'src/api/types.ts', 'src/bridge/legacyApi.ts'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
               group: ['@/bridge/legacyApi'],
               message: '数据门面单一入口:@/api/client(getApi)。实现层 bridge/legacyApi 不得被业务直接引用。',
+            },
+            {
+              group: ['@/api/real', '@/api/real/*'],
+              message: '@/api/real 已删除;改用 getApi() 或 callCapability。',
             },
           ],
         },

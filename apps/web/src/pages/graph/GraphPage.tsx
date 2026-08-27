@@ -15,7 +15,7 @@ import { categoryLabel } from '@/utils/labels';
 import { getApi } from '@/api/client';
 import type { GraphEdge, GraphNode } from '@/api/types';
 // 玻璃层级 token(旧 OVERVIEW_OUTER_GLASS / OVERVIEW_INNER_GLASS 已统一至此)
-import { GLASS_CHIP, GLASS_OUTER } from '@/constants/glassTokens';
+import { GLASS_INNER, GLASS_OUTER } from '@/constants/glassTokens';
 
 const SIMILAR_PREVIEW_COUNT = 3;
 
@@ -429,7 +429,7 @@ export function GraphPage() {
                           return (
                             <div
                               key={node.id}
-                              className={`similar-item ${GLASS_CHIP}`}
+                              className={`similar-item ${GLASS_INNER}`}
                             >
                               <button
                                 type="button"
