@@ -14,14 +14,14 @@ The tree-sitter C runtime is vendored in `internal/engine/vendored/ts_runtime/`.
 - **Copyright:** (c) 2018–2024 Max Brunsfeld
 
 **Local modification** (`internal/engine/vendored/ts_runtime/src/stack.c`, #913): a
-single CBM patch bounds the recursive ambiguity-merge in `stack_node_add_link`
-at `CBM_TS_STACK_MERGE_MAX_DEPTH` (512). Deeply nested grammar-ambiguous input
+single graph-engine patch bounds the recursive ambiguity-merge in `stack_node_add_link`
+at `ENGINE_TS_STACK_MERGE_MAX_DEPTH` (512). Deeply nested grammar-ambiguous input
 (e.g. Perl `f(f(f(...)))`) otherwise recurses once per level on the native C
 stack and overflows it during parsing (SIGSEGV on the ~1 MB Windows thread
 stack, and even the 8 MB POSIX stack at extreme depth) before any extractor
 runs. Past the cap the ambiguity is left on the GLR stack instead of merged —
 still a valid parse, never a wrong one — mirroring the existing
-`MAX_LINK_COUNT` bail-out. The change is clearly marked `// CBM patch:` inline.
+`MAX_LINK_COUNT` bail-out. The change is clearly marked `// graph-engine patch:` inline.
 **On re-vendor (e.g. ts_runtime → 0.26.x): re-apply this bound.**
 
 The shared scanner helpers in `internal/engine/vendored/common/` (`scanner.h`,
@@ -75,7 +75,7 @@ License summary:
 Local modifications to these libraries are documented next to the
 vendored sources (currently only SQLite: `vendored/sqlite3/PATCHES.md`,
 raising the Unix VFS `MAX_PATHNAME` ceiling from 512 to 4096 to match
-CBM's 4 KiB path support). Patches must be reapplied on every upstream
+the engine's 4 KiB path support). Patches must be reapplied on every upstream
 refresh and are covered by `scripts/vendored-checksums.txt`.
 
 The graph-UI HTTP server is a first-party implementation
@@ -133,15 +133,19 @@ follows:
 
 ## External Graph UI asset pack
 
-Release builds made with `--with-ui` ship the compiled `graph-ui/` frontend in
-a deterministic, content-addressed `cbm-ui-<sha256>.pack` beside the native
-executable. The executable contains only the expected pack name, size, and
-SHA-256; it does not contain the HTML, JavaScript, or CSS payload.
+> **Voyager note:** the UI asset pack is not used — visualization lives in
+> Voyager `apps/web`, and the engine links the no-I/O pack stub. This section
+> is retained as upstream provenance record for the vendored sources.
+
+Upstream release builds made with `--with-ui` shipped the compiled `graph-ui/`
+frontend in a deterministic, content-addressed `graph-ui-<sha256>.pack` beside
+the native executable. The executable contains only the expected pack name,
+size, and SHA-256; it does not contain the HTML, JavaScript, or CSS payload.
 
 The pack's npm dependencies (React, three.js, @react-three/*, radix-ui,
 lucide-react, tailwindcss, and friends) are all under permissive licenses
 (MIT / ISC / Apache-2.0 / Zlib). The exact set is recorded in
 `graph-ui/package.json` and `graph-ui/package-lock.json`, and the per-package
 license texts of the production bundle are appended to the
-`THIRD_PARTY_NOTICES.md` shipped inside each `-ui` release archive (generated
-by `scripts/gen-ui-licenses.py`).
+`THIRD_PARTY_NOTICES.md` shipped inside each `-ui` release archive (upstream
+generated it with a script that Voyager does not carry).

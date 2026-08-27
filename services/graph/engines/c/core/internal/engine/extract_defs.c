@@ -3424,7 +3424,7 @@ static void extract_func_def(EngineExtractCtx *ctx, TSNode node, const EngineLan
 
 // Push a simple class definition (used by config language extractors).
 // Replace each run of whitespace in `name` with a single '-' so the value is a
-// well-formed QN segment. Markdown headings (e.g. "Codebase Memory") legitimately
+// well-formed QN segment. Markdown headings (e.g. "Graph Engine") legitimately
 // contain spaces; embedding them verbatim in a QN makes it malformed. Returns the
 // original pointer when there is no whitespace to collapse. The human-readable
 // def.name is kept intact; only the QN segment is slugified.

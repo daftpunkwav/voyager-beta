@@ -1,70 +1,28 @@
-# scripts/ — the canonical leg entries
+# scripts/ — 构建与测试入口
 
 > **Voyager 入口：** 构建本仓 MCP 索引引擎请用 [`build.ps1`](build.ps1)（`make -f Makefile graph-engine`）。  
-> **上游遗留：** [`setup.sh`](setup.sh) / [`setup-windows.ps1`](setup-windows.ps1) 仍是 DeusData `graph-engine` 安装叙事，勿当作 Voyager 产品安装器。  
+> **上游遗留：** [`setup.sh`](setup.sh) 仍是 DeusData `graph-engine` 安装叙事，勿当作 Voyager 产品安装器。  
 > Makefile：构建入口为 `Makefile`（原 `Makefile.rp`）；上游 `Makefile.cbm` 别名已随改名删除。
+>
+> 上游的发布打包 / 压测 / 安全审计 / CI 门禁等运维脚本已在迁入 Voyager 时清理
+> （Voyager 仅使用构建与基础测试链；见仓库 git 历史获取被清理脚本）。
 
-**The doctrine (enforced, not advisory):** *a venue may provision a machine;
-only a canonical leg script may exercise the product.* Local CI, PR CI, the
-dry run and the release all call the SAME files below — venues differ only in
-host specs, architecture and inputs, never in what a leg does. Platform
-differences (arm64 sanitizer flags, native Windows behavior, the Linux portable
-binary) live INSIDE these scripts, once, never per-venue.
-`tests/test_venue_parity_contract.sh` (run as Step 0j of every test leg) turns
-any violation — inline harness logic in a workflow, a bypassed wrapper, a
-missing `--help` — into a red build.
+## 保留的脚本
 
-Every entry answers `--help` (authoritative, agent-oriented: modes, env, exit
-codes) and rejects unknown flags with exit 2 + `Please consult --help.`
+| 脚本 | 用途 |
+|---|---|
+| `build.sh` / `build.ps1` | 生产构建（产物 `graph-engine`） |
+| `clean.sh` / `env.sh` / `path-safety.sh` | 清理、构建环境、路径安全前置 |
+| `setup.sh` | 上游开发环境安装（Linux/macOS） |
+| `test.sh` / `test-windows.ps1` / `run-tests-parallel.sh` | 测试链 |
+| `check-no-test-skips.sh` / `check-nolint-whitelist.sh`(+`.txt`) / `lint-mem-gate.py`(+`.txt`) | 静态策略检查 |
+| `lint.sh` | clang-tidy + cppcheck + clang-format |
+| `smoke-test.sh` | 上游功能冒烟（`src/foundation/mem.c` 的内存 wiring 说明锚定于此） |
+| `ci/` | test.sh 引用的二进制组成检查 |
+| `gen-integrations-hash.sh` | 再生成 `assets/engine-integrations.json` 的哈希 |
+| `gen-py-stdlib.py` | 再生成 Python LSP 标准库类型数据（见 THIRD_PARTY.md） |
+| `extract_nomic_vectors.py` | 再生成 nomic 嵌入向量（见 THIRD_PARTY.md） |
+| `vendored-checksums.txt` / `security-allowlist.txt` | vendored 完整性记录 / URL 允许列表记录 |
+| `hooks/` | setup.sh 激活的 pre-commit 钩子 |
 
-## The legs
-
-| leg | entry | what a run gives you |
-|---|---|---|
-| **test** | `test.sh` | DEFAULT = the venue leg: static contracts (Step 0a–0r) + CLEAN ASan+UBSan build + all suites via the parallel harness + prod-binary guards. `--suites a,b` = iteration mode (incremental rebuild, subset, seconds). `--tsan` = the ThreadSanitizer leg. CLANGARM64 gets CI's trap-UBSan flags automatically. |
-| **package wrappers** | `ci/test-package-wrappers.sh` | Go, npm, and PyPI runtime-set publication/lock suites on the current host. CI runs the same entry on Linux and Windows so both platform lock implementations gate. |
-| **build** | `build.sh` | CLEAN production runtime set (native executable + authenticated integration asset; `--with-ui` adds one content-addressed UI pack). ccache via `env.sh` makes repeats fast; `CCACHE_COMPILERCHECK=content` guarantees a hit is byte-identical to a cold compile — never stale. `--version`, `STATIC=1`, `BUILD_DIR=`. |
-| **lint** | `lint.sh` | clang-tidy + cppcheck + clang-format (+ no-skips policy). `--ci` = the CI gate set (no clang-tidy). Drives the same make targets as `make lint`/`lint-ci`. |
-| **smoke (unix)** | `smoke-local.sh` | Stages a full release fixture, serves it on a kernel-assigned port, runs `smoke-test.sh` (ALL phases incl. download/install/update E2E) inside a disposable HOME/XDG/TMP sandbox. `ui` variant makes a missing verified UI pack a FAILURE. `ENGINE_SMOKE_ARTIFACT_DIR` = smoke an extracted release artifact verbatim (release mode). |
-| **smoke (windows)** | `../test-infrastructure/vm/vm-smoke.sh` | Same verified runtime-set contract on the real Windows VM, plus the user-PATH registry guard (prepare/verify/cleanup). |
-| **smoke-invariants** | `smoke-invariants.sh` | Production-path resilience battery (MCP handshake, all tools invocable, malformed-input handling, supervised crash/hang recovery) — no fixture server or install E2E. `smoke.yml` runs an explicitly seam-enabled build on the WIDEST source matrix; release artifacts remain seam-free and use the release-shaped smoke legs above. |
-| **soak** | `soak-legs.sh` | The release-gating soak SEQUENCE: `quick` then `query-leak` (the #581 detector — never reindexes, so RSS growth = query-path leak), each guarded by a completion-summary check. `--legs quick` for the ASan single-leg variant. Duration is per leg. |
-
-Internal harnesses — never called directly by a venue (the contract forbids
-it): `smoke-test.sh` (phases; wrappers provide fixture server + sandbox),
-`soak-test.sh` (one soak run; `soak-legs.sh` provides the sequence + guards),
-`run-tests-parallel.sh` (reached through `test.sh`).
-
-## Conventions
-
-- **Exit codes:** 0 = pass · 2 = usage error · 90 = guard (a run died without
-  its completion summary — never counts as green) · anything else = the leg's
-  real failure.
-- **Iteration is a flag, not a side-tool:** the fast paths (`--suites`,
-  `--legs`) are modes of the SAME entry the gates run, so a dev loop can never
-  drift from the venue behaviour.
-- **Env sandboxing:** the smoke wrappers neutralize every agent-config
-  destination override; a smoke can never scribble on your real config.
-
-## Recommended workflows
-
-- **Iterating on a change:** `scripts/test.sh --suites <suite>` (seconds,
-  incremental, same ASan+UBSan flags as the gate). List suites:
-  `build/c/test-runner --list-suites`. Debugging a Windows-on-ARM trap:
-  re-run with `SANITIZE=` for a plain build, or use the emulated
-  `win.sh ubsan-*` pair for full diagnostics.
-- **Before any push (the 3-OS ladder):** `scripts/test.sh` (macOS, full) →
-  `./test-infrastructure/run.sh full` (Linux + TSan + smoke) →
-  `test-infrastructure/vm/win.sh test-par` + `guards` + `smoke-install`
-  (+ `soak` when the change touches memory/daemon paths).
-- **Concurrency-touching change:** add `scripts/test.sh --tsan` early — the
-  same leg CI gates on.
-- **Release-shaped verification:** `ENGINE_SMOKE_ARTIFACT_DIR=<extracted artifact>
-  scripts/smoke-local.sh <binary> [ui]` smokes exactly what would ship.
-- **A leg is red in CI but green locally:** first suspect environment shape,
-  not code — the preflights (`win.sh` automatic; `scripts/ci/preflight-docker.sh`)
-  and `test-infrastructure/README.md`'s residuals list cover the knowable
-  differences.
-
-See `scripts/ci/README.md` for the CI plumbing and
-`test-infrastructure/README.md` for the venue map.
+每个入口支持 `--help`，未知参数报 usage error。

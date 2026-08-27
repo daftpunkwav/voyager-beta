@@ -729,7 +729,7 @@ PP_OBJ_TSAN = $(BUILD_DIR)/tsan_preprocessor.o
 
 # ── Targets ──────────────────────────────────────────────────────
 
-.PHONY: test test-par test-repro test-foundation test-tsan test-daemon-smoke graph-engine clean-c lint lint-tidy lint-cppcheck lint-format security
+.PHONY: test test-par test-repro test-foundation test-tsan test-daemon-smoke graph-engine clean-c lint lint-tidy lint-cppcheck lint-format
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -1214,17 +1214,3 @@ lint-mem-ci:
 		--checks='$(LINT_MEM_CHECKS)' {} -- $(CFLAGS_COMMON) $(SYSROOT_FLAG) 2>/dev/null \
 		| python3 scripts/lint-mem-gate.py
 
-# ── Security audit (6 layers) ────────────────────────────────────
-
-# Run all security checks: static audit, binary strings, UI, install, network
-# Requires: production binary already built (make engine)
-security: engine
-	@echo "=== Running security audit suite ==="
-	scripts/security-audit.sh
-	scripts/security-strings.sh $(BUILD_DIR)/graph-engine
-	scripts/security-ui.sh
-	scripts/security-install.sh $(BUILD_DIR)/graph-engine
-	scripts/security-network.sh $(BUILD_DIR)/graph-engine
-	scripts/security-fuzz.sh $(BUILD_DIR)/graph-engine
-	scripts/security-vendored.sh
-	@echo "=== All security checks passed ==="

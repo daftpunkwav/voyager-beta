@@ -157,9 +157,9 @@ const char *engine_graph_tier_slug(engine_graph_tier_t tier) {
 
 const char *engine_graph_tier_display_name(engine_graph_tier_t tier) {
     static const char *const names[ENGINE_GRAPH_TIER_COUNT] = {
-        "Codebase Memory Scout",
-        "Codebase Memory Verify",
-        "Codebase Memory Auditor",
+        "Graph Scout",
+        "Graph Verify",
+        "Graph Auditor",
     };
     return tier_valid(tier) ? names[tier] : NULL;
 }
