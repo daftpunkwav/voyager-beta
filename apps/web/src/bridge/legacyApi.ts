@@ -1,4 +1,4 @@
-/** Voyager IApiClient 兼容层 — 84 个方法内部全部走 callCapability,
+/** 数据门面实现层(不由业务代码直接引用)— 84 个方法内部全部走 callCapability,
  * 保留旧调用形态(命名中性,domain 归类为 agent / source / note / graph / setting / usage / system)。
  *
  * 设计目的:让已迁移的旧 page / hooks / components 在不修改源码的情况下,
@@ -17,8 +17,8 @@
  *  - 旧 react-query hook → 见 hooks/useApiCompat.ts
  *
  * 注意:
- *  - 此层仅为过渡,不在架构铁律范围内;新 page 禁止引用,
- *    必须直接用 @/bridge/client 的 callCapability。
+ *  - 业务代码一律经 @/api/client 门面访问(ESLint no-restricted-imports 固化);
+ *    少数只读能力可直用 @/bridge/client 的 callCapability。
  *  - secret 边界(API key 等)只允许 USER actor 写,本层不绕开(直接转发到能力层)。
  *  - getApi() 单例在 app 启动时懒初始化,旧 store / hook 仍调 getApi()(经桥接,功能等价)。
  */

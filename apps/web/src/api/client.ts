@@ -1,18 +1,14 @@
-/** Voyager `IApiClient` 形态兼容入口(单例 getApi,与桥接层 legacyApi 一一对应)。
+/** 数据访问统一门面(单例 getApi)· 前端唯一 API 入口。
  *
- * 目的:让已迁移的 10 个 page / 9 个 hook(react-query 形态)无需改 import,
- * 仍能调用原 84 个方法,内部走 voyager 的 capability 框架(bridge/legacyApi.ts)。
+ * 职责:以 IApiClient 形态(84 个方法,按 agent/source/note/graph/setting/usage/system 分域)
+ * 暴露后端能力;实现层是 bridge/legacyApi.ts,每个方法内部走 callCapability(§2.1 一份 Action 模型)。
  *
- * 不属于架构铁律,仅作过渡;新代码禁止引用本文件,
- * 应直接用 @/bridge/client 的 callCapability。
+ * 使用规则(ESLint no-restricted-imports 已固化):
+ *  - 页面/组件默认经各域 hooks(如 hooks/useProjects)访问,不要在组件里直连 store;
+ *  - 需要直接取数据时 import 本文件(getApi),禁止绕过本文件直引 @/bridge/legacyApi;
+ *  - 少数无副作用只读能力(如健康摘要)可用 @/bridge/client 的 callCapability 直调。
  *
- * 配套:
- *  - 旧 api/types 走 ./types
- *  - 旧 api/real/http.ts 已删除;旧 import 改指本文件,getApi() / clearLegacyTokenStorage 已 re-export。
- *
- * 重要:`getApi()` 不违反"一份 Action 模型"(铁律 2),
- * 因为 legacyApi.ts 内部 84 个方法全部走 callCapability;
- * 新代码仍应优先用 `callCapability`,语义更明确、不绕桥接层。
+ * secret 边界:API key 只允许 USER actor 写,本门面不缓存不透传明文。
  */
 
 export {

@@ -95,6 +95,25 @@ export default [
       ],
     },
   },
+  // 数据门面单点(全仓生效):业务代码禁止绕过 @/api/client 直引实现层;
+  // shell/pageProbes.ts 是唯一例外(shell 编排页面公开 provider,该文件内行内豁免)。
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/api/client.ts', 'src/api/types.ts', 'src/bridge/legacyApi.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@/bridge/legacyApi'],
+              message: '数据门面单一入口:@/api/client(getApi)。实现层 bridge/legacyApi 不得被业务直接引用。',
+            },
+          ],
+        },
+      ],
+    },
+  },
   // 兼容层 + R3F / Three 场景豁免区:
   //  - bridge/legacyApi.ts 与 api/types.ts 需 any(legacyApi 边界归一化);
   //  - 旧 async generator 在新事件流下不 yield,允许 require-yield 关闭;
