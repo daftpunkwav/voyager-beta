@@ -1,10 +1,3 @@
-/** 用量页玻璃常量 —— 与总览内外层同源 */
-export {
-  OVERVIEW_OUTER_GLASS as USAGE_OUTER_GLASS,
-  OVERVIEW_INNER_GLASS as USAGE_INNER_GLASS,
-  OVERVIEW_CHIP_GLASS as USAGE_CHIP_GLASS,
-} from '@/constants/overviewGlass';
-
 /** 图表配色（暗色液态玻璃） */
 export const USAGE_CHART_COLORS = [
   '#5b8def',

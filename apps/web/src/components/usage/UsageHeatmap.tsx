@@ -1,7 +1,7 @@
 // @ts-nocheck — 迁移期:上游迁入的代码,字段重命名由 legacyApi 边界归一化,新 page / hook 仍按 strict 写(见各文件顶部注释)。
 import { useMemo } from 'react';
 import type { LlmUsageSummary } from '@/api/types';
-import { USAGE_CHIP_GLASS } from '@/constants/usageGlass';
+import { GLASS_CHIP } from '@/constants/glassTokens';
 
 interface UsageHeatmapProps {
   heatmap: LlmUsageSummary['heatmap'];
@@ -61,7 +61,7 @@ export function UsageHeatmap({ heatmap }: UsageHeatmapProps) {
   const weeks = useMemo(() => buildWeekColumns(heatmap), [heatmap]);
 
   return (
-    <div className={`${USAGE_CHIP_GLASS} usage-panel usage-heat-panel`}>
+    <div className={`${GLASS_CHIP} usage-panel usage-heat-panel`}>
       <div className="usage-panel-head">
         <h3 className="usage-panel-title">活跃热度图</h3>
         <div className="usage-heat-legend" aria-hidden>

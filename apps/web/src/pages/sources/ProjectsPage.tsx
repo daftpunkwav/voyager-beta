@@ -19,9 +19,7 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { formatNumber } from '@/utils/format';
-import {
-  PROJECTS_OUTER_GLASS_OVERVIEW,
-} from '@/constants/projectsGlass';
+import { GLASS_OUTER } from '@/constants/glassTokens';
 
 const STAT_ICONS = {
   total: (
@@ -201,7 +199,7 @@ export function ProjectsPage() {
 
       {stats && (
         <section className="stat-grid" data-testid="stats-cards">
-          <article className={`stat-card ${PROJECTS_OUTER_GLASS_OVERVIEW}`}>
+          <article className={`stat-card ${GLASS_OUTER}`}>
             <div className="stat-icon">{STAT_ICONS.total}</div>
             <div className="stat-label">总项目数</div>
             <div className="stat-value">{stats.total}</div>
@@ -209,7 +207,7 @@ export function ProjectsPage() {
               活跃库
             </div>
           </article>
-          <article className={`stat-card stat-green ${PROJECTS_OUTER_GLASS_OVERVIEW}`}>
+          <article className={`stat-card stat-green ${GLASS_OUTER}`}>
             <div className="stat-icon">{STAT_ICONS.mastered}</div>
             <div className="stat-label">已掌握</div>
             <div className="stat-value">{byP?.mastered ?? 0}</div>
@@ -217,7 +215,7 @@ export function ProjectsPage() {
               {stats.total ? Math.round(((byP?.mastered ?? 0) / stats.total) * 100) : 0}% · 占比
             </div>
           </article>
-          <article className={`stat-card stat-orange ${PROJECTS_OUTER_GLASS_OVERVIEW}`}>
+          <article className={`stat-card stat-orange ${GLASS_OUTER}`}>
             <div className="stat-icon">{STAT_ICONS.learning}</div>
             <div className="stat-label">学习中</div>
             <div className="stat-value">{byP?.learning ?? 0}</div>
@@ -225,7 +223,7 @@ export function ProjectsPage() {
               {stats.total ? Math.round(((byP?.learning ?? 0) / stats.total) * 100) : 0}% · 占比
             </div>
           </article>
-          <article className={`stat-card stat-purple ${PROJECTS_OUTER_GLASS_OVERVIEW}`}>
+          <article className={`stat-card stat-purple ${GLASS_OUTER}`}>
             <div className="stat-icon">{STAT_ICONS.none}</div>
             <div className="stat-label">待开始</div>
             <div className="stat-value">{byP?.none ?? 0}</div>

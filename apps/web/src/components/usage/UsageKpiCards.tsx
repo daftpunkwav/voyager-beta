@@ -1,6 +1,6 @@
 // @ts-nocheck — 迁移期:上游迁入的代码,字段重命名由 legacyApi 边界归一化,新 page / hook 仍按 strict 写(见各文件顶部注释)。
 import type { LlmUsageSummary } from '@/api/types';
-import { USAGE_CHIP_GLASS } from '@/constants/usageGlass';
+import { GLASS_CHIP } from '@/constants/glassTokens';
 import { formatTokenCount, formatTokenPercent } from '@/utils/formatTokens';
 
 interface UsageKpiCardsProps {
@@ -38,7 +38,7 @@ export function UsageKpiCards({ usage }: UsageKpiCardsProps) {
   return (
     <div className="usage-kpi-grid">
       {items.map((item) => (
-        <div key={item.label} className={`${USAGE_CHIP_GLASS} usage-kpi-card`}>
+        <div key={item.label} className={`${GLASS_CHIP} usage-kpi-card`}>
           <div className="usage-kpi-label">{item.label}</div>
           <div className="usage-kpi-value" title={item.value}>
             {item.value}

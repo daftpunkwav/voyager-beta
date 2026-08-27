@@ -3,7 +3,7 @@ import type { AgentDefinition } from '@/constants/agentCatalog';
 import type { AgentId } from '@/api/types';
 import { StreamRenderer } from '@/components/agent/StreamRenderer';
 import { AGENT_INITIALS } from '@/utils/labels';
-import { OVERVIEW_OUTER_GLASS } from '@/constants/overviewGlass';
+import { GLASS_OUTER } from '@/constants/glassTokens';
 
 export interface ProjectAiLine {
   id: string;
@@ -48,7 +48,7 @@ export function ProjectAiPanel({
 
   return (
     <div
-      className={`pd-ai-panel embed-agent-chat ${OVERVIEW_OUTER_GLASS}`}
+      className={`pd-ai-panel embed-agent-chat ${GLASS_OUTER}`}
       data-testid="project-ai-panel"
     >
       <header className="embed-agent-chat__head pd-ai-chat-head">

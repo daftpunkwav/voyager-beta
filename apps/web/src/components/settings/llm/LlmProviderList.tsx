@@ -1,5 +1,5 @@
 import type { LlmProviderConfig } from '@/api/types';
-import { OVERVIEW_INNER_GLASS } from '@/constants/overviewGlass';
+import { GLASS_INNER } from '@/constants/glassTokens';
 
 interface LlmProviderListProps {
   providers: LlmProviderConfig[];
@@ -27,7 +27,7 @@ export function LlmProviderList({
             <li key={p.id}>
               <button
                 type="button"
-                className={`llm-provider-item ${active ? 'is-active' : ''} ${OVERVIEW_INNER_GLASS}`}
+                className={`llm-provider-item ${active ? 'is-active' : ''} ${GLASS_INNER}`}
                 onClick={() => onSelect(p.id)}
               >
                 <span className="llm-provider-item-name">
@@ -43,7 +43,7 @@ export function LlmProviderList({
           );
         })}
       </ul>
-      <button type="button" className={`btn btn-sm llm-provider-add ${OVERVIEW_INNER_GLASS}`} onClick={onAdd}>
+      <button type="button" className={`btn btn-sm llm-provider-add ${GLASS_INNER}`} onClick={onAdd}>
         + 添加供应商
       </button>
     </aside>

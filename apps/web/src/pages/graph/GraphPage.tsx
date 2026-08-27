@@ -15,10 +15,6 @@ import { formatNumber, REPO_AVATAR_GRADIENTS, splitRepoName } from '@/utils/form
 import { categoryLabel } from '@/utils/labels';
 import { getApi } from '@/api/client';
 import type { GraphEdge, GraphNode } from '@/api/types';
-import {
-  OVERVIEW_INNER_GLASS,
-  OVERVIEW_OUTER_GLASS,
-} from '@/constants/overviewGlass';
 
 const SIMILAR_PREVIEW_COUNT = 3;
 

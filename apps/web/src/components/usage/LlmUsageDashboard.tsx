@@ -4,11 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getApi } from '@/api/client';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
-import {
-  USAGE_CHIP_GLASS,
-  USAGE_INNER_GLASS,
-  USAGE_OUTER_GLASS,
-} from '@/constants/usageGlass';
+import { GLASS_CHIP, GLASS_INNER, GLASS_OUTER } from '@/constants/glassTokens';
 import { formatTokenCount } from '@/utils/formatTokens';
 import { UsageDonut } from './UsageDonut';
 import { UsageHeatmap } from './UsageHeatmap';
@@ -43,7 +39,7 @@ export function LlmUsageDashboard() {
   const usage = data?.data;
 
   return (
-    <section className={`usage-dashboard ${USAGE_OUTER_GLASS}`}>
+    <section className={`usage-dashboard ${GLASS_OUTER}`}>
       {usage && (
         <header className="page-scaffold__head">
           <div>
@@ -77,7 +73,7 @@ export function LlmUsageDashboard() {
           <div className="usage-toolbar">
             <div className="usage-toolbar-left">
               <span className="usage-toolbar-label">时间范围</span>
-              <div className={`layout-switch ${USAGE_INNER_GLASS}`}>
+              <div className={`layout-switch ${GLASS_INNER}`}>
                 {DAYS_OPTIONS.map((d) => (
                   <button
                     key={d}
@@ -92,7 +88,7 @@ export function LlmUsageDashboard() {
             </div>
             <button
               type="button"
-              className={`btn btn-sm ${USAGE_INNER_GLASS}`}
+              className={`btn btn-sm ${GLASS_INNER}`}
               disabled={isFetching}
               onClick={() => void refetch()}
             >
@@ -108,7 +104,7 @@ export function LlmUsageDashboard() {
           </div>
           <UsageStackedBars usage={usage} />
           {usage.recent.length > 0 ? (
-            <div className={`${USAGE_CHIP_GLASS} usage-recent`}>
+            <div className={`${GLASS_CHIP} usage-recent`}>
               <h3 className="usage-panel-title">最近调用</h3>
               <ul className="usage-recent-list">
                 {usage.recent.slice(0, 5).map((call) => (

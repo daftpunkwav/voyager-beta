@@ -1,5 +1,5 @@
 import { AgentAvatar, type LookTarget } from '@/components/agent/AgentAvatar';
-import { OVERVIEW_CHIP_GLASS } from '@/constants/overviewGlass';
+import { GLASS_CHIP } from '@/constants/glassTokens';
 import type { TrendingRepo } from '@/api/types';
 import type { TrendingScoutPhase } from '@/hooks/useTrendingScoutSpot';
 import type { CSSProperties } from 'react';
@@ -35,7 +35,7 @@ export function TrendingScoutSpot({
       aria-live="polite"
       aria-label={`Scout 正在介绍 ${name}`}
     >
-      <div className={`trending-scout-bubble overview-control-surface ${OVERVIEW_CHIP_GLASS}`}>
+      <div className={`trending-scout-bubble overview-control-surface ${GLASS_CHIP}`}>
         <span className="trending-scout-bubble-label">Scout</span>
         <p className="trending-scout-bubble-text">
           {content}

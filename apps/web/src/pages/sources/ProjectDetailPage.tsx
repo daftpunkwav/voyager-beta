@@ -33,7 +33,7 @@ import { formatNumber, REPO_AVATAR_GRADIENTS, splitRepoName } from '@/utils/form
 import { formatDate } from '@/utils/date';
 import { categoryLabel } from '@/utils/labels';
 import { AGENT_CATALOG } from '@/constants/agentCatalog';
-import { OVERVIEW_INNER_GLASS, OVERVIEW_OUTER_GLASS } from '@/constants/overviewGlass';
+import { GLASS_INNER, GLASS_OUTER } from '@/constants/glassTokens';
 import {
   ProjectAiPanel,
   type ProjectAiLine,
@@ -74,7 +74,7 @@ function CodeGraphIndexCard({ projectId }: { projectId: string }) {
   const graphUnavailable = statusQ.isError;
 
   return (
-    <div className={OVERVIEW_OUTER_GLASS} style={{ marginTop: 12 }}>
+    <div className={GLASS_OUTER} style={{ marginTop: 12 }}>
       <div className="card-header">
         <div className="card-title">代码图谱索引</div>
         {status && (
@@ -157,7 +157,7 @@ function CodeGraphIndexCard({ projectId }: { projectId: string }) {
         {isReady && (
           <Link
             to={`/graph/projects/${projectId}`}
-            className={`btn btn-sm ${OVERVIEW_INNER_GLASS}`}
+            className={`btn btn-sm ${GLASS_INNER}`}
             style={{ height: 28, fontSize: 12 }}
           >
             查看代码图谱 →
@@ -479,7 +479,7 @@ export function ProjectDetailPage() {
   return (
     <div className="pd-shell">
       <section className="pd-main">
-        <div className={`pd-hero ${OVERVIEW_OUTER_GLASS}`}>
+        <div className={`pd-hero ${GLASS_OUTER}`}>
           <div className="pd-avatar">
             <svg viewBox="-11.5 -10.232 23 20.464" fill="none">
               <circle r="2.05" fill="#fff" />
@@ -524,7 +524,7 @@ export function ProjectDetailPage() {
               {recommendedAgent === 'mentor' ? 'Mentor 深度分析' : 'Scout 快速分析'}
             </button>
             <a
-              className={`btn ${OVERVIEW_INNER_GLASS}`}
+              className={`btn ${GLASS_INNER}`}
               href={project.url}
               target="_blank"
               rel="noopener noreferrer"
@@ -534,7 +534,7 @@ export function ProjectDetailPage() {
           </div>
         </div>
 
-        <div className={`pd-progress ${OVERVIEW_OUTER_GLASS}`}>
+        <div className={`pd-progress ${GLASS_OUTER}`}>
           <div className="pd-progress-head">
             <span className="label">学习进度</span>
           </div>
@@ -619,7 +619,7 @@ export function ProjectDetailPage() {
               </div>
               <button
                 type="button"
-                className={`btn btn-sm ${OVERVIEW_INNER_GLASS}`}
+                className={`btn btn-sm ${GLASS_INNER}`}
                 style={{ height: 28, marginLeft: 4 }}
                 disabled={readmeLoading || readmeFetching}
                 onClick={() => void refetchReadme()}
@@ -628,7 +628,7 @@ export function ProjectDetailPage() {
               </button>
               <button
                 type="button"
-                className={`btn btn-sm ${OVERVIEW_INNER_GLASS}`}
+                className={`btn btn-sm ${GLASS_INNER}`}
                 style={{ height: 28, marginLeft: 4 }}
                 disabled={!readmeText}
                 onClick={() => void copyReadme()}
@@ -666,7 +666,7 @@ export function ProjectDetailPage() {
         )}
 
         {tab === 'notes' && (
-          <div className={`pd-notes-panel ${OVERVIEW_OUTER_GLASS}`}>
+          <div className={`pd-notes-panel ${GLASS_OUTER}`}>
             <div className="pd-notes-toolbar">
               <div>
                 <h3 className="pd-notes-title">项目笔记</h3>
@@ -686,7 +686,7 @@ export function ProjectDetailPage() {
                     <li key={n.id}>
                       <button
                         type="button"
-                        className={`pd-notes-list-item ${OVERVIEW_INNER_GLASS}`}
+                        className={`pd-notes-list-item ${GLASS_INNER}`}
                         onClick={() => startEditing(n.id, n.title, n.content)}
                       >
                         <span className="pd-notes-list-item__title">{n.title}</span>
@@ -700,7 +700,7 @@ export function ProjectDetailPage() {
                 </ul>
               )
             ) : (
-              <div className={`pd-notes-editor ${OVERVIEW_INNER_GLASS}`}>
+              <div className={`pd-notes-editor ${GLASS_INNER}`}>
                 <NoteEditor
                   variant="notes"
                   onSave={() => void handleSaveNote()}
@@ -727,7 +727,7 @@ export function ProjectDetailPage() {
         )}
 
         {tab === 'related' && (
-          <div className={`${OVERVIEW_OUTER_GLASS}`} style={{ padding: 16 }}>
+          <div className={`${GLASS_OUTER}`} style={{ padding: 16 }}>
             {related.length === 0 ? (
               <p className="muted" style={{ textAlign: 'center', padding: 24 }}>
                 暂无关联项目
@@ -758,7 +758,7 @@ export function ProjectDetailPage() {
       </section>
 
       <aside className="pd-side">
-        <div className={OVERVIEW_OUTER_GLASS}>
+        <div className={GLASS_OUTER}>
           <div className="card-header">
             <div className="card-title">项目信息</div>
             <span className="card-subtitle mono" title={project.id} style={{ fontSize: 11 }}>
@@ -819,14 +819,14 @@ export function ProjectDetailPage() {
           <div className="pd-info-actions">
             <button
               type="button"
-              className={`btn btn-block ${OVERVIEW_INNER_GLASS}`}
+              className={`btn btn-block ${GLASS_INNER}`}
               onClick={() => setEditOpen(true)}
             >
               编辑分类与标签
             </button>
             <button
               type="button"
-              className={`btn btn-block ${OVERVIEW_INNER_GLASS}`}
+              className={`btn btn-block ${GLASS_INNER}`}
               style={{ color: 'var(--error)' }}
               onClick={() => setDeleteOpen(true)}
             >
@@ -835,7 +835,7 @@ export function ProjectDetailPage() {
           </div>
         </div>
 
-        <div className={OVERVIEW_OUTER_GLASS}>
+        <div className={GLASS_OUTER}>
           <div className="card-header">
             <div className="card-title">AI 学习助手</div>
             <span className="card-subtitle">{DETAIL_AGENTS.length} agents</span>

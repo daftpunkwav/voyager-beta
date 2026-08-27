@@ -7,7 +7,7 @@ import {
   LLM_API_FORMAT_OPTIONS,
   LLM_PROVIDER_PRESETS,
 } from '@/constants/llmConfig';
-import { OVERVIEW_INNER_GLASS } from '@/constants/overviewGlass';
+import { GLASS_INNER } from '@/constants/glassTokens';
 
 interface LlmProviderDetailProps {
   provider: LlmProviderConfig;
@@ -148,7 +148,7 @@ export function LlmProviderDetail({
 
       <div className="form-row">
         <label>API 格式</label>
-        <ul className={`llm-format-list ${OVERVIEW_INNER_GLASS}`}>
+        <ul className={`llm-format-list ${GLASS_INNER}`}>
           {LLM_API_FORMAT_OPTIONS.map((opt) => {
             const selected = provider.api_format === opt.value;
             return (
@@ -231,7 +231,7 @@ export function LlmProviderDetail({
         <label>模型列表</label>
         <ul className="llm-model-list">
           {provider.available_models.map((m) => (
-            <li key={m} className={`llm-model-chip ${OVERVIEW_INNER_GLASS}`}>
+            <li key={m} className={`llm-model-chip ${GLASS_INNER}`}>
               <span>{m}</span>
               {m === provider.default_model ? (
                 <span className="llm-model-chip__default">默认</span>

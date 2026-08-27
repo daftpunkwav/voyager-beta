@@ -1,11 +1,8 @@
 // @ts-nocheck — 迁移期:上游迁入的代码,字段重命名由 legacyApi 边界归一化,新 page / hook 仍按 strict 写(见各文件顶部注释)。
 import { useMemo, useState } from 'react';
 import type { LlmUsageSummary } from '@/api/types';
-import {
-  USAGE_CHART_COLORS,
-  USAGE_CHIP_GLASS,
-  USAGE_TOKEN_COLORS,
-} from '@/constants/usageGlass';
+import { GLASS_CHIP } from '@/constants/glassTokens';
+import { USAGE_CHART_COLORS, USAGE_TOKEN_COLORS } from '@/constants/usageChartColors';
 import { formatTokenCount } from '@/utils/formatTokens';
 
 type BarMode = 'io' | 'model';
@@ -32,7 +29,7 @@ export function UsageStackedBars({ usage }: UsageStackedBarsProps) {
   }, [days]);
 
   return (
-    <div className={`${USAGE_CHIP_GLASS} usage-panel usage-bars-panel`}>
+    <div className={`${GLASS_CHIP} usage-panel usage-bars-panel`}>
       <div className="usage-panel-head">
         <h3 className="usage-panel-title">按天 Token 趋势</h3>
         <div className="layout-switch usage-mode-switch">

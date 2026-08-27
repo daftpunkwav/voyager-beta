@@ -15,14 +15,7 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { formatRelativeTime, formatDateTime } from '@/utils/date';
 import { formatNumber, langCssClass, REPO_AVATAR_GRADIENTS, splitRepoName } from '@/utils/format';
 import { activityItemHref } from '@/utils/overviewLinks';
-import {
-  HERO_INNER_GLASS,
-  HERO_OUTER_GLASS,
-  OVERVIEW_CHIP_GLASS,
-  OVERVIEW_INNER_GLASS,
-  OVERVIEW_OUTER_GLASS,
-  OVERVIEW_SUMMARY_INNER_GLASS,
-} from '@/constants/overviewGlass';
+import { GLASS_CHIP, GLASS_INNER, GLASS_OUTER } from '@/constants/glassTokens';
 import { getMorseHopPx, HERO_MORSE_BITS, HERO_MORSE_INTERVAL_MS } from '@/utils/morse';
 import { AgentCarousel } from '@/components/agent/AgentCarousel';
 import { TrendingScoutSpot } from '@/components/agent/TrendingScoutSpot';
@@ -210,7 +203,7 @@ export function OverviewPage() {
             })}
           </span>
         </div>
-        <div className={`overview-hero-glass ${HERO_OUTER_GLASS}`} aria-hidden />
+        <div className={`overview-hero-glass ${GLASS_OUTER}`} aria-hidden />
         <section className="overview-hero-content">
           <h1>
             你好，<span>{username}</span> 👋
@@ -219,7 +212,7 @@ export function OverviewPage() {
           <div className="quick-actions">
             <Link
               to="/agent"
-              className={`btn ${HERO_INNER_GLASS} liquid-glass--pulse liquid-glass-btn quick-action-brand`}
+              className={`btn ${GLASS_INNER} liquid-glass--pulse liquid-glass-btn quick-action-brand`}
               onMouseEnter={handleChatBtnLook}
               onMouseMove={handleChatBtnLook}
               onMouseLeave={handleChatBtnLookEnd}
@@ -228,19 +221,19 @@ export function OverviewPage() {
             </Link>
             <Link
               to="/projects"
-              className={`btn ${HERO_INNER_GLASS} liquid-glass-btn`}
+              className={`btn ${GLASS_INNER} liquid-glass-btn`}
             >
               浏览项目库
             </Link>
             <Link
               to="/graph"
-              className={`btn ${HERO_INNER_GLASS} liquid-glass-btn`}
+              className={`btn ${GLASS_INNER} liquid-glass-btn`}
             >
               查看图谱
             </Link>
             <Link
               to="/settings"
-              className={`btn ${HERO_INNER_GLASS} liquid-glass-btn`}
+              className={`btn ${GLASS_INNER} liquid-glass-btn`}
             >
               设置
             </Link>
@@ -251,20 +244,20 @@ export function OverviewPage() {
       <AgentCarousel externalLookTarget={chatBtnLookTarget} />
 
       <section className="row-2col row-2col--phi">
-        <div className={`panel panel-progress ${OVERVIEW_OUTER_GLASS}`} data-testid="overview-progress">
+        <div className={`panel panel-progress ${GLASS_OUTER}`} data-testid="overview-progress">
           <h3>学习进度分布</h3>
           <div className="progress-panel-body">
             <section
-              className={`agent-summary progress-panel-summary ${OVERVIEW_SUMMARY_INNER_GLASS}`}
+              className={`agent-summary progress-panel-summary ${GLASS_INNER}`}
               aria-label="Mentor 学习周报"
             >
               <div className="summary-head">
-                <div className={`summary-avatar ${OVERVIEW_CHIP_GLASS}`}>M</div>
+                <div className={`summary-avatar ${GLASS_CHIP}`}>M</div>
                 <div className="summary-meta">
                   <div className="summary-agent">Mentor · 本周学习总结</div>
                   <div className="summary-time">由 AI 自动生成</div>
                 </div>
-                <span className={`summary-badge ${OVERVIEW_CHIP_GLASS}`}>AI</span>
+                <span className={`summary-badge ${GLASS_CHIP}`}>AI</span>
               </div>
               <div className="summary-body">
                 <p>
@@ -294,12 +287,12 @@ export function OverviewPage() {
           </div>
         </div>
 
-        <div className={`panel panel-activity ${OVERVIEW_OUTER_GLASS}`} data-testid="overview-activities">
+        <div className={`panel panel-activity ${GLASS_OUTER}`} data-testid="overview-activities">
           <div className="section-head" style={{ marginTop: 0 }}>
             <h3>最近活动</h3>
             <Link
               to="/agent"
-              className={`more ${HERO_INNER_GLASS}`}
+              className={`more ${GLASS_INNER}`}
             >
               查看全部 →
             </Link>
@@ -311,7 +304,7 @@ export function OverviewPage() {
               activityItems.map((a) => (
                 <Link
                   key={a.id}
-                  className={`activity-item ${OVERVIEW_INNER_GLASS}`}
+                  className={`activity-item ${GLASS_INNER}`}
                   to={activityItemHref(a)}
                   data-testid="overview-activity-item"
                 >
@@ -333,7 +326,7 @@ export function OverviewPage() {
       </section>
 
       <section className="row-2col row-2col--phi">
-        <div className={`panel panel-recommend ${OVERVIEW_OUTER_GLASS}`} data-testid="overview-recommendations">
+        <div className={`panel panel-recommend ${GLASS_OUTER}`} data-testid="overview-recommendations">
           <h3 className="panel-title-with-sub">
             为你推荐
             <span className="panel-title-sub">Agent 根据学习记录和喜好推荐</span>
@@ -344,7 +337,7 @@ export function OverviewPage() {
                 return (
                   <div
                     key={`rec-empty-${i}`}
-                    className={`project-item project-item--placeholder ${OVERVIEW_INNER_GLASS}`}
+                    className={`project-item project-item--placeholder ${GLASS_INNER}`}
                     aria-hidden
                   >
                     <div
@@ -364,7 +357,7 @@ export function OverviewPage() {
               return (
                 <Link
                   key={item.id}
-                  className={`project-item ${OVERVIEW_INNER_GLASS}`}
+                  className={`project-item ${GLASS_INNER}`}
                   to={`/projects/${item.project_id}`}
                   aria-describedby={`rec-reason-${item.id}`}
                   data-testid="overview-recommend-item"
@@ -396,7 +389,7 @@ export function OverviewPage() {
         </div>
 
         <div
-          className={`panel panel-notes ${OVERVIEW_OUTER_GLASS}`}
+          className={`panel panel-notes ${GLASS_OUTER}`}
           ref={recentNotesPanelRef}
           data-testid="overview-notes"
         >
@@ -404,7 +397,7 @@ export function OverviewPage() {
             <h3>最近笔记</h3>
             <Link
               to="/notes"
-              className={`more ${HERO_INNER_GLASS}`}
+              className={`more ${GLASS_INNER}`}
             >
               查看全部 →
             </Link>
@@ -416,7 +409,7 @@ export function OverviewPage() {
               recentNotes.map((n) => (
                 <Link
                   key={n.id}
-                  className={`note-item ${OVERVIEW_INNER_GLASS}`}
+                  className={`note-item ${GLASS_INNER}`}
                   to={`/projects/${n.project_id}`}
                   data-testid="overview-note-item"
                 >
@@ -445,7 +438,7 @@ export function OverviewPage() {
                 key={p}
                 type="button"
                 className={`period-btn liquid-glass--pill${
-                  period === p ? ` ${HERO_INNER_GLASS} active` : ''
+                  period === p ? ` ${GLASS_INNER} active` : ''
                 }`}
                 onClick={() => setPeriod(p)}
               >
@@ -465,7 +458,7 @@ export function OverviewPage() {
                   <a
                     key={`${period}-${r.owner}/${r.repo}`}
                     data-index={index}
-                    className={`trending-card ${OVERVIEW_INNER_GLASS}`}
+                    className={`trending-card ${GLASS_INNER}`}
                     data-testid="overview-trending-card"
                     style={{ ['--card-w' as string]: `${widthPct.toFixed(2)}%` }}
                     href={r.url}
@@ -475,7 +468,7 @@ export function OverviewPage() {
                     onMouseLeave={handleTrendingCardLeave}
                     onMouseMove={handleTrendingCardMove}
                   >
-                  <div className={`trending-rank ${OVERVIEW_CHIP_GLASS}`}>{r.rank ?? index + 1}</div>
+                  <div className={`trending-rank ${GLASS_CHIP}`}>{r.rank ?? index + 1}</div>
                   <div className="trending-body">
                     <div className="trending-name">
                       <span className="owner">{owner}</span>
