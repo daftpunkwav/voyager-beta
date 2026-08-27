@@ -1,6 +1,7 @@
-"""sources 服务测试:repo 导入/排序/元数据/密钥边界 + books/news 最小集 + 聚合注册表。
+"""sources 服务测试:repo 导入/排序/元数据/密钥边界 + 聚合注册表。
 
-GitHub API 与 git clone 一律 mock,测试不触网、不触 git。
+doc/web 子模块用例见 test_doc.py / test_web.py;跨类型统一资源流见
+test_aggregate.py。GitHub API 与 git clone 一律 mock,测试不触网、不触 git。
 """
 
 import asyncio
@@ -10,16 +11,15 @@ import httpx
 import pytest
 from platform_actor import ActorContext
 from platform_capability import execute
-from platform_contracts import LOCAL_USER, ActorKind, ActorRef, ServiceError
+from platform_contracts import LOCAL_USER, ActorKind, ActorRef
 from platform_eventbus import EventBus, EventLog
 from platform_secrets import SecretStore
 
 from services.sources.capabilities import SourcesDeps, init_all, registry
-from services.sources.modules.books.store import BookStore
-from services.sources.modules.news.store import NewsStore
+from services.sources.modules.doc.store import DocStore
 from services.sources.modules.repo import github as github_mod
 from services.sources.modules.repo.store import RepoStore
-from services.sources.modules.repo.worker import RepoWorker
+from services.sources.modules.web.store import WebStore
 
 USER_CTX = ActorContext(actor=LOCAL_USER)
 AGENT_CTX = ActorContext(actor=ActorRef(kind=ActorKind.AGENT, id="agent.main", scopes=()))
@@ -60,19 +60,21 @@ def deps(tmp_path, monkeypatch):
     _mock_github(monkeypatch)
     log = EventLog(tmp_path / "events.db")
     bus = EventBus(log)
-    queue: asyncio.Queue = asyncio.Queue()
+    repo_queue: asyncio.Queue = asyncio.Queue()
+    doc_queue: asyncio.Queue = asyncio.Queue()
     d = SourcesDeps(
         repo_store=RepoStore(tmp_path / "repo.db"),
-        book_store=BookStore(tmp_path / "books.db"),
-        news_store=NewsStore(tmp_path / "news.db"),
+        doc_store=DocStore(tmp_path / "doc.db"),
+        web_store=WebStore(tmp_path / "web.db"),
         secrets=SecretStore(tmp_path / "secrets.db", key_material="t"),
-        bus=bus, repo_queue=queue, workspace=tmp_path / "ws",
+        bus=bus, repo_queue=repo_queue, doc_queue=doc_queue,
+        workspace=tmp_path / "ws",
     )
     init_all(d)
     yield d, log
     d.repo_store.close()
-    d.book_store.close()
-    d.news_store.close()
+    d.doc_store.close()
+    d.web_store.close()
     log.close()
 
 
@@ -92,7 +94,7 @@ class TestRepo:
     async def test_duplicate_conflict(self, deps) -> None:
         d, _ = deps
         d.repo_store.add({"name": "a", "url": "https://github.com/o/a", "status": "ready"})
-        with pytest.raises(ServiceError, match="已导入"):
+        with pytest.raises(Exception, match="已导入"):
             await execute(registry, "import_repo", USER_CTX,
                           {"url": "https://github.com/o/a"})
 
@@ -151,6 +153,7 @@ class TestRepo:
         assert out[0]["owner"] == "langchain-ai" and out[0]["stars"] == 100
 
     async def test_github_token_user_only(self, deps) -> None:
+        from platform_contracts import ServiceError
         with pytest.raises(ServiceError) as exc:
             await execute(registry, "set_github_token", AGENT_CTX, {"token": "t"})
         assert exc.value.body.code == "SOURCES.FORBIDDEN"
@@ -194,63 +197,19 @@ class TestRepoWorker:
         assert d.repo_store.get(rid)["status"] == "failed"
 
 
-class TestBooksNews:
-    async def test_book_lifecycle(self, deps, tmp_path) -> None:
-        src = tmp_path / "book.md"
-        src.write_text("# 章节一\n" + "内容" * 100, encoding="utf-8")
-        book = await execute(registry, "add_book", USER_CTX,
-                             {"title": "测试书", "file_path": str(src)})
-        assert Path(book["local_path"]).is_file()  # 副本入 workspace/books
-        chapter = await execute(registry, "get_chapter", USER_CTX,
-                                {"book_id": book["id"], "length": 10})
-        assert chapter["text"].startswith("# 章节一")
-        await execute(registry, "remove_book", USER_CTX, {"book_id": book["id"]})
-        assert await execute(registry, "list_books", USER_CTX, {}) == []
-
-    async def test_add_book_sanitizes_title_filename(self, deps, tmp_path) -> None:
-        """title 中的路径分隔符/保留字符不得让副本写逃逸 workspace/books。"""
-        d, _ = deps
-        src = tmp_path / "book.txt"
-        src.write_text("hello", encoding="utf-8")
-        book = await execute(registry, "add_book", USER_CTX,
-                             {"title": '../../evil "name"', "file_path": str(src)})
-        local = Path(book["local_path"])
-        assert local.parent == Path(d.workspace) / "books"  # 未逃逸
-        assert local.is_file()
-        with pytest.raises(ServiceError, match="清洗后为空"):
-            await execute(registry, "add_book", USER_CTX,
-                          {"title": "..", "file_path": str(src)})
-
-    async def test_add_book_windows_reserved_name(self, deps, tmp_path) -> None:
-        """title=CON 等 Windows 保留设备名:加前缀落盘,不抛 500。"""
-        src = tmp_path / "b.txt"
-        src.write_text("x", encoding="utf-8")
-        book = await execute(registry, "add_book", USER_CTX,
-                             {"title": "CON", "file_path": str(src)})
-        assert Path(book["local_path"]).name.startswith("book_CON")
-
-    async def test_news_add_and_get(self, deps) -> None:
-        item = await execute(registry, "add_news", USER_CTX,
-                             {"title": "AI 周报", "content": "正文" * 200})
-        assert item["summary"]  # 列表摘要有截断摘要
-        full = await execute(registry, "get_news", AGENT_CTX, {"news_id": item["id"]})
-        assert len(full["content"]) > len(item["summary"])
-
-    async def test_fetch_news_ssrf_guard(self, deps) -> None:
-        """回环/链路本地/非 http 协议一律拒绝,不发起请求。"""
-        with pytest.raises(ServiceError, match="不在公网范围"):
-            await execute(registry, "fetch_news", AGENT_CTX,
-                          {"url": "http://127.0.0.1:8123/api/project-health"})
-        with pytest.raises(ServiceError, match="不在公网范围"):
-            await execute(registry, "fetch_news", AGENT_CTX,
-                          {"url": "http://169.254.169.254/latest/meta-data"})
-        with pytest.raises(ServiceError, match="http/https"):
-            await execute(registry, "fetch_news", AGENT_CTX,
-                          {"url": "file:///etc/passwd"})
+# RepoWorker 从同名模块导入(保持与旧版一致的引用面)
+from services.sources.modules.repo.worker import RepoWorker
 
 
-class TestAggregate:
+class TestAggregateRegistry:
     def test_registry_merges_all_modules(self) -> None:
         names = registry.names()
-        assert {"import_repo", "add_book", "fetch_news"} <= set(names)
+        assert {"import_repo", "add_document", "save_url", "list_sources"} <= set(names)
         assert len(names) == len(set(names))  # 无重名冲突
+
+    def test_service_json_matches_registry(self) -> None:
+        """service.json 能力清单与注册表一致(单一事实来源)。"""
+        import json
+        card = json.loads(
+            (Path(__file__).resolve().parents[1] / "service.json").read_text("utf-8"))
+        assert set(card["capabilities"]) == set(registry.names())

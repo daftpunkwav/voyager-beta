@@ -1,14 +1,17 @@
 {
   "name": "sources",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "protocol": "0.1.0",
   "port": 8010,
   "capabilities": [
     "import_repo", "list_repos", "sort_repos", "get_repo", "get_readme",
     "set_repo_meta", "list_categories", "remove_repo",
     "search_remote_repos", "list_starred_repos", "set_github_token",
-    "add_book", "list_books", "get_chapter", "remove_book",
-    "fetch_news", "add_news", "list_news", "get_news", "remove_news"
+    "add_document", "list_documents", "get_document", "get_doc_section",
+    "search_documents", "set_document_meta", "remove_document",
+    "save_url", "add_page", "list_pages", "get_page", "set_page_meta",
+    "remove_page",
+    "list_sources", "search_sources", "sources_stats"
   ],
   "subscribes": [],
   "publishes": ["source.added", "source.removed", "source.ready",

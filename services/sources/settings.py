@@ -8,7 +8,7 @@ DEFS = [
                description="资源库默认排序字段"),
     SettingDef(key="sources.import.clone", module="sources", type=SettingType.BOOL,
                default=True, description="导入仓库时是否克隆到本地(否则只存元数据)"),
-    SettingDef(key="sources.news.page_limit", module="sources", type=SettingType.INT,
-               default=20000, min=1000, max=200000,
-               description="新闻抓取正文截断长度(字符)"),
+    SettingDef(key="sources.doc.max_file_mb", module="sources", type=SettingType.INT,
+               default=200, min=1, max=2000,
+               description="单文档导入大小上限(MB)"),
 ]

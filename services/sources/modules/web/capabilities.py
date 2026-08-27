@@ -1,6 +1,6 @@
-"""news 子模块能力(§8.2):fetch_news / list_news / get_news / add_news / remove_news。
+"""web 子模块能力(§8.2):网址剪藏(抓取/手动录入)/ 列表 / 元数据 / 删除。
 
-fetch_news 的 SSRF 防护采用「解析-钉住」模式:每跳在本模块内做唯一一次
+save_url 的 SSRF 防护沿用 news 的「解析-钉住」模式:每跳在本模块内做唯一一次
 DNS 解析并校验全部结果为公网地址,然后直接连接该 IP(TLS 以原域名做
 SNI 与证书校验,Host 头保持原域名)。后续连接使用 IP 字面量,不再发生
 第二次解析——从而消除「先校验后连接各解析一次」的 DNS rebinding 窗口。
@@ -20,7 +20,7 @@ from platform_capability import Registry, capability
 from platform_contracts import ActorKind, ActorRef, ErrorSuffix, Event, ServiceError
 from platform_eventbus import EventBus
 
-from .store import NewsStore, html_to_text
+from .store import WebStore, html_to_text, valid_tag
 
 _DOMAIN = "sources"
 registry = Registry(_DOMAIN)
@@ -30,7 +30,7 @@ _MAX_REDIRECTS = 3
 #: resolver 类型:(host, port) -> 解析到的全部 IP 字符串;测试注入替身保证离线
 ResolverFn = Callable[[str, int], Awaitable[list[str]]]
 
-_NEWS_ACTOR = ActorRef(kind=ActorKind.SYSTEM, id="sources.news")
+_WEB_ACTOR = ActorRef(kind=ActorKind.SYSTEM, id="sources.web")
 
 
 async def _default_resolver(host: str, port: int) -> list[str]:
@@ -68,7 +68,7 @@ def _assert_pinnable(url: str) -> tuple[urlparse.ParseResult, list[str]]:
         raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, f"URL 缺少主机名: {url}")
     ips = _literal_ips(host)
     if ips is None:
-        # 非字面量主机名在 fetch_news 内经 resolver 解析;此函数只做语法与字面量判断,
+        # 非字面量主机名在 save_url 内经 resolver 解析;此函数只做语法与字面量判断,
         # 以便单测在不触网的情况下复用语法检查
         return parsed, []
     for ip in ips:
@@ -82,21 +82,21 @@ def _assert_pinnable(url: str) -> tuple[urlparse.ParseResult, list[str]]:
 
 
 @dataclass
-class NewsDeps:
-    store: NewsStore
+class WebDeps:
+    store: WebStore
     bus: EventBus | None
     resolve: ResolverFn = field(default=_default_resolver)
 
 
-_deps: NewsDeps | None = None
+_deps: WebDeps | None = None
 
 
-def init_deps(deps: NewsDeps) -> None:
+def init_deps(deps: WebDeps) -> None:
     global _deps
     _deps = deps
 
 
-def _require_deps() -> NewsDeps:
+def _require_deps() -> WebDeps:
     if _deps is None:
         raise RuntimeError("deps 未注入:服务入口需先调用 init_deps()")
     return _deps
@@ -124,9 +124,16 @@ async def _fetch_pinned(client: httpx.AsyncClient, url: str) -> httpx.Response:
     return await client.send(request)
 
 
-@capability(registry, name="fetch_news", description="抓取 URL 存为新闻条目(摘要级正文)", cost=3)
-async def fetch_news(url: str, title: str = "") -> dict:
+@capability(registry, name="save_url",
+            description="抓取网页正文并存入资料库(逐跳 DNS 钉住式 SSRF 防护)",
+            cost=3)
+async def save_url(url: str, title: str = "", tags: list[str] | None = None,
+                   category: str = "") -> dict:
     deps = _require_deps()
+    for tag in list(tags or []):
+        if not valid_tag(tag):
+            raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                               f"标签不合法: {tag}(≤32 字,禁 \\\"\\',[] 字符)")
     try:
         async with httpx.AsyncClient(timeout=20.0, follow_redirects=False) as client:
             # 逐跳跟随重定向;每跳都重新走解析-校验-钉住流程(防外网页 302 → 内网)
@@ -142,43 +149,88 @@ async def fetch_news(url: str, title: str = "") -> dict:
     except Exception as exc:
         raise ServiceError(_DOMAIN, ErrorSuffix.UNAVAILABLE,
                            f"抓取失败: {type(exc).__name__}: {exc}") from exc
-    page_title, text = html_to_text(resp.text)
-    nid = deps.store.add({"title": title or page_title or url, "url": url,
-                          "summary": text[:300], "content": text})
+    page_title, text, images = html_to_text(resp.text)
+    domain = urlparse(url).hostname or ""
+    final_title = title.strip() or page_title or url
+    pid = deps.store.add({
+        "title": final_title[:200], "url": url, "domain": domain,
+        "summary": text[:300], "content": text,
+        "tags": list(tags or []), "category": category,
+        "meta": {"images": images, "chars": len(text)},
+    })
     if deps.bus is not None:
         await deps.bus.publish(Event(
-            type="source.ready",
-            actor=_NEWS_ACTOR,
-            payload={"source_id": nid, "kind": "news", "title": title or page_title}))
-    return deps.store.get(nid)
+            type="source.added", actor=_WEB_ACTOR,
+            payload={"source_id": pid, "kind": "web", "title": final_title}))
+        await deps.bus.publish(Event(
+            type="source.ready", actor=_WEB_ACTOR,
+            payload={"source_id": pid, "kind": "web", "title": final_title}))
+    return deps.store.get(pid)
 
 
-@capability(registry, name="add_news", description="手动登记一条资料(标题+内容)")
-def add_news(title: str, content: str = "", url: str = "") -> dict:
+@capability(registry, name="add_page",
+            description="手动录入网页剪藏(标题+正文;抓取用 save_url)")
+async def add_page(title: str, content: str = "", url: str = "",
+                   tags: list[str] | None = None, category: str = "") -> dict:
     deps = _require_deps()
-    nid = deps.store.add({"title": title, "url": url,
-                          "summary": content[:300], "content": content})
-    return deps.store.get(nid)
+    for tag in list(tags or []):
+        if not valid_tag(tag):
+            raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, f"标签不合法: {tag}")
+    domain = urlparse(url).hostname or "" if url else ""
+    pid = deps.store.add({
+        "title": title[:200], "url": url, "domain": domain,
+        "summary": content[:300], "content": content,
+        "tags": list(tags or []), "category": category,
+        "meta": {"chars": len(content)},
+    })
+    if deps.bus is not None:
+        await deps.bus.publish(Event(
+            type="source.added", actor=_WEB_ACTOR,
+            payload={"source_id": pid, "kind": "web", "title": title}))
+    return deps.store.get(pid)
 
 
-@capability(registry, name="list_news", description="新闻列表(摘要)")
-def list_news(limit: int = 50) -> list[dict]:
-    return _require_deps().store.list(limit)
+@capability(registry, name="list_pages",
+            description="网页列表(摘要;query 命中标题/正文,tag 过滤)")
+def list_pages(query: str = "", tag: str = "", limit: int = 50) -> list[dict]:
+    return _require_deps().store.list(query=query.strip(), tag=tag.strip(),
+                                      limit=limit)
 
 
-@capability(registry, name="get_news", description="按需取新闻全文")
-def get_news(news_id: str) -> dict:
-    item = _require_deps().store.get(news_id)
+@capability(registry, name="get_page", description="按需取网页全文")
+def get_page(page_id: str) -> dict:
+    item = _require_deps().store.get(page_id)
     if item is None:
-        raise ServiceError(_DOMAIN, ErrorSuffix.NOT_FOUND, f"条目不存在: {news_id}")
+        raise ServiceError(_DOMAIN, ErrorSuffix.NOT_FOUND, f"网页不存在: {page_id}")
     return item
 
 
-@capability(registry, name="remove_news", description="删除新闻条目", reversible=False)
-def remove_news(news_id: str) -> dict:
+@capability(registry, name="set_page_meta",
+            description="设置网页标题/标签/分类(与 set_repo_meta 对齐)")
+def set_page_meta(page_id: str, title: str | None = None,
+                  tags: list[str] | None = None,
+                  category: str | None = None) -> dict:
     deps = _require_deps()
-    item = deps.store.get(news_id)
+    item = deps.store.get(page_id)
     if item is None:
-        raise ServiceError(_DOMAIN, ErrorSuffix.NOT_FOUND, f"条目不存在: {news_id}")
-    deps.store.remove(news_id)
-    return {"removed": news_id, "title": item["title"]}
+        raise ServiceError(_DOMAIN, ErrorSuffix.NOT_FOUND, f"网页不存在: {page_id}")
+    for tag in list(tags or []):
+        if not valid_tag(tag):
+            raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, f"标签不合法: {tag}")
+    deps.store.set_meta(page_id, title=title, tags=tags, category=category)
+    return deps.store.get(page_id)
+
+
+@capability(registry, name="remove_page", description="删除网页剪藏",
+            reversible=False)
+async def remove_page(page_id: str) -> dict:
+    deps = _require_deps()
+    item = deps.store.get(page_id)
+    if item is None:
+        raise ServiceError(_DOMAIN, ErrorSuffix.NOT_FOUND, f"网页不存在: {page_id}")
+    deps.store.remove(page_id)
+    if deps.bus is not None:
+        await deps.bus.publish(Event(
+            type="source.removed", actor=_WEB_ACTOR,
+            payload={"source_id": page_id, "kind": "web", "title": item["title"]}))
+    return {"removed": page_id, "title": item["title"]}

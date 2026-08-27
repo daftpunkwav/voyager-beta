@@ -121,6 +121,44 @@ class RepoStore:
         ).fetchall()
         return [r[0] for r in rows]
 
+    def summaries(self, *, status: str = "", tag: str = "", query: str = "",
+                  limit: int = 200) -> list[dict[str, Any]]:
+        """统一资源流摘要(list_sources 消费):字段跨类型对齐,kind 由本店标注。"""
+        wheres, params = [], []
+        if status:
+            wheres.append("status = ?")
+            params.append(status)
+        if tag:
+            wheres.append(r"tags LIKE ? ESCAPE '\'")
+            params.append(f'%"{_escape_like(tag)}"%')
+        if query:
+            wheres.append("(name LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')")
+            like = f"%{_escape_like(query)}%"
+            params += [like, like]
+        sql = f"SELECT {','.join(_SUMMARY_COLS)} FROM repos"
+        if wheres:
+            sql += " WHERE " + " AND ".join(wheres)
+        sql += " ORDER BY added_ts DESC LIMIT ?"
+        params.append(limit)
+        out = []
+        for r in self._conn.execute(sql, params).fetchall():
+            d = dict(zip(_SUMMARY_COLS, r))
+            out.append({"id": d["id"], "kind": "repo", "title": d["name"],
+                        "subtitle": d["description"], "status": d["status"],
+                        "progress": d["progress"],
+                        "tags": json.loads(d["tags"] or "[]"),
+                        "category": d["category"], "added_ts": d["added_ts"],
+                        "updated_ts": d["updated_ts"]})
+        return out
+
+    def stats(self) -> dict[str, int]:
+        total = self._conn.execute("SELECT COUNT(*) FROM repos").fetchone()[0]
+        by_status = dict(self._conn.execute(
+            "SELECT status, COUNT(*) FROM repos GROUP BY status").fetchall())
+        return {"total": int(total), "importing": int(by_status.get("importing", 0)),
+                "failed": int(by_status.get("failed", 0))}
+
+
     def set_meta(self, rid: str, **fields: Any) -> None:
         allowed = {"category", "tags", "progress", "note"}
         updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
@@ -160,3 +198,7 @@ def _row(cols: tuple[str, ...], r: tuple) -> dict[str, Any]:
     d = dict(zip(cols, r))
     d["tags"] = json.loads(d.get("tags") or "[]")
     return d
+
+
+def _escape_like(s: str) -> str:
+    return s.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
