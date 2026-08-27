@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getApi } from '@/api/client';
+import { EmptyState } from '@/components/common/EmptyState';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import {
   USAGE_CHIP_GLASS,
@@ -71,9 +72,15 @@ export function LlmUsageDashboard() {
 
       {isLoading && <LoadingSpinner />}
       {isError && (
-        <p className="usage-error">
-          {(error as Error | null)?.message || '用量统计服务暂不可用'}
-        </p>
+        <EmptyState
+          title="用量统计服务暂不可用"
+          description={(error as Error | null)?.message || '无法连接后端服务'}
+          action={
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => void refetch()}>
+              重试
+            </button>
+          }
+        />
       )}
 
       {usage && (

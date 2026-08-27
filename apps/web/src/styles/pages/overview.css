@@ -20,6 +20,7 @@
       justify-content: center;
       pointer-events: none;
       user-select: none;
+      opacity: 0.42;
     }
     .overview-hero-artword {
       position: relative;
@@ -31,7 +32,7 @@
       height: 100%;
       margin-inline: auto;
       gap: clamp(1.98px, 0.792vw, 11.88px);
-      filter: saturate(1.38) contrast(1.05) brightness(1.04);
+      filter: saturate(1.05) contrast(1.02) brightness(1.02);
       transform-origin: center center;
     }
     .overview-hero-art-char {
@@ -103,11 +104,11 @@
       --art-stroke-width: 1.45px;
       background-image: linear-gradient(
         128deg,
-        #0066ff 0%,
-        #00c2ff 28%,
-        #7b61ff 58%,
-        #ff4fd8 82%,
-        #ffd166 100%
+        #0064d6 0%,
+        #007aff 30%,
+        #2e8dff 58%,
+        #5e5ce6 82%,
+        #66abff 100%
       );
     }
     .overview-hero-art-char:nth-child(2) {
@@ -122,11 +123,11 @@
       --art-stroke-width: 1.05px;
       background-image: linear-gradient(
         152deg,
-        #4f46e5 0%,
-        #9333ea 24%,
-        #ec4899 52%,
-        #fb7185 76%,
-        #fbbf24 100%
+        #007aff 0%,
+        #2e8dff 26%,
+        #5e5ce6 52%,
+        #66abff 76%,
+        #9fcbff 100%
       );
     }
     .overview-hero-art-char:nth-child(3) {
@@ -141,11 +142,11 @@
       --art-stroke-width: 1.35px;
       background-image: linear-gradient(
         118deg,
-        #ff006e 0%,
-        #ff477e 22%,
-        #ff7b54 48%,
-        #ffb703 72%,
-        #06d6a0 100%
+        #5e5ce6 0%,
+        #007aff 24%,
+        #2e8dff 50%,
+        #64d2ff 74%,
+        #cfe5ff 100%
       );
     }
     /* 第一个 o：偏扁、略向右倾 */
@@ -161,11 +162,11 @@
       --art-stroke-width: 1.6px;
       background-image: linear-gradient(
         168deg,
-        #ff9500 0%,
-        #ffcc00 20%,
-        #a3e635 45%,
-        #22d3ee 70%,
-        #6366f1 100%
+        #004fad 0%,
+        #0064d6 22%,
+        #007aff 46%,
+        #5e5ce6 72%,
+        #bf5af2 100%
       );
     }
     .overview-hero-art-char:nth-child(5) {
@@ -180,11 +181,11 @@
       --art-stroke-width: 1.5px;
       background-image: linear-gradient(
         142deg,
-        #00f5a0 0%,
-        #00d9f5 25%,
-        #0099ff 50%,
-        #7c3aed 75%,
-        #f72585 100%
+        #007aff 0%,
+        #5e5ce6 26%,
+        #bf5af2 52%,
+        #66abff 78%,
+        #e8f2ff 100%
       );
     }
     .overview-hero-art-char:nth-child(6) {
@@ -199,11 +200,11 @@
       --art-stroke-width: 0.9px;
       background-image: linear-gradient(
         110deg,
-        #38bdf8 0%,
-        #818cf8 30%,
-        #c084fc 55%,
-        #f472b6 78%,
-        #fb923c 100%
+        #2e8dff 0%,
+        #007aff 30%,
+        #004fad 56%,
+        #5e5ce6 80%,
+        #9fcbff 100%
       );
     }
     .overview-hero-art-char:nth-child(7) {
@@ -218,11 +219,11 @@
       --art-stroke-width: 1.25px;
       background-image: linear-gradient(
         156deg,
-        #a855f7 0%,
-        #e879f9 22%,
-        #f43f5e 46%,
-        #f97316 68%,
-        #eab308 100%
+        #bf5af2 0%,
+        #5e5ce6 24%,
+        #007aff 48%,
+        #2e8dff 70%,
+        #66abff 100%
       );
     }
     /* 第二个 o：偏瘦高、向左倾，描边更细 */
@@ -238,11 +239,11 @@
       --art-stroke-width: 0.85px;
       background-image: linear-gradient(
         134deg,
-        #fde047 0%,
-        #fb923c 24%,
-        #ef4444 50%,
-        #db2777 74%,
-        #8b5cf6 100%
+        #64d2ff 0%,
+        #2e8dff 26%,
+        #007aff 52%,
+        #5e5ce6 76%,
+        #bf5af2 100%
       );
     }
     .overview-hero-art-char:nth-child(9) {
@@ -257,12 +258,12 @@
       --art-stroke-width: 1.4px;
       background-image: linear-gradient(
         162deg,
-        #14b8a6 0%,
-        #0ea5e9 22%,
-        #3b82f6 44%,
-        #8b5cf6 66%,
-        #d946ef 88%,
-        #f97316 100%
+        #007aff 0%,
+        #5e5ce6 24%,
+        #bf5af2 48%,
+        #66abff 74%,
+        #cfe5ff 92%,
+        #e8f2ff 100%
       );
     }
 
@@ -711,13 +712,26 @@
     }
     .progress-row .pl { color: var(--text-700); font-weight: 600; }
     .progress-row .pv { font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--text-800); text-align: right; }
-    .progress-row .track { height: 8px; background: var(--bg-200); border-radius: var(--radius-pill); overflow: hidden; }
-    .progress-row .fill { height: 100%; border-radius: var(--radius-pill); }
+    .progress-row .track {
+      height: 8px;
+      background: rgba(0, 0, 0, 0.05);
+      border-radius: var(--radius-pill);
+      overflow: hidden;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+    [data-theme="dark"] .progress-row .track {
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .progress-row .fill {
+      height: 100%;
+      border-radius: var(--radius-pill);
+      transition: width 600ms var(--ease-apple);
+    }
     /* 与 progress-pill 语义色对齐 */
     .fill-none { background: #a1a1aa; }
-    .fill-learning { background: linear-gradient(90deg, #f59e0b, #fb923c); }
-    .fill-learned { background: linear-gradient(90deg, #0a84ff, #38bdf8); }
-    .fill-mastered { background: linear-gradient(90deg, #22c55e, #4ade80); }
+    .fill-learning { background: linear-gradient(90deg, #ff9f0a, #ffb340); }
+    .fill-learned { background: linear-gradient(90deg, #007aff, #2e8dff); }
+    .fill-mastered { background: linear-gradient(90deg, #34c759, #30d158); }
 
     /* 最近活动 · 每条为独立内层 overview-inner pill */
     .activity-list { display: flex; flex-direction: column; gap: 12px; position: relative; z-index: 1; }

@@ -1911,16 +1911,24 @@
   color: #ff375f;
 }
 
-/* Agent 不可用/错误横幅：常驻红色提示（ChatPanel 输入区上方） */
+/* Agent 不可用/错误横幅：浅玻璃感 + 品牌红文字,替代沉重实底 */
 .error-banner {
   margin: 8px 12px 0;
   padding: 10px 14px;
   border-radius: var(--radius-md);
-  background: rgba(255, 55, 95, 0.1);
-  border: 1px solid rgba(255, 55, 95, 0.28);
-  color: #ff375f;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  border: 1px solid rgba(255, 59, 48, 0.22);
+  color: #d70015;
   font-size: 12.5px;
   line-height: 1.5;
+  box-shadow: var(--shadow-card);
+}
+[data-theme='dark'] .error-banner {
+  background: rgba(28, 28, 30, 0.78);
+  color: #ff453a;
+  border-color: rgba(255, 69, 58, 0.28);
 }
 
 [data-theme='dark'] .embed-agent-chat__input {
@@ -3164,11 +3172,12 @@
   display: grid; place-items: center;
   border-radius: 50%;
   margin-bottom: 20px;
-  background: linear-gradient(135deg, var(--brand-500) 0%, var(--brand-700) 50%, #5e5ce6 100%);
-  color: #fff;
+  /* Apple 空态语言:浅 tint 底 + 品牌色描线图标,替代厚重的实底渐变大圆 */
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.14), rgba(94, 92, 230, 0.10));
+  color: var(--brand-600);
   box-shadow:
-    0 12px 32px rgba(0, 122, 255, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    0 6px 20px rgba(0, 122, 255, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
   animation: welcomeOrb 6s var(--ease-apple) infinite;
 }
 @keyframes welcomeOrb {
@@ -3223,6 +3232,13 @@
 .chat-welcome__chip-icon { font-size: 14px; }
 
 [data-theme='dark'] .chat-welcome__title { color: var(--text-100, var(--text-800)); }
+[data-theme='dark'] .chat-welcome__orb {
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.2), rgba(94, 92, 230, 0.14));
+  color: #66abff;
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
 [data-theme='dark'] .chat-welcome__chip {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.1);
