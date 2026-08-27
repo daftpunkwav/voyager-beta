@@ -5,9 +5,9 @@
  */
 
 import { useEffect, useState } from 'react';
-import { GlassCard } from '@/widgets/GlassCard';
-import { LoadingSpinner } from '@/widgets/LoadingSpinner';
-import { EmptyState, EmptyStateIcons } from '@/widgets/EmptyState';
+import { GlassCard } from '@/components/common/GlassCard';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 
 interface HealthRecord {
   service: string;
@@ -66,7 +66,7 @@ export function HealthPage() {
         <div className="page-scaffold__state">
           <EmptyState
             title="无法获取状态"
-            message={error}
+            description={error}
             icon={EmptyStateIcons.health}
             action={
               <button

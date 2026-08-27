@@ -6,9 +6,9 @@
 
 import { useEffect, useState } from 'react';
 import { callCapability } from '@/bridge/client';
-import { GlassCard } from '@/widgets/GlassCard';
-import { LoadingSpinner } from '@/widgets/LoadingSpinner';
-import { EmptyState, EmptyStateIcons } from '@/widgets/EmptyState';
+import { GlassCard } from '@/components/common/GlassCard';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { useAgentStore } from '@/stores/agentStore';
 
 interface RunningSubagent {
@@ -79,7 +79,7 @@ export function TeamPage() {
         <div className="page-scaffold__state">
           <EmptyState
             title="加载失败"
-            message={error}
+            description={error}
             icon={EmptyStateIcons.team}
             action={
               <button
@@ -110,7 +110,7 @@ export function TeamPage() {
         <h2 className="h3">人格</h2>
         <div className="team-grid">
           {personas.length === 0 ? (
-            <EmptyState title="暂无人格" message="后端未注册任何 Agent 人格" icon={EmptyStateIcons.team} />
+            <EmptyState title="暂无人格" description="后端未注册任何 Agent 人格" icon={EmptyStateIcons.team} />
           ) : (
             personas.map((p) => (
               <GlassCard key={p.key} className="persona-card">
@@ -140,7 +140,7 @@ export function TeamPage() {
         <h2 className="h3">工具面名册</h2>
         <GlassCard>
           {tools.length === 0 ? (
-            <EmptyState title="暂未加载" message="agent 进程尚未启动或未注册工具" icon={EmptyStateIcons.team} />
+            <EmptyState title="暂未加载" description="agent 进程尚未启动或未注册工具" icon={EmptyStateIcons.team} />
           ) : (
             <ul className="tool-list">
               {tools.map((t) => (
@@ -158,7 +158,7 @@ export function TeamPage() {
         <h2 className="h3">运行中 subagent</h2>
         <GlassCard>
           {running.length === 0 ? (
-            <EmptyState title="暂无运行中" message="当前没有正在执行的子任务" icon={EmptyStateIcons.team} />
+            <EmptyState title="暂无运行中" description="当前没有正在执行的子任务" icon={EmptyStateIcons.team} />
           ) : (
             <ul>
               {running.map((r) => (

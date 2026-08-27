@@ -6,9 +6,9 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { GlassCard } from '@/widgets/GlassCard';
-import { LoadingSpinner } from '@/widgets/LoadingSpinner';
-import { EmptyState, EmptyStateIcons } from '@/widgets/EmptyState';
+import { GlassCard } from '@/components/common/GlassCard';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { summarize, type FeedEvent } from '@/bridge/feed';
 import { extractErrorMessage } from '@/utils/errors';
 
@@ -97,7 +97,7 @@ export function ActivityPage() {
         <div className="page-scaffold__state">
           <EmptyState
             title="加载失败"
-            message={error}
+            description={error}
             icon={EmptyStateIcons.activity}
             action={
               <button
@@ -112,7 +112,7 @@ export function ActivityPage() {
         </div>
       ) : events.length === 0 ? (
         <div className="page-scaffold__state">
-          <EmptyState title="暂无活动" message="(此时间段内无事件)" icon={EmptyStateIcons.activity} />
+          <EmptyState title="暂无活动" description="(此时间段内无事件)" icon={EmptyStateIcons.activity} />
         </div>
       ) : (
         <div className="page-scaffold__body">
