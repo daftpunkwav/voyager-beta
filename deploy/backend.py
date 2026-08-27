@@ -46,19 +46,23 @@ def build(
     *,
     llm: object | None = None,
     clone_fn=None,
+    parse_fn=None,
 ) -> FastAPI:
     """装配整个后端;uvicorn deploy.backend:build --factory。
 
     llm:测试注入口(agent.llm.LLMClient 协议);省略时走 llm 服务能力(ServiceLLM)。
     clone_fn:sources 克隆函数测试注入口;省略时真 git clone(不 mock 骗用户)。
+    parse_fn:sources 文档解析函数测试注入口;省略时真实提取(pypdfium2/docx)。
     """
     from services.gateway.mounts import MountSpec
     from services.gateway.rest import create_app as gateway_create
     from services.gateway.settings import DEFS as GATEWAY_SETTING_DEFS
+    from services.gateway.uploads import build_upload_router
     from services.graph.wiring import wire as wire_graph
     from services.llm.wiring import wire as wire_llm
     from services.notes.wiring import wire as wire_notes
     from services.settings.wiring import wire as wire_settings
+    from services.sources.files import build_files_router
     from services.sources.wiring import wire as wire_sources
 
     data_root = Path(data_dir) if data_dir else ROOT / "runtime-data"
@@ -80,14 +84,20 @@ def build(
                         settings_store=settings_store),
         "sources": wire_sources(data_root / "sources", workspace=workspace,
                                 bus=bus, secrets=secrets, clone_fn=clone_fn,
+                                parse_fn=parse_fn,
                                 settings_store=settings_store),
         "notes": wire_notes(data_root / "notes", bus=bus,
                             settings_store=settings_store),
         "graph": wire_graph(data_root / "graph", bus=bus,
                             settings_store=settings_store),
     }
-    mounts = [MountSpec(domain=name, registry=w.registry, probe=w.probe)
+    # sources 自带文档文件只读路由(wire→init_all 已填充其 STORES)
+    from services.sources.capabilities import STORES as SOURCES_STORES
+    mounts = [MountSpec(domain=name, registry=w.registry, probe=w.probe,
+                        extra_router=(build_files_router(SOURCES_STORES["doc"])
+                                      if name == "sources" else None))
               for name, w in wirings.items()]
+    extra_routers = [build_upload_router(workspace)]
 
     # agent runtime:LLM 走 llm 服务能力,领域能力经桥注入,设置/事件与全系统共享
     async def _call(domain: str, name: str, args: dict) -> dict:
@@ -129,7 +139,8 @@ def build(
                 sink.close()
             log.close()
 
-    app = gateway_create(mounts, bus=bus, lifespan=lifespan, audit=audit)
+    app = gateway_create(mounts, bus=bus, lifespan=lifespan, audit=audit,
+                         extra_routers=extra_routers)
     app.state.backend = Backend(
         app=app, agent=agent, wirings=wirings, bus=bus, log=log,
         secrets=secrets, settings_store=settings_store,

@@ -46,6 +46,7 @@ def create_app(
     rate_limit_per_minute: int = 600,
     sse_max_connections: int = 8,
     history_page_size: int = 200,
+    extra_routers: list | None = None,
 ) -> FastAPI:
     if bus is None:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -81,6 +82,9 @@ def create_app(
 
     mount_services(app, mounts or [], probe,
                    issuer=issuer, auth=auth, quota=quota, audit=audit)
+    # 部署入口注入的横切路由(如文件上传端点;gateway 本身零业务逻辑)
+    for router in extra_routers or []:
+        app.include_router(router)
     app.include_router(build_chat_router(bus, limiter,
                                          history_page_size=history_page_size))
     app.include_router(build_activity_router(bus, limiter))
