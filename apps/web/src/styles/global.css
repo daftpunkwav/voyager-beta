@@ -236,3 +236,47 @@ a {
   color: var(--md-panel-muted);
   padding: 12px 16px 12px 14px;
 }
+
+/* ==========================================================================
+   全局交互品质层 · 焦点环 / 滚动条 / 减弱动态
+   ========================================================================== */
+
+/* 键盘导航可见焦点环(鼠标点击不触发;组件自有 focus 样式不受影响) */
+:where(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring, 0 0 0 4px rgba(0, 122, 255, 0.18));
+  border-radius: var(--radius-sm, 8px);
+}
+
+/* 全局精致滚动条 · 亮色 */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: var(--radius-pill);
+  border: 2.5px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background-color: rgba(0, 0, 0, 0.32); }
+::-webkit-scrollbar-corner { background: transparent; }
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.22);
+}
+[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.36);
+}
+/* Firefox */
+* { scrollbar-width: thin; scrollbar-color: rgba(0, 0, 0, 0.22) transparent; }
+[data-theme='dark'] * { scrollbar-color: rgba(255, 255, 255, 0.26) transparent; }
+
+/* 尊重系统"减弱动态效果":跳过装饰性动画与过渡,保留必要的状态变化 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
