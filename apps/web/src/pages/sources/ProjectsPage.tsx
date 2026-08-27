@@ -17,9 +17,9 @@ import { ImportUrlsModal } from '@/components/project/ImportUrlsModal';
 import { CategoryTagManager } from '@/components/project/CategoryTagManager';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { formatNumber } from '@/utils/format';
 import {
-  PROJECTS_OUTER_GLASS,
   PROJECTS_OUTER_GLASS_OVERVIEW,
 } from '@/constants/projectsGlass';
 
@@ -49,7 +49,7 @@ const STAT_ICONS = {
 };
 
 export function ProjectsPage() {
-  const { data, isLoading } = useProjects();
+  const { data, isLoading, isError, error, refetch } = useProjects();
   const { data: categories = [] } = useCategories();
   const { data: tags = [] } = useTags();
   const { data: stats } = useProjectStats();
@@ -134,6 +134,36 @@ export function ProjectsPage() {
     });
     clearSelected();
   };
+
+  // 首次加载/失败时不渲染残缺页面壳(标题+筛选栏+悬空小卡片),
+  // 与其它页面统一:居中加载指示或错误态 + 重试。
+  if (isLoading) {
+    return (
+      <div className="page-scaffold projects-page">
+        <div className="page-scaffold__state">
+          <LoadingSpinner label="加载项目库中…" />
+        </div>
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <div className="page-scaffold projects-page">
+        <div className="page-scaffold__state">
+          <EmptyState
+            title="无法加载项目库"
+            description={error instanceof Error ? error.message : '请检查后端服务后重试'}
+            icon={EmptyStateIcons.library}
+            action={
+              <button type="button" className="btn btn-ghost" onClick={() => void refetch()}>
+                重试
+              </button>
+            }
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -248,49 +278,41 @@ export function ProjectsPage() {
         </div>
       )}
 
-      {isLoading ? (
-        <div className={`empty-state ${PROJECTS_OUTER_GLASS}`}>
-          <LoadingSpinner />
+      <ProjectTable
+        projects={data?.items ?? []}
+        tags={tags}
+        categories={categories}
+        onImportClick={() => setStarsOpen(true)}
+      />
+      {data && data.items.length > 0 && (
+        <div className="pagination">
+          <span className="info">
+            第 {page} / {totalPages} 页 · 共 {formatNumber(data.total)} 项
+          </span>
+          <div className="pages">
+            <button
+              type="button"
+              className="page-btn"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+              aria-label="上一页"
+            >
+              ‹
+            </button>
+            <button type="button" className="page-btn active" aria-current="page">
+              {page}
+            </button>
+            <button
+              type="button"
+              className="page-btn"
+              disabled={page >= totalPages}
+              onClick={() => setPage(page + 1)}
+              aria-label="下一页"
+            >
+              ›
+            </button>
+          </div>
         </div>
-      ) : (
-        <>
-          <ProjectTable
-            projects={data?.items ?? []}
-            tags={tags}
-            categories={categories}
-            onImportClick={() => setStarsOpen(true)}
-          />
-          {data && data.items.length > 0 && (
-            <div className="pagination">
-              <span className="info">
-                第 {page} / {totalPages} 页 · 共 {formatNumber(data.total)} 项
-              </span>
-              <div className="pages">
-                <button
-                  type="button"
-                  className="page-btn"
-                  disabled={page <= 1}
-                  onClick={() => setPage(page - 1)}
-                  aria-label="上一页"
-                >
-                  ‹
-                </button>
-                <button type="button" className="page-btn active" aria-current="page">
-                  {page}
-                </button>
-                <button
-                  type="button"
-                  className="page-btn"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage(page + 1)}
-                  aria-label="下一页"
-                >
-                  ›
-                </button>
-              </div>
-            </div>
-          )}
-        </>
       )}
 
       <ImportStarsDrawer open={starsOpen} onClose={() => setStarsOpen(false)} />
