@@ -5,7 +5,7 @@
  * (highlight className、attachment: 与 /api/ 相对图源、a 的 target/rel)。
  */
 
-import { Children, isValidElement, memo, useState, type ReactNode } from 'react';
+import { Children, isValidElement, memo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown, { type Options as MarkdownOptions } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -18,7 +18,6 @@ import { tryParseAsciiArchLayers, looksLikeMarkdownTable } from '@/utils/asciiAr
 import { looksLikeMermaid, MermaidBlock } from '@/components/common/MermaidBlock';
 import { Lightbox } from '@/components/common/Lightbox';
 import { safeHttpUrl, safeImgSrc, safeInternalPath } from '@/utils/safeUrl';
-import { notesHlMarkProps, NOTE_HL_KIND } from '@/pages/notes/noteMarks';
 import { routes } from '@/utils/routes';
 
 interface MarkdownRendererProps {
@@ -30,6 +29,10 @@ interface MarkdownRendererProps {
   onWikiLink?: (target: string) => void;
   /** 页面私有语法(如笔记底纹)经此注入;聊天等默认渲染不带 */
   remarkPlugins?: MarkdownOptions['remarkPlugins'];
+  /** 页面私有 <mark> 样式(笔记底纹);缺省原样输出 className */
+  markProps?: (className?: string) => { className: string; style?: CSSProperties };
+  /** 代码块里误写入的页面标记;缺省不改源码 */
+  recoverCodeMarkup?: (text: string) => string;
 }
 
 /** 允许 highlight.js 注入的 class,避免 sanitize 洗掉着色;
@@ -120,20 +123,6 @@ function CodeCopyButton({ text }: { text: string }) {
   );
 }
 
-/** 代码围栏里误写入的 ==tone:…==:仅用于 ASCII 架构图识别,不改源码。 */
-function recoverTonedMarkup(text: string): string {
-  const closed = new RegExp(`==(${NOTE_HL_KIND}):((?:(?!==).)+)==`, 'gi');
-  const open = new RegExp(`==(${NOTE_HL_KIND}):`, 'gi');
-  let s = text;
-  for (let n = 0; n < 16; n += 1) {
-    const next = s.replace(closed, '$2');
-    if (next === s) break;
-    s = next;
-  }
-  s = s.replace(open, '');
-  return s.replace(/(^|[^=])==(?!=)/gm, '$1');
-}
-
 function ArchStack({
   layers,
 }: {
@@ -166,6 +155,8 @@ function MarkdownRendererInner({
   disableTableRescue = false,
   onWikiLink,
   remarkPlugins,
+  markProps,
+  recoverCodeMarkup,
 }: MarkdownRendererProps) {
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
   const navigate = useNavigate();
@@ -182,13 +173,9 @@ function MarkdownRendererInner({
         ]}
         components={{
           mark: ({ className: markCls, children, node: _node, style: _style, ...props }) => {
-            const hl = notesHlMarkProps(markCls);
+            const hl = markProps?.(markCls) ?? { className: markCls };
             return (
-              <mark
-                {...props}
-                className={hl.className}
-                style={hl.color ? { ['--notes-hl' as string]: hl.color } : undefined}
-              >
+              <mark {...props} className={hl.className} style={hl.style}>
                 {children}
               </mark>
             );
@@ -298,21 +285,24 @@ function MarkdownRendererInner({
             if (!disableTableRescue && looksLikeMarkdownTable(text)) {
               return (
                 <div className="md-table-rescue">
-                  <MarkdownRenderer content={text} disableTableRescue />
+                  <MarkdownRenderer
+                    content={text}
+                    disableTableRescue
+                    remarkPlugins={remarkPlugins}
+                    markProps={markProps}
+                    recoverCodeMarkup={recoverCodeMarkup}
+                    onWikiLink={onWikiLink}
+                  />
                 </div>
               );
             }
+            const recovered = recoverCodeMarkup ? recoverCodeMarkup(text) : text;
             const layers = tryParseAsciiArchLayers(text)
-              ?? (new RegExp(`==(${NOTE_HL_KIND}):`).test(text)
-                ? tryParseAsciiArchLayers(recoverTonedMarkup(text))
-                : null);
+              ?? (recovered !== text ? tryParseAsciiArchLayers(recovered) : null);
             if (layers) return <ArchStack layers={layers} />;
             const lang = extractCodeLang(children);
             if (looksLikeMermaid(lang, text)) {
-              const code = new RegExp(`==(${NOTE_HL_KIND}):`).test(text)
-                ? recoverTonedMarkup(text)
-                : text;
-              return <MermaidBlock code={code} />;
+              return <MermaidBlock code={recovered} />;
             }
             return (
               <div className="md-codeblock">

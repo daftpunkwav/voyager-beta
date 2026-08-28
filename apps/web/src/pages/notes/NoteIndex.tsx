@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { GlassSelect } from '@/components/common/GlassSelect';
-import { personaDisplayName } from '@/constants/personas';
 import type { Note } from '@/api/types';
 import {
   applyNotesListing,
   groupNotesByRecency,
   noteSourceId,
+} from './noteListing';
+import {
   NOTES_FILTER_OPTIONS,
   NOTES_SORT_OPTIONS,
   type NotesDensity,
@@ -17,7 +18,8 @@ import {
   type NotesLayout,
   type NotesListState,
   type NotesSort,
-} from './noteUtils';
+} from './notePrefs';
+import { NotesAssistButton, NotesNewButton } from './NotesRailActions';
 import { NoteList } from './NoteList';
 
 interface NoteIndexProps {
@@ -342,31 +344,22 @@ export function NoteIndex({
             </div>
           </div>
           <span className="notes-rail-sep" aria-hidden />
-          <button
-            type="button"
-            className="notes-rail-miyai liquid-glass liquid-glass--pill liquid-glass--green liquid-glass--interactive"
-            aria-label={`打开 ${personaDisplayName('organizer')}`}
-            data-testid="notes-assist-btn"
-            onClick={onAssist}
-          >
-            <span className="notes-rail-miyai__orb agent-organizer" aria-hidden />
-            {personaDisplayName('organizer')}
-          </button>
-          <button
-            type="button"
-            className="notes-rail-trash glass-card glass-card--control liquid-glass--pill liquid-glass--interactive"
-            aria-label="回收站"
-            title="回收站"
-            data-testid="notes-trash-btn"
-            onClick={onTrash}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={15} height={15} aria-hidden>
-              <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" />
-            </svg>
-          </button>
-          <button type="button" className="btn btn-primary btn-sm notes-rail-new" onClick={onNew} data-testid="notes-new-btn">
-            新建
-          </button>
+          <div className="notes-rail-cluster notes-rail-actions">
+            <NotesAssistButton onClick={onAssist} />
+            <button
+              type="button"
+              className="notes-rail-trash glass-card glass-card--control liquid-glass--pill"
+              aria-label="回收站"
+              title="回收站"
+              data-testid="notes-trash-btn"
+              onClick={onTrash}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={15} height={15} aria-hidden>
+                <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" />
+              </svg>
+            </button>
+            <NotesNewButton onClick={onNew} />
+          </div>
         </div>
       </div>
 

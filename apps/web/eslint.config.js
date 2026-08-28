@@ -97,10 +97,39 @@ export default [
       ],
     },
   },
+  // 共享层不得反向依赖页面模块(MarkdownRenderer / hooks / stores)
+  {
+    files: [
+      'src/components/common/**/*.{ts,tsx}',
+      'src/hooks/**/*.{ts,tsx}',
+      'src/stores/**/*.{ts,tsx}',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@/pages/*'],
+              message: '共享层不得 import 页面模块(§10.1);页面私有逻辑经 props/bridge 注入。',
+            },
+            {
+              group: ['@/bridge/legacyApi'],
+              message: '数据门面单一入口:@/api/client(getApi)。实现层 bridge/legacyApi 不得被业务直接引用。',
+            },
+            {
+              group: ['@/api/real', '@/api/real/*'],
+              message: '@/api/real 已删除;改用 getApi() 或 callCapability。',
+            },
+          ],
+        },
+      ],
+    },
+  },
   // pages 专属:跨页互引禁令 + 与全局相同的门面单点限制(flat config 需整集重申)。
   // §10.1 页面即模块:page 目录之间互不 import;共享只经 bridge/contracts/基础 UI。
   {
-    files: ['src/pages/**/*.tsx'],
+    files: ['src/pages/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
         'error',

@@ -1,4 +1,5 @@
-/** 笔记页界面状态。与 noteStore(正文)分离;与全站 appearance.font_scale 分离。 */
+/** 笔记页界面状态。与 noteStore(正文)分离;与全站 appearance.font_scale 分离。
+ *  页面模块自有 store(§10.1),不放共享 stores/。 */
 
 import { create } from 'zustand';
 import { readKey, writeKey } from '@/brand';
@@ -36,7 +37,7 @@ import {
   type NotesMode,
   type NotesPanel,
   type NotesSort,
-} from '@/pages/notes/noteUtils';
+} from './notePrefs';
 
 export interface NotesUiState {
   fontSize: number;

@@ -3,12 +3,11 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MarkdownRenderer } from '@/components/common/MarkdownRenderer';
 import { personaDisplayName } from '@/constants/personas';
-import { BacklinkPanel } from './NoteFeatures';
-import { flattenMultilineMarks, NOTE_PREVIEW_REMARK } from './noteMarks';
+import { BacklinkPanel } from './NoteBacklinks';
+import { NoteMarkdown } from './NoteMarkdown';
 import { explainNotesQuote } from './notesView';
-import { parseNotesQuote } from './noteUtils';
+import { parseNotesQuote } from './noteQuote';
 
 interface NotePreviewProps {
   title: string;
@@ -154,7 +153,7 @@ export const NotePreview = memo(function NotePreview({
       ) : showSource ? (
         <pre className="preview-block-source" aria-label="Markdown 源码">{content}</pre>
       ) : (
-        <MarkdownRenderer content={flattenMultilineMarks(content)} remarkPlugins={NOTE_PREVIEW_REMARK} />
+        <NoteMarkdown content={content} />
       )}
       {noteId ? <BacklinkPanel noteId={noteId} /> : null}
       {chip

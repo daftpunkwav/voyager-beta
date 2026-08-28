@@ -1,26 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applyLinePrefix,
-  applyNotesListing,
-  buildNoteExplainMessage,
-  extractNoteToc,
-  groupNotesByRecency,
-  isPersistedNoteId,
-  noteSnippet,
-  noteSourceId,
   parseNotesFontSize,
   parseNotesLayout,
   parseNotesListState,
   parseNotesMode,
-  parseNotesQuote,
   parseNotesTocWidth,
   parseSplitRatio,
   parseSyncScroll,
+} from '@/pages/notes/notePrefs';
+import {
+  applyLinePrefix,
+  isPersistedNoteId,
+  syncScrollRatio,
+} from '@/pages/notes/noteLine';
+import {
+  applyNotesListing,
+  groupNotesByRecency,
+  noteSnippet,
+  noteSourceId,
   sortNotes,
   startOfLocalDayMs,
-  syncScrollRatio,
-  tocHeadingLabel,
-} from '@/pages/notes/noteUtils';
+} from '@/pages/notes/noteListing';
+import { extractNoteToc, tocHeadingLabel } from '@/pages/notes/noteOutline';
+import { buildNoteExplainMessage, parseNotesQuote } from '@/pages/notes/noteQuote';
 
 describe('parseNotesMode', () => {
   it('只认 notes-mode,缺省为编辑', () => {

@@ -6,10 +6,9 @@ import { callCapability } from '@/bridge/client';
 import { personaDisplayName } from '@/constants/personas';
 import { useChatStore } from '@/stores/chatStore';
 import { useNoteStore } from '@/stores/noteStore';
-import { useNotesUiStore } from '@/stores/notesUiStore';
+import { useNotesUiStore } from './notesUiStore';
 import { useFloatingStore } from '@/widgets/FloatingChat';
 import {
-  buildNoteExplainMessage,
   NOTES_DENSITY_KEY,
   NOTES_FILTER_KEY,
   NOTES_FONT_KEY,
@@ -32,8 +31,6 @@ import {
   parseNotesMode,
   parseNotesPanel,
   parseNotesQuery,
-  parseNotesQuote,
-  rememberNotesQuote,
   parseNotesSort,
   parseNotesSourceId,
   parseNotesTocWidth,
@@ -45,7 +42,12 @@ import {
   type NotesMode,
   type NotesPanel,
   type NotesSort,
-} from './noteUtils';
+} from './notePrefs';
+import {
+  buildNoteExplainMessage,
+  parseNotesQuote,
+  rememberNotesQuote,
+} from './noteQuote';
 
 export interface NotesViewSnapshot {
   font_size: number;

@@ -1,16 +1,12 @@
 import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { MarkdownRenderer } from '@/components/common/MarkdownRenderer';
-import { flattenMultilineMarks, NOTE_PREVIEW_REMARK } from '@/pages/notes/noteMarks';
+import { NoteMarkdown } from '@/pages/notes/NoteMarkdown';
 
 function preview(md: string) {
   return render(
     <MemoryRouter>
       <div className="preview-content">
-        <MarkdownRenderer
-          content={flattenMultilineMarks(md)}
-          remarkPlugins={NOTE_PREVIEW_REMARK}
-        />
+        <NoteMarkdown content={md} />
       </div>
     </MemoryRouter>,
   );

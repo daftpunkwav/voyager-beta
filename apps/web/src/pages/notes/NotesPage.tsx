@@ -12,20 +12,20 @@ import {
 } from '@/hooks/useNotes';
 import { useProjects } from '@/hooks/useProjects';
 import { useNoteStore } from '@/stores/noteStore';
-import { useNotesUiStore } from '@/stores/notesUiStore';
+import { useNotesUiStore } from './notesUiStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getApi } from '@/api/client';
 import { routes } from '@/utils/routes';
 import { useFloatingStore } from '@/widgets/FloatingChat';
 import type { Note } from '@/api/types';
 import { subscribe } from '@/bridge/stream';
-import { NoteEditor, type NoteEditorHandle } from './NoteEditor';
+import { type NoteEditorHandle } from './NoteEditor';
 import { NoteIndex } from './NoteIndex';
-import { NotePreview } from './NotePreview';
-import { NotesWorkspaceBar } from './NotesWorkspaceBar';
+import { NotesWorkspace } from './NotesWorkspace';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
-import { TocPanel, TrashPanel, VersionDrawer } from './NoteFeatures';
+import { TrashPanel } from './NoteTrash';
+import { VersionPanel } from './NoteVersions';
 import {
   bumpNotesFont,
   commitNotesDensity,
@@ -41,16 +41,10 @@ import {
   commitNotesTocWidth,
   openNotesAssist,
 } from './notesView';
-import {
-  extractNoteToc,
-  isPersistedNoteId,
-  noteSourceId,
-  NOTES_TOC_WIDTH_MAX,
-  NOTES_TOC_WIDTH_MIN,
-  parseSplitRatio,
-  syncScrollRatio,
-  type NoteTocItem,
-} from './noteUtils';
+import { isPersistedNoteId, syncScrollRatio } from './noteLine';
+import { noteSourceId } from './noteListing';
+import { extractNoteToc, type NoteTocItem } from './noteOutline';
+import { parseSplitRatio } from './notePrefs';
 
 function noteQueryId(params: URLSearchParams): string | null {
   return params.get('note') ?? params.get('open');
@@ -550,7 +544,7 @@ export function NotesPage() {
 
   const drawers = (
     <>
-      <VersionDrawer
+      <VersionPanel
         noteId={persisted ? editingNoteId : ''}
         open={versionsOpen && persisted}
         onClose={() => setVersionsOpen(false)}
@@ -627,127 +621,65 @@ export function NotesPage() {
   const workspaceReady = noteParam === 'new' || editingNoteId === noteParam;
 
   return (
-    <div
-      className="notes-shell notes-workspace-page"
-      style={{ ['--notes-md-size' as string]: `${fontSize}px` }}
-    >
-      <NotesWorkspaceBar
-        mode={mode}
-        fontSize={fontSize}
-        saveState={saveState}
-        persisted={persisted}
-        pinned={meta.pinned}
-        archived={meta.archived}
-        projectId={newProjectId}
-        projectOptions={projectOptions}
-        syncScroll={syncScroll}
-        hasToc={tocItems.length > 0}
-        tocOpen={tocOpen}
-        onBack={() => void goIndex()}
-        onNew={() => void handleNew()}
-        onMode={commitNotesMode}
-        onBumpFont={bumpNotesFont}
-        onProject={(v) => void handleProjectChange(v)}
-        onTogglePin={togglePinCurrent}
-        onToggleArchive={() => void toggleArchiveCurrent()}
-        onToggleSync={() => commitNotesSyncScroll(!syncScroll)}
-        onToggleToc={() => setTocOpen((v) => !v)}
-        onAssist={openAssist}
-        onVersions={() => setVersionsOpen(true)}
-        onExport={() => {
-          if (!persisted) return;
-          void getApi()
-            .exportNote(editingNoteId)
-            .then((res) => {
-              addToast({ type: 'success', message: `已导出:${(res.data as { path: string }).path}` });
-            })
-            .catch((err: unknown) => {
-              addToast({ type: 'error', message: err instanceof Error ? err.message : '导出失败' });
-            });
-        }}
-        onDelete={() => setDeleteOpen(true)}
-        onTrash={() => commitNotesPanel('trash')}
-      />
-
-      {showEdit && !(opening && !workspaceReady) ? (
-        <div className="notes-format-bar" ref={setFormatBarHost} data-testid="notes-format-bar" />
-      ) : null}
-
-      <div className="notes-workspace" ref={workspaceRef}>
-        <div
-          ref={canvasRef}
-          className={`notes-canvas is-${mode}`}
-          style={mode === 'split' ? { ['--notes-edit-pct' as string]: `${Math.round(splitRatio * 1000) / 10}%` } : undefined}
-        >
-        {opening && !workspaceReady ? (
-          <LoadingSpinner label="打开笔记…" />
-        ) : (
-          <>
-            {editMounted && (
-              <section className="edit-pane">
-                <div className="note-editor-wrap">
-                  <NoteEditor
-                    onSave={() => void handleSave()}
-                    saving={updateNote.isPending || createNote.isPending}
-                    onReady={setEditorApi}
-                    formatBarHost={formatBarHost}
-                    visible={showEdit}
-                  />
-                </div>
-              </section>
-            )}
-            {mode === 'split' && (
-              <button
-                type="button"
-                className="notes-split-handle"
-                aria-label="拖动调整左右栏宽度"
-                onPointerDown={onSplitPointerDown}
-              />
-            )}
-            {previewMounted && (
-              <section className="preview-pane">
-                <NotePreview
-                  title={editorTitle}
-                  content={previewBody}
-                  noteId={persisted ? editingNoteId : null}
-                  inspectable={mode === 'preview'}
-                  onScrollEl={setPreviewEl}
-                />
-              </section>
-            )}
-          </>
-        )}
-        </div>
-        {tocOpen && tocItems.length > 0 ? (
-          <div
-            className="notes-toc-wrap"
-            style={{ ['--notes-toc-width' as string]: `${tocWidth}px` }}
-          >
-            <button
-              type="button"
-              className="notes-toc-handle"
-              data-testid="notes-toc-handle"
-              aria-label="调整目录宽度"
-              aria-orientation="vertical"
-              aria-valuemin={NOTES_TOC_WIDTH_MIN}
-              aria-valuemax={NOTES_TOC_WIDTH_MAX}
-              aria-valuenow={tocWidth}
-              onPointerDown={onTocPointerDown}
-              onKeyDown={(e) => {
-                if (e.key === 'ArrowLeft') {
-                  e.preventDefault();
-                  commitNotesTocWidth(tocWidth + 16);
-                } else if (e.key === 'ArrowRight') {
-                  e.preventDefault();
-                  commitNotesTocWidth(tocWidth - 16);
-                }
-              }}
-            />
-            <TocPanel items={tocItems} onJump={jumpToc} />
-          </div>
-        ) : null}
-      </div>
-      {drawers}
-    </div>
+    <NotesWorkspace
+      fontSize={fontSize}
+      mode={mode}
+      saveState={saveState}
+      persisted={persisted}
+      pinned={meta.pinned}
+      archived={meta.archived}
+      projectId={newProjectId}
+      projectOptions={projectOptions}
+      syncScroll={syncScroll}
+      tocOpen={tocOpen}
+      tocItems={tocItems}
+      tocWidth={tocWidth}
+      splitRatio={splitRatio}
+      showEdit={showEdit}
+      opening={opening}
+      workspaceReady={workspaceReady}
+      editMounted={editMounted}
+      previewMounted={previewMounted}
+      editorTitle={editorTitle}
+      previewBody={previewBody}
+      editingNoteId={editingNoteId}
+      formatBarHost={formatBarHost}
+      saving={updateNote.isPending || createNote.isPending}
+      overlays={drawers}
+      canvasRef={canvasRef}
+      workspaceRef={workspaceRef}
+      onFormatBarHost={setFormatBarHost}
+      onEditorReady={setEditorApi}
+      onPreviewEl={setPreviewEl}
+      onSplitPointerDown={onSplitPointerDown}
+      onTocPointerDown={onTocPointerDown}
+      onTocWidth={commitNotesTocWidth}
+      onJumpToc={jumpToc}
+      onBack={() => void goIndex()}
+      onNew={() => void handleNew()}
+      onMode={commitNotesMode}
+      onBumpFont={bumpNotesFont}
+      onProject={(v) => void handleProjectChange(v)}
+      onTogglePin={togglePinCurrent}
+      onToggleArchive={() => void toggleArchiveCurrent()}
+      onToggleSync={() => commitNotesSyncScroll(!syncScroll)}
+      onToggleToc={() => setTocOpen((v) => !v)}
+      onAssist={openAssist}
+      onVersions={() => setVersionsOpen(true)}
+      onExport={() => {
+        if (!persisted) return;
+        void getApi()
+          .exportNote(editingNoteId)
+          .then((res) => {
+            addToast({ type: 'success', message: `已导出:${(res.data as { path: string }).path}` });
+          })
+          .catch((err: unknown) => {
+            addToast({ type: 'error', message: err instanceof Error ? err.message : '导出失败' });
+          });
+      }}
+      onDelete={() => setDeleteOpen(true)}
+      onTrash={() => commitNotesPanel('trash')}
+      onSave={() => void handleSave()}
+    />
   );
 }

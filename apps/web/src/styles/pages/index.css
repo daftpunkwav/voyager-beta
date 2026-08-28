@@ -16,7 +16,6 @@
 .ask-mask,
 .question-modal-backdrop,
 .graph-index-modal-backdrop,
-.notes-drawer-overlay,
 .chat-drawer-backdrop {
   background: transparent;
   backdrop-filter: none;
@@ -27,7 +26,6 @@
 [data-theme='dark'] .ask-mask,
 [data-theme='dark'] .question-modal-backdrop,
 [data-theme='dark'] .graph-index-modal-backdrop,
-[data-theme='dark'] .notes-drawer-overlay,
 [data-theme='dark'] .chat-drawer-backdrop {
   background: transparent;
 }
@@ -38,8 +36,7 @@
 .question-modal,
 .graph-index-modal,
 .graph-index-modal.glass-card,
-.edit-project-modal,
-.notes-drawer-overlay .drawer {
+.edit-project-modal {
   background: var(--lg-dialog-tint);
   backdrop-filter: blur(var(--lg-dialog-blur));
   -webkit-backdrop-filter: blur(var(--lg-dialog-blur));
@@ -56,9 +53,7 @@
 [data-theme='dark'] .question-modal,
 [data-theme='dark'] .graph-index-modal,
 [data-theme='dark'] .graph-index-modal.glass-card,
-[data-theme='dark'] .edit-project-modal,
-[data-theme='dark'] .notes-drawer-overlay .drawer,
-[data-theme='dark'] .notes-drawer-overlay .drawer.version-drawer {
+[data-theme='dark'] .edit-project-modal {
   background: var(--lg-dialog-tint);
   border-color: var(--lg-dialog-border);
   --lg-panel-tint: var(--lg-dialog-tint);

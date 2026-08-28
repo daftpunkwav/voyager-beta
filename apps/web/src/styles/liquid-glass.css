@@ -264,7 +264,7 @@
 .import-agent-modal,
 .question-modal,
 .graph-index-modal,
-.notes-drawer-overlay .drawer {
+.notes-dialog {
   --lg-tint: var(--lg-dialog-tint);
   --lg-blur: var(--lg-dialog-blur);
   --lg-border: var(--lg-dialog-border);

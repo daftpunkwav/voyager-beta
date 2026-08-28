@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { applyNotesSettingKey, applyNotesViewSnapshot } from '@/pages/notes/notesView';
-import { useNotesUiStore } from '@/stores/notesUiStore';
+import { useNotesUiStore } from '@/pages/notes/notesUiStore';
 
 afterEach(() => {
   useNotesUiStore.getState().apply({

@@ -1,9 +1,9 @@
 /** 笔记页感知:只报视图/字号/当前篇标题,不带正文。 */
 
 import type { PageProbe } from '@/bridge/pageContext';
-import { lastNotesExplainQuote } from '@/pages/notes/noteUtils';
+import { lastNotesExplainQuote } from './noteQuote';
 import { useNoteStore } from '@/stores/noteStore';
-import { useNotesUiStore } from '@/stores/notesUiStore';
+import { useNotesUiStore } from './notesUiStore';
 
 export const notesProvider: PageProbe = {
   page: 'notes',

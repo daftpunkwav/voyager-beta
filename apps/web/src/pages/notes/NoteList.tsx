@@ -1,6 +1,7 @@
 import { useEffect, useRef, type KeyboardEvent, type MouseEvent } from 'react';
 import type { Note } from '@/api/types';
-import { noteSnippet, noteSourceId, noteUpdatedLabel, type NotesDensity } from './noteUtils';
+import { noteSnippet, noteSourceId, noteUpdatedLabel } from './noteListing';
+import type { NotesDensity } from './notePrefs';
 
 interface NoteListProps {
   notes: Note[];

@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { GlassSelect } from '@/components/common/GlassSelect';
-import { personaDisplayName } from '@/constants/personas';
-import { NOTES_FONT_MAX, NOTES_FONT_MIN, type NotesMode } from './noteUtils';
+import { NotesAssistButton, NotesNewButton } from './NotesRailActions';
+import { NOTES_FONT_MAX, NOTES_FONT_MIN, type NotesMode } from './notePrefs';
 
 interface NotesWorkspaceBarProps {
   mode: NotesMode;
@@ -85,13 +85,6 @@ export function NotesWorkspaceBar({
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={16} height={16} aria-hidden>
           <path d="M15 6l-6 6 6 6" />
         </svg>
-      </button>
-      <button type="button" className="btn btn-primary btn-sm" onClick={onNew}>
-        新建
-      </button>
-      <button type="button" className="notes-rail-miyai notes-assist-btn liquid-glass liquid-glass--pill liquid-glass--green liquid-glass--interactive" onClick={onAssist}>
-        <span className="notes-rail-miyai__orb agent-organizer" aria-hidden />
-        {personaDisplayName('organizer')}
       </button>
       <div className="view-toggle" role="group" aria-label="展现形式">
         {(['edit', 'preview', 'split'] as const).map((m) => (
@@ -194,16 +187,6 @@ export function NotesWorkspaceBar({
         </button>
         {moreOpen && (
           <div className="notes-more-menu" role="menu">
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setMoreOpen(false);
-                onAssist();
-              }}
-            >
-              {personaDisplayName('organizer')}
-            </button>
             {persisted && (
               <>
                 <button type="button" role="menuitem" onClick={() => { setMoreOpen(false); onVersions(); }}>
@@ -225,6 +208,10 @@ export function NotesWorkspaceBar({
             </button>
           </div>
         )}
+      </div>
+      <div className="notes-rail-cluster notes-rail-actions">
+        <NotesAssistButton onClick={onAssist} />
+        <NotesNewButton onClick={onNew} />
       </div>
     </header>
   );

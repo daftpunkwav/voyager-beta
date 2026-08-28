@@ -2,9 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getApi } from '@/api/client';
 import { useNoteStore } from '@/stores/noteStore';
 import { invalidateOverviewQueries } from '@/utils/invalidateOverview';
-import type { NotesListState } from '@/pages/notes/noteUtils';
 
-export function useAllNotes(state: NotesListState = 'active') {
+export type NotesListView = 'active' | 'archived';
+
+export function useAllNotes(state: NotesListView = 'active') {
   return useQuery({
     queryKey: ['notes', 'all', state],
     queryFn: async () => {

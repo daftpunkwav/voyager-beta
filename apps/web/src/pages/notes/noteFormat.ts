@@ -2,7 +2,7 @@
  *  与底纹同一交互,工具栏加粗/斜体/删除线/行内代码/链接/标题/引用/列表共用。
  */
 
-import { applyLinePrefix } from './noteUtils';
+import { applyLinePrefix } from './noteLine';
 
 export type InlineFormat = 'em' | 'strong' | 'strike' | 'code' | 'link';
 
