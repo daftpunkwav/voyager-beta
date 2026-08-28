@@ -298,7 +298,7 @@ export function openNotesAssist(): void {
   persistNotesView({ assist: true });
 }
 
-/** 打开右下角对话并投递讲解请求。quote 不落库;用户拖选与 agent set_notes_view 共用。 */
+/** 打开右下角对话并投递给侦察人格。quote 不落库;用户拖选与 agent set_notes_view 共用。 */
 export function explainNotesQuote(quote: string): void {
   const q = parseNotesQuote(quote);
   if (!q) return;
@@ -307,7 +307,7 @@ export function explainNotesQuote(quote: string): void {
   const content = buildNoteExplainMessage({
     quote: q,
     title,
-    agentName: personaDisplayName('explainer'),
+    agentName: personaDisplayName('recon'),
   });
   useFloatingStore.getState().setOpen(true);
   void postChatMessage(content)

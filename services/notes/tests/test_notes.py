@@ -331,7 +331,7 @@ class TestNotesView:
         assert "quote" not in stored
         desc = registry.get("set_notes_view").description
         assert "Miyai" not in desc
-        assert "讲解人格" in desc
+        assert "侦察人格" in desc
 
 
 class TestMigration:
@@ -462,6 +462,18 @@ class TestRenderAndEditSupport:
             await execute(registry, "mark_note_span", USER_CTX, {
                 "note_id": note["id"], "quote": "不存在", "tone": "warm"})
         assert exc.value.body.code == "NOTES.INVALID_INPUT"
+
+    async def test_mark_note_span_multiline_wraps_per_line(self, deps) -> None:
+        note = await execute(registry, "create_note", USER_CTX, {
+            "title": "多行", "content": "第一段\n\n第二段"})
+        out = await execute(registry, "mark_note_span", USER_CTX, {
+            "note_id": note["id"], "quote": "第一段\n\n第二段", "tone": "cool"})
+        assert out["content"] == "==cool:第一段==\n\n==cool:第二段=="
+        listed = await execute(registry, "create_note", USER_CTX, {
+            "title": "列表", "content": "- aa\n- bb"})
+        marked = await execute(registry, "mark_note_span", AGENT_CTX, {
+            "note_id": listed["id"], "quote": "- aa\n- bb", "tone": "rose"})
+        assert marked["content"] == "- ==rose:aa==\n- ==rose:bb=="
 
     async def test_import_note_front_matter(self, deps, tmp_path) -> None:
         f = tmp_path / "in.md"

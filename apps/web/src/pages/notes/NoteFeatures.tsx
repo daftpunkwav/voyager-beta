@@ -1,5 +1,5 @@
 /** 笔记功能面组件:版本历史抽屉 / 回收站面板 / TOC 大纲 / 反链列表。
- *  页面私有组件(§10.1),只被 NotesPage 使用;数据全部来自既有后端能力。
+ *  页面私有组件(§10.1);目录大纲来自当前正文,反链与版本走既有后端能力。
  */
 
 import { useEffect, useState } from 'react';
@@ -9,7 +9,6 @@ import GithubSlugger from 'github-slugger';
 import {
   useBacklinks,
   useEmptyTrash,
-  useNoteToc,
   useNoteVersions,
   usePurgeNote,
   useRestoreNote,
@@ -18,6 +17,7 @@ import {
 } from '@/hooks/useNotes';
 import { useUIStore } from '@/stores/uiStore';
 import { routes } from '@/utils/routes';
+import { tocHeadingLabel, type NoteTocItem } from './noteUtils';
 
 /** 版本历史抽屉:列举 → 选版对比(字符数) → 回退(回退本身再成快照)。 */
 export function VersionDrawer({ noteId, open, onClose }: { noteId: string; open: boolean; onClose: () => void }) {
@@ -175,31 +175,33 @@ export function TrashPanel({ open, onClose, onOpenNote }: { open: boolean; onClo
   );
 }
 
-/** TOC 大纲:后端 get_note_toc(跳过代码围栏);点击滚动到对应标题锚点。 */
-export function TocPanel({ noteId }: { noteId: string }) {
-  const { data } = useNoteToc(noteId);
-  const toc = data?.toc ?? [];
-  if (toc.length === 0) return null;
+/** 工作区目录:大纲来自当前正文(未保存也更新);点击由页面决定跳编辑行或预览锚点。 */
+export function TocPanel({
+  items,
+  onJump,
+}: {
+  items: NoteTocItem[];
+  onJump: (item: NoteTocItem, headingId: string) => void;
+}) {
+  if (items.length === 0) return null;
   const slugs = new GithubSlugger();
   return (
-    <nav className="toc-panel" aria-label="目录">
-      <h4 className="small muted">大纲</h4>
+    <nav className="toc-panel notes-toc-rail" aria-label="目录" data-testid="notes-toc">
+      <h4 className="small muted">目录</h4>
       <ul>
-        {toc.map((h, i) => {
-          const id = slugs.slug(h.text);
+        {items.map((h, i) => {
+          const label = tocHeadingLabel(h.text);
+          const id = slugs.slug(label);
           return (
-            <li key={`${i}-${h.text}`} style={{ paddingLeft: (h.level - 1) * 12 }}>
-              <a
-                href={`#${id}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  document
-                    .getElementById(id)
-                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }}
+            <li key={`${h.line}-${i}`} style={{ paddingLeft: Math.max(0, h.level - 1) * 10 }}>
+              <button
+                type="button"
+                data-testid="notes-toc-item"
+                title={label}
+                onClick={() => onJump(h, id)}
               >
-                {h.text}
-              </a>
+                {label}
+              </button>
             </li>
           );
         })}

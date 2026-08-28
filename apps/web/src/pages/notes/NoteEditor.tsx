@@ -14,7 +14,7 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { useNoteStore } from '@/stores/noteStore';
 import { useUIStore } from '@/stores/uiStore';
-import { applyNoteHighlight, expandHighlightRange, NOTE_HL_LABEL, NOTE_HL_TONES, type NoteHlAction } from './noteMarks';
+import { applyNoteHighlightInDoc, diffReplace, NOTE_HL_LABEL, NOTE_HL_TONES, type NoteHlAction } from './noteMarks';
 import { applyLinePrefix } from './noteUtils';
 
 export interface NoteEditorHandle {
@@ -67,13 +67,12 @@ function wrapHighlightSelection(view: EditorView | null, action: NoteHlAction) {
   const { from, to } = view.state.selection.main;
   if (from === to) return;
   const doc = view.state.doc.toString();
-  const range = expandHighlightRange(doc, from, to);
-  const selected = doc.slice(range.from, range.to);
-  const next = applyNoteHighlight(selected, action);
-  if (next === selected) return;
+  const next = applyNoteHighlightInDoc(doc, from, to, action);
+  if (next === doc) return;
+  const patch = diffReplace(doc, next);
   view.dispatch({
-    changes: { from: range.from, to: range.to, insert: next },
-    selection: { anchor: range.from, head: range.from + next.length },
+    changes: { from: patch.from, to: patch.to, insert: patch.insert },
+    selection: { anchor: patch.from, head: patch.from + patch.insert.length },
   });
   view.focus();
 }

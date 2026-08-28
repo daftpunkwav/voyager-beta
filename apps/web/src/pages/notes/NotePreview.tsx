@@ -1,12 +1,12 @@
 /** 笔记预览:整篇一次 Markdown 渲染(长文切视图/改字号不反复建解析器)。
- *  拖选词句交给讲解人格;纯预览可整篇切换源码。 */
+ *  拖选词句交给侦察人格快速解读;纯预览可整篇切换源码。 */
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MarkdownRenderer } from '@/components/common/MarkdownRenderer';
 import { personaDisplayName } from '@/constants/personas';
-import { BacklinkPanel, TocPanel } from './NoteFeatures';
-import { NOTE_PREVIEW_REMARK } from './noteMarks';
+import { BacklinkPanel } from './NoteFeatures';
+import { flattenMultilineMarks, NOTE_PREVIEW_REMARK } from './noteMarks';
 import { explainNotesQuote } from './notesView';
 import { parseNotesQuote } from './noteUtils';
 
@@ -26,7 +26,7 @@ interface ExplainChip {
   below: boolean;
 }
 
-const EXPLAINER_NAME = personaDisplayName('explainer');
+const RECON_NAME = personaDisplayName('recon');
 
 function selectionInside(root: HTMLElement): Range | null {
   const sel = window.getSelection();
@@ -134,7 +134,7 @@ export const NotePreview = memo(function NotePreview({
       {title ? <h1 className="preview-h1">{title}</h1> : null}
       {hasBody ? (
         <p className="notes-explain-hint">
-          拖选词语或句子，点「{EXPLAINER_NAME} 讲解」；已选中时可右键。
+          拖选词语或句子，点「{RECON_NAME} 讲解」；已选中时可右键。
           {inspectable ? (
             <>
               {' '}
@@ -154,14 +154,9 @@ export const NotePreview = memo(function NotePreview({
       ) : showSource ? (
         <pre className="preview-block-source" aria-label="Markdown 源码">{content}</pre>
       ) : (
-        <MarkdownRenderer content={content} remarkPlugins={NOTE_PREVIEW_REMARK} />
+        <MarkdownRenderer content={flattenMultilineMarks(content)} remarkPlugins={NOTE_PREVIEW_REMARK} />
       )}
-      {noteId ? (
-        <>
-          <TocPanel noteId={noteId} />
-          <BacklinkPanel noteId={noteId} />
-        </>
-      ) : null}
+      {noteId ? <BacklinkPanel noteId={noteId} /> : null}
       {chip
         ? createPortal(
             <div
@@ -175,7 +170,7 @@ export const NotePreview = memo(function NotePreview({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => runExplain(chip.quote)}
               >
-                {EXPLAINER_NAME} 讲解
+                {RECON_NAME} 讲解
               </button>
             </div>,
             document.body,

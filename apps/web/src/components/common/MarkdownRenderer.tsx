@@ -125,6 +125,18 @@ function CodeCopyButton({ text }: { text: string }) {
   );
 }
 
+/** 代码围栏里误写入的 ==tone:…==:仅用于 ASCII 架构图识别,不改源码。 */
+function recoverTonedMarkup(text: string): string {
+  let s = text;
+  for (let n = 0; n < 16; n += 1) {
+    const next = s.replace(/==(warm|cool|rose|lime):((?:(?!==).)+)==/g, '$2');
+    if (next === s) break;
+    s = next;
+  }
+  s = s.replace(/==(warm|cool|rose|lime):/g, '');
+  return s.replace(/(^|[^=])==(?!=)/gm, '$1');
+}
+
 function ArchStack({
   layers,
 }: {
@@ -172,7 +184,7 @@ function MarkdownRendererInner({
           [rehypeSanitize, sanitizeSchema],
         ]}
         components={{
-          mark: ({ className: markCls, children, ...props }) => (
+          mark: ({ className: markCls, children, node: _node, ...props }) => (
             <mark {...props} className={markClassName(markCls)}>{children}</mark>
           ),
           h1: ({ children, ...props }) => {
@@ -284,11 +296,17 @@ function MarkdownRendererInner({
                 </div>
               );
             }
-            const layers = tryParseAsciiArchLayers(text);
+            const layers = tryParseAsciiArchLayers(text)
+              ?? (/(==(warm|cool|rose|lime):)/.test(text)
+                ? tryParseAsciiArchLayers(recoverTonedMarkup(text))
+                : null);
             if (layers) return <ArchStack layers={layers} />;
             const lang = extractCodeLang(children);
             if (looksLikeMermaid(lang, text)) {
-              return <MermaidBlock code={text} />;
+              const code = /==(warm|cool|rose|lime):/.test(text)
+                ? recoverTonedMarkup(text)
+                : text;
+              return <MermaidBlock code={code} />;
             }
             return (
               <div className="md-codeblock">

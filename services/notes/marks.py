@@ -2,77 +2,436 @@
 
 用户工具栏与 mark_note_span 共用同一语法;本模块零依赖 capabilities,
 便于单测与后续扩展色板。
+
+跨段(含空行)按行包裹,标题/列表前缀留在标记外。
+围栏与行内代码内不着色(代码块/ASCII 架构图/字面 == 当字面量)。
+ASCII 框线与表格行整行不包。套住已有底纹时先拆平再包,禁止嵌套 ==。
 """
 
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 TONES = ("warm", "cool", "rose", "lime")
 CLEAR = "clear"
 QUOTE_MAX = 500
 
-_TOKEN_RE = re.compile(r"^==(warm|cool|rose|lime):(.*)==\Z", re.DOTALL)
-_BARE_RE = re.compile(r"^==(.*)==\Z", re.DOTALL)
+_FENCE_LINE = re.compile(r"^( {0,3})(`{3,}|~{3,})(.*)$")
+_BLOCK_PREFIX = re.compile(
+    r"^(?:#{1,6}[ \t]+|(?:>[ \t]*)+"
+    r"|\s*[-*+][ \t]+\[[ xX]\][ \t]+"
+    r"|\s*[-*+][ \t]+"
+    r"|\s*\d+[.)][ \t]+)"
+)
 
 
 class MarkError(ValueError):
     """底纹参数非法,或正文中找不到对应片段。"""
 
 
+@dataclass(frozen=True)
+class MarkSpan:
+    start: int
+    inner_start: int
+    inner_end: int
+    end: int
+    tone: str
+
+
+@dataclass
+class TextSpan:
+    start: int
+    end: int
+    kind: str  # text | fence
+    tone: str | None
+
+
 def parse_mark(text: str) -> tuple[str, str] | None:
-    """完整标记 → (tone, inner);无法识别则 None。"""
+    """完整标记 → (tone, inner);无法识别则 None。inner 含 == 视为未闭合整段。"""
     if not text:
         return None
-    matched = _TOKEN_RE.fullmatch(text)
-    if matched:
-        return matched.group(1), matched.group(2)
-    matched = _BARE_RE.fullmatch(text)
-    if not matched:
-        return None
-    inner = matched.group(1)
-    for tone in TONES:
-        prefix = f"{tone}:"
-        if inner.startswith(prefix):
-            return tone, inner[len(prefix):]
-    return "warm", inner
-
-
-def wrap_mark(inner: str, tone: str) -> str:
-    return f"=={tone}:{inner}=="
-
-
-def _in_fence(content: str, idx: int) -> bool:
-    return content[:idx].count("```") % 2 == 1
-
-
-def _find_needle(content: str, needle: str) -> int:
-    start = 0
-    while True:
-        idx = content.find(needle, start)
-        if idx < 0:
-            return -1
-        if not _in_fence(content, idx):
-            return idx
-        start = idx + 1
-
-
-def existing_span(content: str, inner_at: int, inner_len: int) -> tuple[int, int, str] | None:
-    """inner 已包在 ==tone:…== 或 ==…== 里时返回 (start, end, tone)。"""
-    after = inner_at + inner_len
-    if content[after:after + 2] != "==":
-        return None
-    for tone in TONES:
-        prefix = f"=={tone}:"
-        if inner_at >= len(prefix) and content[inner_at - len(prefix):inner_at] == prefix:
-            return inner_at - len(prefix), after + 2, tone
-    if inner_at >= 2 and content[inner_at - 2:inner_at] == "==":
-        return inner_at - 2, after + 2, "warm"
+    if text.startswith("==") and text.endswith("==") and len(text) >= 4:
+        body = text[2:-2]
+        if "==" in body:
+            return None
+        for tone in TONES:
+            prefix = f"{tone}:"
+            if body.startswith(prefix):
+                return tone, body[len(prefix):]
+        return "warm", body
     return None
 
 
+def split_prefix(line: str) -> tuple[str, str]:
+    if _parse_fence(line):
+        return line, ""
+    matched = _BLOCK_PREFIX.match(line)
+    if not matched:
+        return "", line
+    return matched.group(0), line[matched.end():]
+
+
+def _parse_fence(line: str) -> tuple[str, int, str] | None:
+    matched = _FENCE_LINE.match(line)
+    if not matched:
+        return None
+    ticks, rest = matched.group(2), matched.group(3)
+    return ticks[0], len(ticks), rest
+
+
+def _flatten_toned(text: str) -> str:
+    s = text
+    for _ in range(32):
+        marks = scan_marks(s, toned_only=True)
+        if not marks:
+            break
+        for m in reversed(marks):
+            s = s[:m.start] + s[m.inner_start:m.inner_end] + s[m.end:]
+    s = re.sub(r"==(warm|cool|rose|lime):", "", s)
+    return re.sub(r"(^|[^=])==(?!=)", r"\1", s)
+
+
+def _structural_line(line: str) -> bool:
+    t = line.strip()
+    if not t:
+        return False
+    if re.match(r"^[+┌├└┬┴][-─=━]{2,}", t):
+        return True
+    if re.match(r"^[+=\-─━]{4,}$", t):
+        return True
+    if t.startswith("|") or t.startswith("│"):
+        return True
+    return False
+
+
+def wrap_line(line: str, tone: str) -> str:
+    if _parse_fence(line) or _structural_line(line):
+        return line
+    prefix, rest = split_prefix(line)
+    if _structural_line(rest):
+        return line
+    body = _flatten_toned(rest)
+    if not body.strip():
+        return prefix + body
+    parsed = parse_mark(body)
+    if parsed and parsed[0] == tone:
+        return prefix + body if prefix else line
+    inner = parsed[1] if parsed else body
+    if not inner or "==" in inner:
+        return prefix + body
+    return prefix + _token(inner, tone)
+
+
+def _token(inner: str, tone: str) -> str:
+    return f"=={tone}:{inner}=="
+
+
+def wrap_mark(inner: str, tone: str) -> str:
+    """inner 可含换行:按行着色,避免跨段 == 被 Markdown 拆丢。"""
+    return "\n".join(wrap_line(line, tone) for line in inner.split("\n"))
+
+
+def fence_ranges(content: str) -> list[tuple[int, int]]:
+    ranges: list[tuple[int, int]] = []
+    n = len(content)
+    pos = 0
+    in_fence = False
+    start = 0
+    marker = ""
+    min_len = 0
+    while pos <= n:
+        nl = content.find("\n", pos)
+        line_end = n if nl < 0 else nl
+        parsed = _parse_fence(content[pos:line_end])
+        if parsed:
+            ch, length, rest = parsed
+            if not in_fence:
+                in_fence, marker, min_len, start = True, ch, length, pos
+            elif ch == marker and length >= min_len and rest.strip() == "":
+                ranges.append((start, line_end))
+                in_fence = False
+        if nl < 0:
+            break
+        pos = nl + 1
+    if in_fence:
+        ranges.append((start, n))
+    return ranges
+
+
+def scan_marks(text: str, toned_only: bool = False) -> list[MarkSpan]:
+    out: list[MarkSpan] = []
+    i = 0
+    n = len(text)
+    while i < n - 1:
+        if text[i:i + 2] != "==":
+            i += 1
+            continue
+        tone = "warm"
+        inner_start = i + 2
+        toned = False
+        for t in TONES:
+            prefix = f"{t}:"
+            if text.startswith(prefix, i + 2):
+                tone = t
+                inner_start = i + 2 + len(prefix)
+                toned = True
+                break
+        if toned_only and not toned:
+            i += 1
+            continue
+        close = text.find("==", inner_start)
+        if close < 0:
+            i += 1
+            continue
+        if close == inner_start:
+            i = close
+            continue
+        out.append(MarkSpan(i, inner_start, close, close + 2, tone))
+        i = close + 2
+    return out
+
+
+def _in_ranges(ranges: list[tuple[int, int]], idx: int) -> bool:
+    return any(a <= idx < b for a, b in ranges)
+
+
+def _inline_code_ranges(content: str, fences: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    ranges: list[tuple[int, int]] = []
+    n = len(content)
+    i = 0
+    while i < n:
+        if _in_ranges(fences, i) or content[i] != "`":
+            i += 1
+            continue
+        run = 1
+        while i + run < n and content[i + run] == "`":
+            run += 1
+        j = i + run
+        found = False
+        while j < n:
+            if _in_ranges(fences, j):
+                break
+            if content[j] == "`":
+                m = 1
+                while j + m < n and content[j + m] == "`":
+                    m += 1
+                if m == run:
+                    ranges.append((i, j + m))
+                    i = j + m
+                    found = True
+                    break
+                j += m
+                continue
+            j += 1
+        if not found:
+            i += run
+    return ranges
+
+
+def protected_ranges(content: str) -> list[tuple[int, int]]:
+    fences = fence_ranges(content)
+    return sorted(fences + _inline_code_ranges(content, fences))
+
+
+def find_marks(content: str) -> list[MarkSpan]:
+    fences = protected_ranges(content)
+    if not fences:
+        return scan_marks(content, toned_only=True)
+    out: list[MarkSpan] = []
+    pos = 0
+    for start, end in fences:
+        if start > pos:
+            for m in scan_marks(content[pos:start], toned_only=True):
+                out.append(MarkSpan(
+                    m.start + pos, m.inner_start + pos,
+                    m.inner_end + pos, m.end + pos, m.tone))
+        pos = end
+    if pos < len(content):
+        for m in scan_marks(content[pos:], toned_only=True):
+            out.append(MarkSpan(
+                m.start + pos, m.inner_start + pos,
+                m.inner_end + pos, m.end + pos, m.tone))
+    return out
+
+
+def _in_fence(content: str, idx: int) -> bool:
+    return _in_ranges(protected_ranges(content), idx)
+
+
+def build_spans(doc: str) -> list[TextSpan]:
+    fences = fence_ranges(doc)
+    marks = find_marks(doc)
+    spans: list[TextSpan] = []
+    n = len(doc)
+    pos = 0
+    fi = 0
+    mi = 0
+    while pos < n:
+        fence = fences[fi] if fi < len(fences) and fences[fi][0] == pos else None
+        if fence:
+            spans.append(TextSpan(fence[0], fence[1], "fence", None))
+            pos = fence[1]
+            fi += 1
+            continue
+        mark = marks[mi] if mi < len(marks) and marks[mi].start == pos else None
+        if mark:
+            spans.append(TextSpan(mark.inner_start, mark.inner_end, "text", mark.tone))
+            pos = mark.end
+            mi += 1
+            continue
+        nxt = n
+        if fi < len(fences):
+            nxt = min(nxt, fences[fi][0])
+        if mi < len(marks):
+            nxt = min(nxt, marks[mi].start)
+        spans.append(TextSpan(pos, nxt, "text", None))
+        pos = nxt
+    return [s for s in spans if s.end > s.start]
+
+
+def _split_spans(spans: list[TextSpan], points: list[int]) -> list[TextSpan]:
+    cuts = sorted(set(points))
+    out: list[TextSpan] = []
+    for s in spans:
+        if s.kind == "fence":
+            out.append(s)
+            continue
+        inner = [p for p in cuts if s.start < p < s.end]
+        a = s.start
+        for p in inner:
+            out.append(TextSpan(a, p, "text", s.tone))
+            a = p
+        out.append(TextSpan(a, s.end, "text", s.tone))
+    return [s for s in out if s.end > s.start]
+
+
+def _has_wrappable(doc: str, s: TextSpan) -> bool:
+    if s.kind != "text" or s.end <= s.start:
+        return False
+    for line in doc[s.start:s.end].split("\n"):
+        _, rest = split_prefix(line)
+        if rest.strip() and "==" not in rest:
+            return True
+    return False
+
+
+def _strip_all_marks(text: str) -> str:
+    s = text
+    for _ in range(32):
+        marks = scan_marks(s, toned_only=True)
+        if not marks:
+            break
+        for m in reversed(marks):
+            s = s[:m.start] + s[m.inner_start:m.inner_end] + s[m.end:]
+    return re.sub(r"==(warm|cool|rose|lime):", "", s)
+
+
+def _emit_spans(
+    doc: str,
+    spans: list[TextSpan],
+    clear_range: tuple[int, int] | None = None,
+) -> str:
+    parts: list[str] = []
+    i = 0
+    n = len(spans)
+    while i < n:
+        s = spans[i]
+        if s.kind == "fence":
+            raw = doc[s.start:s.end]
+            if clear_range and s.end > clear_range[0] and s.start < clear_range[1]:
+                parts.append(_strip_all_marks(raw))
+            else:
+                parts.append(raw)
+            i += 1
+            continue
+        chunks = [s]
+        i += 1
+        while i < n and spans[i].kind == "text" and spans[i].tone == s.tone:
+            chunks.append(spans[i])
+            i += 1
+        text = "".join(doc[c.start:c.end] for c in chunks)
+        if not s.tone:
+            if clear_range and any(c.end > clear_range[0] and c.start < clear_range[1] for c in chunks):
+                parts.append(_strip_all_marks(text))
+            else:
+                parts.append(text)
+        else:
+            parts.append("\n".join(wrap_line(line, s.tone) for line in text.split("\n")))
+    return "".join(parts)
+
+
+def apply_in_range(doc: str, start: int, end: int, action: str, *, toggle_same: bool = True) -> str:
+    """在 [start, end) 着色或清除。围栏不动;已有底纹先拆平。
+
+    toggle_same:用户工具栏同色再点去掉;agent mark_note_span 为 False(已是目标色则幂等)。
+    """
+    if start > end:
+        start, end = end, start
+    if start == end:
+        return doc
+    start = max(0, start)
+    end = min(len(doc), end)
+    inlines = _inline_code_ranges(doc, fence_ranges(doc))
+    if any(a <= start and end <= b for a, b in inlines):
+        return doc
+    marks = find_marks(doc)
+    containers = [m for m in marks if m.start <= start and end <= m.end]
+    if len(containers) == 1:
+        m = containers[0]
+        in_inner = m.inner_start <= start and end <= m.inner_end
+        proper = start > m.inner_start or end < m.inner_end
+        if in_inner and proper and action != CLEAR and action != m.tone:
+            left = doc[m.inner_start:start]
+            mid = doc[start:end]
+            right = doc[end:m.inner_end]
+            pieces = [
+                wrap_mark(left, m.tone) if left else "",
+                wrap_mark(mid, action),
+                wrap_mark(right, m.tone) if right else "",
+            ]
+            return doc[:m.start] + "".join(pieces) + doc[m.end:]
+        if action == CLEAR or (toggle_same and action == m.tone):
+            return doc[:m.start] + doc[m.inner_start:m.inner_end] + doc[m.end:]
+        if action == m.tone:
+            return doc
+        return doc[:m.start] + wrap_mark(doc[m.inner_start:m.inner_end], action) + doc[m.end:]
+
+    spans = _split_spans(build_spans(doc), [start, end])
+    inside = [s for s in spans if s.kind == "text" and s.start >= start and s.end <= end]
+    already = (
+        action != CLEAR
+        and any(_has_wrappable(doc, s) for s in inside)
+        and all((not _has_wrappable(doc, s)) or s.tone == action for s in inside)
+    )
+    for s in spans:
+        if s.kind == "fence":
+            continue
+        if s.start >= start and s.end <= end:
+            if action == CLEAR or (toggle_same and already):
+                s.tone = None
+            elif not already:
+                s.tone = action
+    return _emit_spans(doc, spans, (start, end) if action == CLEAR else None)
+
+
+def _visible_map(content: str) -> tuple[str, list[int]]:
+    """可见字符(去掉标记定界符,保留围栏原文) → 源下标。"""
+    delim: set[int] = set()
+    for m in find_marks(content):
+        delim.update(range(m.start, m.inner_start))
+        delim.update(range(m.inner_end, m.end))
+    chars: list[str] = []
+    idx: list[int] = []
+    for i, ch in enumerate(content):
+        if i not in delim:
+            chars.append(ch)
+            idx.append(i)
+    return "".join(chars), idx
+
+
 def apply_note_mark(content: str, quote: str, tone: str) -> str:
-    """给正文中围栏外首次出现的 quote 上色或去掉底纹。已是目标色则幂等。"""
+    """给正文中围栏/行内代码外首次出现的 quote 上色或去掉底纹。已是目标色则幂等。"""
     tone = (tone or "").strip()
     if tone not in TONES and tone != CLEAR:
         raise MarkError(f"tone 须为 {list(TONES)} 或 {CLEAR}")
@@ -84,24 +443,24 @@ def apply_note_mark(content: str, quote: str, tone: str) -> str:
 
     parsed = parse_mark(raw)
     needle = parsed[1] if parsed else raw
-    if not needle or "==" in needle:
+    if not needle or not needle.strip():
         raise MarkError("片段不能为空或含 ==")
 
-    idx = _find_needle(content, needle)
-    if idx < 0:
+    visible, src_of = _visible_map(content)
+    start_vis = 0
+    found_from = -1
+    found_to = -1
+    while True:
+        idx = visible.find(needle, start_vis)
+        if idx < 0:
+            break
+        src_from = src_of[idx]
+        src_to = src_of[idx + len(needle) - 1] + 1
+        if not _in_fence(content, src_from):
+            found_from, found_to = src_from, src_to
+            break
+        start_vis = idx + 1
+    if found_from < 0:
         raise MarkError("正文中找不到该片段")
 
-    span = existing_span(content, idx, len(needle))
-    if tone == CLEAR:
-        if span is None:
-            return content
-        start, end, _ = span
-        return content[:start] + needle + content[end:]
-
-    token = wrap_mark(needle, tone)
-    if span is None:
-        return content[:idx] + token + content[idx + len(needle):]
-    start, end, old = span
-    if old == tone:
-        return content
-    return content[:start] + token + content[end:]
+    return apply_in_range(content, found_from, found_to, tone, toggle_same=False)

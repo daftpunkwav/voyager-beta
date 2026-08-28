@@ -3,6 +3,7 @@ import {
   applyLinePrefix,
   applyNotesListing,
   buildNoteExplainMessage,
+  extractNoteToc,
   groupNotesByRecency,
   isPersistedNoteId,
   noteSnippet,
@@ -17,6 +18,7 @@ import {
   sortNotes,
   startOfLocalDayMs,
   syncScrollRatio,
+  tocHeadingLabel,
 } from '@/pages/notes/noteUtils';
 
 describe('parseNotesMode', () => {
@@ -182,10 +184,32 @@ describe('parseNotesQuote / buildNoteExplainMessage', () => {
     expect(parseNotesQuote('   ')).toBe('');
   });
 
-  it('讲解正文带标题与人名', () => {
-    const msg = buildNoteExplainMessage({ quote: 'ReAct', agentName: 'Elio', title: '架构' });
-    expect(msg).toContain('Elio');
+  it('解读正文带标题与人名', () => {
+    const msg = buildNoteExplainMessage({ quote: 'ReAct', agentName: 'Iris', title: '架构' });
+    expect(msg).toContain('Iris');
+    expect(msg).toContain('快速解读');
     expect(msg).toContain('《架构》');
     expect(msg).toContain('ReAct');
+  });
+});
+
+describe('extractNoteToc', () => {
+  it('抽 ATX 标题并跳过围栏内的 #', () => {
+    const toc = extractNoteToc('# 一级\n正文\n## 二级\n```py\n# 不是标题\n```\n### 三级');
+    expect(toc.map((t) => [t.level, t.text, t.line])).toEqual([
+      [1, '一级', 1],
+      [2, '二级', 3],
+      [3, '三级', 7],
+    ]);
+  });
+
+  it('~~~ 围栏与尾部井号也对齐后端', () => {
+    const toc = extractNoteToc('~~~md\n# 假\n~~~\n## 真标题 ##\n');
+    expect(toc).toEqual([{ level: 2, text: '真标题', line: 4 }]);
+  });
+
+  it('底纹标记不进目录展示字', () => {
+    expect(tocHeadingLabel('==warm:架构==')).toBe('架构');
+    expect(tocHeadingLabel('普通')).toBe('普通');
   });
 });

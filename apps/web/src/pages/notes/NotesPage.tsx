@@ -24,7 +24,7 @@ import { NotePreview } from './NotePreview';
 import { NotesWorkspaceBar } from './NotesWorkspaceBar';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
-import { TrashPanel, VersionDrawer } from './NoteFeatures';
+import { TocPanel, TrashPanel, VersionDrawer } from './NoteFeatures';
 import {
   bumpNotesFont,
   commitNotesDensity,
@@ -40,10 +40,12 @@ import {
   openNotesAssist,
 } from './notesView';
 import {
+  extractNoteToc,
   isPersistedNoteId,
   noteSourceId,
   parseSplitRatio,
   syncScrollRatio,
+  type NoteTocItem,
 } from './noteUtils';
 
 function noteQueryId(params: URLSearchParams): string | null {
@@ -95,6 +97,7 @@ export function NotesPage() {
   const [editMounted, setEditMounted] = useState(false);
   const [previewMounted, setPreviewMounted] = useState(false);
   const [previewBody, setPreviewBody] = useState('');
+  const [tocOpen, setTocOpen] = useState(true);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const noteSeqRef = useRef(0);
 
@@ -470,6 +473,16 @@ export function NotesPage() {
 
   const showEdit = mode === 'edit' || mode === 'split';
   const persisted = isPersistedNoteId(editingNoteId);
+  const tocItems = useMemo(() => extractNoteToc(editorContent), [editorContent]);
+
+  const jumpToc = useCallback((item: NoteTocItem, headingId: string) => {
+    if (mode !== 'preview') editorApi?.goToLine(item.line);
+    if (mode === 'edit') return;
+    const el = document.getElementById(headingId);
+    if (el && previewEl?.contains(el)) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [mode, editorApi, previewEl]);
 
   if (!isWorkspace && isLoading && notes.length === 0) return <LoadingSpinner fullScreen />;
 
@@ -562,6 +575,8 @@ export function NotesPage() {
         projectId={newProjectId}
         projectOptions={projectOptions}
         syncScroll={syncScroll}
+        hasToc={tocItems.length > 0}
+        tocOpen={tocOpen}
         onBack={() => void goIndex()}
         onNew={() => void handleNew()}
         onMode={commitNotesMode}
@@ -570,6 +585,7 @@ export function NotesPage() {
         onTogglePin={togglePinCurrent}
         onToggleArchive={() => void toggleArchiveCurrent()}
         onToggleSync={() => commitNotesSyncScroll(!syncScroll)}
+        onToggleToc={() => setTocOpen((v) => !v)}
         onAssist={openAssist}
         onVersions={() => setVersionsOpen(true)}
         onExport={() => {
@@ -591,11 +607,12 @@ export function NotesPage() {
         <div className="notes-format-bar" ref={setFormatBarHost} data-testid="notes-format-bar" />
       ) : null}
 
-      <div
-        ref={canvasRef}
-        className={`notes-workspace notes-canvas is-${mode}`}
-        style={mode === 'split' ? { ['--notes-edit-pct' as string]: `${Math.round(splitRatio * 1000) / 10}%` } : undefined}
-      >
+      <div className="notes-workspace">
+        <div
+          ref={canvasRef}
+          className={`notes-canvas is-${mode}`}
+          style={mode === 'split' ? { ['--notes-edit-pct' as string]: `${Math.round(splitRatio * 1000) / 10}%` } : undefined}
+        >
         {opening && !workspaceReady ? (
           <LoadingSpinner label="打开笔记…" />
         ) : (
@@ -634,6 +651,8 @@ export function NotesPage() {
             )}
           </>
         )}
+        </div>
+        {tocOpen && tocItems.length > 0 ? <TocPanel items={tocItems} onJump={jumpToc} /> : null}
       </div>
       {drawers}
     </div>

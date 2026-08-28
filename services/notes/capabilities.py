@@ -245,7 +245,7 @@ def get_notes_view() -> dict:
                         "sort=updated|created|title;filter=all|pinned|untitled|unlinked|today;"
                         "query 关键词;source_id 关联资源(空串=全部);"
                         "panel=none|trash;density=comfortable|compact;"
-                        "assist=true 打开笔记页悬浮对话;quote 把选区交给讲解人格(不落库);"
+                        "assist=true 打开笔记页悬浮对话;quote 把选区交给侦察人格快速解读(不落库);"
                         "note_id 打开一篇(含 new);index=true 回列表。",
             cost=1)
 async def set_notes_view(font_size: int | None = None,
@@ -591,9 +591,11 @@ async def edit_note_range(note_id: str, start: int, end: int, new_text: str) -> 
 
 
 @capability(registry, name="mark_note_span",
-            description="给正文中围栏外首次出现的片段加上或去掉底纹。"
+            description="给正文中围栏外首次出现的可见片段加上或去掉底纹。"
                         "tone=warm|cool|rose|lime 着色,clear 去掉。"
-                        "语法 ==tone:文本==(仍是 Markdown)。用户工具栏与本能力同权。",
+                        "语法 ==tone:文本==(仍是 Markdown)。代码围栏与行内代码内不着色;"
+                        "ASCII 框线/表格行整行不包。已有底纹被更大选区套住时先拆平再包,不嵌套。"
+                        "用户工具栏与本能力同权。",
             cost=2)
 async def mark_note_span(note_id: str, quote: str, tone: str = "warm") -> dict:
     deps = _require_deps()

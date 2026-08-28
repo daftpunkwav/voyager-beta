@@ -139,9 +139,9 @@ export function buildNoteExplainMessage(opts: {
   const title = (opts.title || '').trim().slice(0, 80);
   const where = title ? `《${title}》` : '这篇笔记';
   return (
-    `${who}，请结合当前笔记${where}讲解我标出的内容：\n\n` +
+    `${who}，请快速解读我在笔记${where}标出的内容：\n\n` +
     `「${quote}」\n\n` +
-    `说明它在这篇里是什么意思、为什么出现、和前后文的关系。不要重写整篇。`
+    `一两句话说明它是什么、在这篇里为什么出现。不要展开成课，不要重写整篇。`
   );
 }
 
@@ -326,4 +326,41 @@ export function groupNotesByRecency<T extends NoteListItem>(
   return (['today', 'yesterday', 'week', 'older'] as const)
     .filter((id) => buckets[id].length > 0)
     .map((id) => ({ id, label: labels[id], items: buckets[id] }));
+}
+
+export interface NoteTocItem {
+  level: number;
+  text: string;
+  line: number;
+}
+
+/** 提取 ATX 标题大纲,语义对齐后端 extract_toc:跳过围栏,行号 1 基。 */
+export function extractNoteToc(content: string): NoteTocItem[] {
+  const toc: NoteTocItem[] = [];
+  let inFence = false;
+  let fenceMarker = '';
+  const lines = content.replace(/\r\n/g, '\n').split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const stripped = lines[i].replace(/^\s+/, '');
+    const marker = stripped.slice(0, 3);
+    if (marker === '```' || marker === '~~~') {
+      if (!inFence) {
+        inFence = true;
+        fenceMarker = marker;
+      } else if (marker === fenceMarker) {
+        inFence = false;
+      }
+      continue;
+    }
+    if (inFence || !stripped.startsWith('#')) continue;
+    const m = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(stripped);
+    if (m) toc.push({ level: m[1].length, text: m[2].trim(), line: i + 1 });
+  }
+  return toc;
+}
+
+/** 目录展示与 slug 用可见标题,去掉底纹标记,对齐预览 nodeText。 */
+export function tocHeadingLabel(text: string): string {
+  const stripped = text.replace(/==(warm|cool|rose|lime):/g, '').replace(/==/g, '').trim();
+  return stripped || text;
 }

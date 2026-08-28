@@ -15,6 +15,8 @@ interface NotesWorkspaceBarProps {
   projectId: string;
   projectOptions: { value: string; label: string }[];
   syncScroll: boolean;
+  hasToc: boolean;
+  tocOpen: boolean;
   onBack: () => void;
   onNew: () => void;
   onMode: (mode: NotesMode) => void;
@@ -23,6 +25,7 @@ interface NotesWorkspaceBarProps {
   onTogglePin: () => void;
   onToggleArchive: () => void;
   onToggleSync: () => void;
+  onToggleToc: () => void;
   onAssist: () => void;
   onVersions: () => void;
   onExport: () => void;
@@ -40,6 +43,8 @@ export function NotesWorkspaceBar({
   projectId,
   projectOptions,
   syncScroll,
+  hasToc,
+  tocOpen,
   onBack,
   onNew,
   onMode,
@@ -48,6 +53,7 @@ export function NotesWorkspaceBar({
   onTogglePin,
   onToggleArchive,
   onToggleSync,
+  onToggleToc,
   onAssist,
   onVersions,
   onExport,
@@ -130,6 +136,17 @@ export function NotesWorkspaceBar({
           onClick={onToggleSync}
         >
           同步滚动
+        </button>
+      )}
+      {hasToc && (
+        <button
+          type="button"
+          className={`btn btn-sm notes-sync-btn${tocOpen ? ' is-on' : ''}`}
+          data-testid="notes-toc-toggle"
+          aria-pressed={tocOpen}
+          onClick={onToggleToc}
+        >
+          目录
         </button>
       )}
       <GlassSelect

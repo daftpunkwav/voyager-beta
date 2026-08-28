@@ -7,13 +7,13 @@
   link_note(关联资源与图谱节点)/ restore_note / purge_note(不可逆,连带清附件)/
   empty_trash / list_tags / rename_tag / get_backlinks / notes_stats /
   list_versions / read_version / restore_version(内容变更自动快照)/
-  get_note_toc(跳过代码围栏)/ resolve_links([[内链]] 解析)/
-  edit_note_range(字符偏移原子编辑)/ mark_note_span(选区底纹 ==tone:text==)/
+  get_note_toc(跳过代码围栏;工作区三视图共用右侧目录,点标题跳编辑行/预览锚点)/ resolve_links([[内链]] 解析)/
+  edit_note_range(字符偏移原子编辑)/ mark_note_span(选区底纹 ==tone:text==;围栏与行内代码内不着色;套住已有底纹先拆平)/
   import_note(front-matter 导入)/
   export_note(front-matter 导出)/ add_asset(图片附件,attachment:// 引用,
   workspace/ 内 file_path、扩展白名单、notes.assets.max_mb 上限)/
   get_notes_view / set_notes_view(笔记页界面:字号/视图/布局/筛选/排序/回收站面板;
-  assist 打开悬浮对话;quote 把选区交给讲解人格,均不落库。用户按钮与 agent 同权)`
+  assist 打开悬浮对话;quote 把选区交给侦察人格快速解读,均不落库。用户按钮与 agent 同权)`
 - **事件**:发布 `note.created / note.edited / note.deleted / note.restored /
   note.purged / notes.ui.changed`
 - **设置项**:`notes.sort.default / notes.list.page_size / notes.editor.autosave_s /
