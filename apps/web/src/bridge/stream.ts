@@ -19,7 +19,7 @@ const handlers = new Set<{ patterns: string[]; fn: Handler }>();
 function connect(): void {
   // after_seq = lastSeq:重连后由日志补齐断线期间的事件,不丢消息(§7.2)
   const url = lastSeq > 0 ? `/api/chat/stream?after_seq=${lastSeq}` : '/api/chat/stream';
-  const es = new EventSource(url);
+  const es = new EventSource(url, { withCredentials: true });
   source = es;
   es.onmessage = (msg) => {
     try {
@@ -82,7 +82,9 @@ export function subscribe(patterns: string[], fn: Handler): () => void {
 
 /** 一次性追平 afterSeq 之后的存量事件(不保持长连)。 */
 export async function replay(afterSeq: number, onEvent: Handler): Promise<void> {
-  const resp = await fetch(`/api/chat/stream?after_seq=${afterSeq}&once=true`);
+  const resp = await fetch(`/api/chat/stream?after_seq=${afterSeq}&once=true`, {
+    credentials: 'include',
+  });
   const text = await resp.text();
   for (const frame of text.split('\n\n')) {
     const data = frame.split('\n').find((l) => l.startsWith('data: '));

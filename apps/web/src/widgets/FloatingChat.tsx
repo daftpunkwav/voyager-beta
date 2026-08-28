@@ -82,6 +82,7 @@ export function FloatingChat() {
       // 后,改为 callCapability('chat', 'send_message', { content }) 形式。
       const resp = await fetch('/api/chat/messages', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content }),
       });

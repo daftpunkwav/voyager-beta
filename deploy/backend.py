@@ -14,7 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from fastapi import FastAPI
-from platform_capability import SqliteAuditSink, Wiring, execute
+from platform_actor import LocalTokenIssuer
+from platform_capability import CostQuota, SqliteAuditSink, Wiring, execute
 from platform_eventbus import EventBus, EventLog
 from platform_secrets import SecretStore
 from platform_settings import SettingsStore
@@ -75,6 +76,9 @@ def build(
     secrets = SecretStore(data_root / "secrets.db")
     settings_store = SettingsStore(data_root / "settings.db", bus)
     audit = [SqliteAuditSink(data_root / "audit.db")]
+    issuer = LocalTokenIssuer(data_root / "machine.token")
+    # 本机工作台配额取宽松日预算:拦住失控循环,不挡正常对话/索引
+    quota = [CostQuota(default_daily_budget=50_000)]
     # gateway 自身设置项由部署入口注册(其模块注释约定,无 wiring 装配)
     settings_store.register_fresh(GATEWAY_SETTING_DEFS)
 
@@ -103,7 +107,8 @@ def build(
                             settings_store=settings_store, workspace=workspace),
         "graph": wire_graph(data_root / "graph", bus=bus,
                             settings_store=settings_store,
-                            resource_provider=_graph_resource_provider),
+                            resource_provider=_graph_resource_provider,
+                            workspace=workspace),
     }
     # sources 自带文档文件只读路由(wire→init_all 已填充其 STORES)
     # notes 自带附件只读路由(/api/notes/assets/{id};wire 后可用)
@@ -120,13 +125,13 @@ def build(
     # agent runtime:LLM 走 llm 服务能力,领域能力经桥注入,设置/事件与全系统共享
     async def _call(domain: str, name: str, args: dict) -> dict:
         return await execute(wirings[domain].registry, name, agent_context(), args,
-                             audit=audit)
+                             audit=audit, quota=quota)
 
     agent = build_agent(
         data_dir=data_root / "agent", workspace_dir=workspace,
         llm=llm if llm is not None else ServiceLLM(_call),
         bus=bus, settings_store=settings_store,
-        extra_tools=make_domain_tools(mounts, audit=audit),
+        extra_tools=make_domain_tools(mounts, audit=audit, quota=quota),
     )
     mounts.append(MountSpec(domain="agent", registry=agent.registry,
                             probe=lambda: {"status": "up"}))
@@ -157,8 +162,8 @@ def build(
                 sink.close()
             log.close()
 
-    app = gateway_create(mounts, bus=bus, lifespan=lifespan, audit=audit,
-                         extra_routers=extra_routers)
+    app = gateway_create(mounts, bus=bus, lifespan=lifespan, issuer=issuer,
+                         quota=quota, audit=audit, extra_routers=extra_routers)
     app.state.backend = Backend(
         app=app, agent=agent, wirings=wirings, bus=bus, log=log,
         secrets=secrets, settings_store=settings_store,

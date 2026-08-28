@@ -11,8 +11,8 @@ import dataclasses
 from collections.abc import Callable
 from typing import Any
 
-from platform_actor import ActorContext, LocalTokenIssuer
-from platform_contracts import LOCAL_USER, JobRef, ServiceError
+from platform_actor import ActorContext, LocalTokenIssuer, resolve_http_actor
+from platform_contracts import JobRef, ServiceError
 
 from platform_capability.guards import AuditSink, CallRequest, execute
 from platform_capability.registry import Registry
@@ -90,8 +90,8 @@ def build_router(
 
 
 def _resolve_context(request, issuer: LocalTokenIssuer | None) -> ActorContext:
-    """Bearer 令牌 + issuer → 对应 actor;否则按本地单用户(§7.4)。"""
-    header = request.headers.get("authorization", "")
-    if issuer is not None and header.startswith("Bearer "):
-        return ActorContext(actor=issuer.verify(header.removeprefix("Bearer ").strip()))
-    return ActorContext(actor=LOCAL_USER)
+    """优先用 gateway 中间件写入的 actor;独立挂载时自行解析 Bearer/Cookie/环回。"""
+    actor = getattr(getattr(request, "state", None), "actor", None)
+    if actor is not None:
+        return ActorContext(actor=actor)
+    return ActorContext(actor=resolve_http_actor(request, issuer))

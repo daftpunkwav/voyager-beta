@@ -6,6 +6,7 @@ import { App } from '@/App';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { useThemeBridge } from '@/shell/themeBridge';
 import { initActivityReport } from '@/bridge/activity';
+import { ensureSession } from '@/bridge/session';
 
 // —— 全局样式(液态玻璃设计系统 + shell + 全局 + 各 page 私有) ——
 import '@/styles/design-system.css';
@@ -78,4 +79,7 @@ const rootEl = document.getElementById('root');
 if (!rootEl) {
   throw new Error('Root element #root not found');
 }
-createRoot(rootEl).render(<Root />);
+
+void ensureSession().finally(() => {
+  createRoot(rootEl).render(<Root />);
+});

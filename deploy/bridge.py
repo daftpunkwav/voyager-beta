@@ -29,13 +29,17 @@ def agent_context() -> ActorContext:
     return ActorContext(actor=AGENT_ACTOR)
 
 
-def make_domain_tools(mounts: list, *, audit: list | None = None) -> dict[str, AgentTool]:
+def make_domain_tools(
+    mounts: list, *, audit: list | None = None, quota: list | None = None,
+) -> dict[str, AgentTool]:
     """挂载清单 → agent 工具集。handler 闭包绑定当次注册表与能力(默认参数)。"""
     tools: dict[str, AgentTool] = {}
     for m in mounts:
         for cap in m.registry.all():
             async def handler(_reg=m.registry, _cap=cap, **kw: Any):
-                return await execute(_reg, _cap.name, agent_context(), kw, audit=audit)
+                return await execute(
+                    _reg, _cap.name, agent_context(), kw, audit=audit, quota=quota,
+                )
 
             tools[f"{m.domain}__{cap.name}"] = AgentTool(
                 name=f"{m.domain}__{cap.name}",

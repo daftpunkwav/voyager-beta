@@ -16,6 +16,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from platform_actor import is_public_path, resolve_http_actor
 from platform_contracts import (
     LOCAL_USER,
     HealthReport,
@@ -29,6 +30,7 @@ from .chat import build_chat_router
 from .health import HealthProbe
 from .mounts import MountSpec, mount_services
 from .ratelimit import RateLimiter
+from .session import build_session_router
 
 _DEFAULT_DB = Path(__file__).parent / "data" / "events.db"
 
@@ -61,27 +63,36 @@ def create_app(
 
     app = FastAPI(title="gateway", lifespan=lifespan)
 
+    @app.middleware("http")
+    async def _security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "frame-ancestors 'none'; default-src 'self'",
+        )
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        return response
+
     @app.exception_handler(ServiceError)
     async def _service_error(_req: Request, exc: ServiceError) -> JSONResponse:
         return JSONResponse(status_code=exc.http_status, content=exc.to_envelope())
 
     @app.middleware("http")
     async def _actor_middleware(request: Request, call_next):
-        # 身份解析与 gen_rest._resolve_context 同语义(§7.4):携带本机令牌且配置了
-        # issuer → verify 出对应 actor(失败 401,不静默降权);无令牌按本地单用户
-        header = request.headers.get("authorization", "")
-        if issuer is not None and header.startswith("Bearer "):
-            try:
-                actor = issuer.verify(header.removeprefix("Bearer ").strip())
-            except ServiceError as exc:
-                return JSONResponse(status_code=401, content=exc.to_envelope())
-            request.state.actor = actor
-        else:
+        # 身份解析(§7.4):合法 Bearer/Cookie → 对应 actor(失败 401,不静默降权);
+        # 无令牌仅环回按本地单用户;非环回无令牌 401。探活与 bootstrap 放行。
+        if is_public_path(request.url.path):
             request.state.actor = LOCAL_USER
+            return await call_next(request)
+        try:
+            request.state.actor = resolve_http_actor(request, issuer)
+        except ServiceError as exc:
+            return JSONResponse(status_code=exc.http_status, content=exc.to_envelope())
         return await call_next(request)
 
     mount_services(app, mounts or [], probe,
                    issuer=issuer, auth=auth, quota=quota, audit=audit)
+    app.include_router(build_session_router(issuer))
     # 部署入口注入的横切路由(如文件上传端点;gateway 本身零业务逻辑)
     for router in extra_routers or []:
         app.include_router(router)

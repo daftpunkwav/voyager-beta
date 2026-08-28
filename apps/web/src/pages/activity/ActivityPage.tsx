@@ -41,7 +41,7 @@ export function ActivityPage() {
       try {
         const url = new URL('/api/activity/feed', window.location.origin);
         if (kind) url.searchParams.set('kind', kind);
-        const resp = await fetch(url.toString());
+        const resp = await fetch(url.toString(), { credentials: 'include' });
         if (!resp.ok) {
           // 优先透出后端 JSON 信封里的 message;无信封(如代理在后端未启动时的 500)给网络提示
           const body = (await resp.json().catch(() => null)) as { error?: { message?: string } } | null;

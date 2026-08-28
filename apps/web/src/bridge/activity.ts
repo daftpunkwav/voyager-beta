@@ -70,6 +70,7 @@ async function reportActivity(body: {
   try {
     await fetch('/api/activity', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });

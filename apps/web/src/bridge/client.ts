@@ -22,6 +22,7 @@ export async function callCapability<T = unknown>(
   try {
     resp = await fetch(`/api/${domain}/capabilities/${name}`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         'X-Trace-Id': crypto.randomUUID(),
@@ -62,6 +63,7 @@ export async function uploadFile(
   try {
     resp = await fetch('/api/uploads', {
       method: 'POST',
+      credentials: 'include',
       body: form,
       headers: { 'X-Trace-Id': crypto.randomUUID() },
     });

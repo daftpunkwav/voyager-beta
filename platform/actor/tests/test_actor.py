@@ -1,8 +1,8 @@
-"""actor 设施测试:令牌签发/校验/防篡改/过期;上下文收窄不提权。"""
+"""actor 设施测试:令牌签发/校验/防篡改/过期;上下文收窄不提权;HTTP 环回判定。"""
 
 
 import pytest
-from platform_actor import ActorContext, LocalTokenIssuer
+from platform_actor import ActorContext, LocalTokenIssuer, is_loopback
 from platform_contracts import ActorKind, ActorRef, ServiceError
 
 AGENT = ActorRef(kind=ActorKind.AGENT, id="agent.main", scopes=("graph.read", "notes.write"))
@@ -62,3 +62,19 @@ class TestContext:
         ctx = ActorContext(actor=AGENT)
         assert ctx.has_scope("graph.read")
         assert not ctx.has_scope("llm.admin")
+
+
+class _Req:
+    def __init__(self, host: str) -> None:
+        self.client = type("C", (), {"host": host})()
+
+
+class TestLoopback:
+    def test_ipv4_mapped_and_names(self) -> None:
+        assert is_loopback(_Req("127.0.0.1"))
+        assert is_loopback(_Req("::1"))
+        assert is_loopback(_Req("::ffff:127.0.0.1"))
+        assert is_loopback(_Req("localhost"))
+        assert is_loopback(_Req("testclient"))
+        assert not is_loopback(_Req("10.0.0.8"))
+        assert not is_loopback(_Req("::ffff:10.0.0.8"))
