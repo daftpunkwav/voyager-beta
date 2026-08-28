@@ -11,6 +11,7 @@ import { LlmSettingsSection } from '@/components/settings/LlmSettingsSection';
 import { AgentSettingsSection } from '@/components/settings/AgentSettingsSection';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { PRODUCT_NAME } from '@/brand';
 
 type Section = 'appearance' | 'github' | 'llm' | 'agent' | 'data' | 'about';
 
@@ -283,7 +284,7 @@ export function SettingsPage() {
 
         {section === 'about' && (
           <section className="settings-section glass-card glass-card--overview-outer">
-            <h2>关于 Voyager</h2>
+            <h2>关于 {PRODUCT_NAME}</h2>
             <div className="about-row">
               <span className="k">版本</span>
               <span>v1.0.0</span>

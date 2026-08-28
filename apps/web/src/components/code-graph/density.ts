@@ -1,11 +1,15 @@
 /* Visual density compensation for L1 graph.
  *
  * White-blob failure is dominated by additive EDGES (~80k lines crossing the
- * center). Voyager ribbon edges + glass nodes + bloom stack harder than 原生引擎
+ * center). Ribbon edges + glass nodes + bloom stack harder than 原生引擎
  * thin lines, so we ease earlier and harder than 原生引擎默认值.
  *
- * Manual DisplaySettings (?????) ride ON TOP of these scales: 1.00� = auto.
+ * Manual DisplaySettings ride ON TOP of these scales: 1.00 = auto.
  */
+
+import { STORAGE, migrateKey } from '@/brand';
+
+migrateKey(STORAGE.l1Display, STORAGE.legacy.l1Display);
 
 export const EDGE_REFERENCE_COUNT = 2000;
 const EDGE_MIN_SCALE = 0.025;
@@ -84,7 +88,7 @@ export const DISPLAY_LIMITS = {
   bloom: { min: 0, max: 2 },
 } as const;
 
-const DISPLAY_STORAGE_KEY = 'rp-l1-display-v4';
+const DISPLAY_STORAGE_KEY = STORAGE.l1Display;
 
 /** ????????????? 1.0� ?????? */
 export const BASE_NODE_GLOW = 0.5;

@@ -13,6 +13,9 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { MarkdownRenderer } from '@/components/common/MarkdownRenderer';
 import { TagEditor } from './TagEditor';
+import { STORAGE, migrateKey } from '@/brand';
+
+migrateKey(STORAGE.pdfScale, STORAGE.legacy.pdfScale);
 
 export function DocReader() {
   const { id } = useParams<{ id: string }>();
@@ -180,7 +183,7 @@ function SectionPane({ docId, sectionNo, onNav }: { docId: string; sectionNo: nu
   );
 }
 
-const PDFJS_SCALE_KEY = 'voyager-pdf-scale';
+const PDFJS_SCALE_KEY = STORAGE.pdfScale;
 
 /** pdf.js 原版式分页视图(canvas 渲染;cmaps 由 public/pdfjs 提供,中文必需)。 */
 function PdfPane({ docId, fileUrl }: { docId: string; fileUrl: string }) {

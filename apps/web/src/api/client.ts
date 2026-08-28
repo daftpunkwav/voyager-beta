@@ -11,6 +11,8 @@
  * secret 边界:API key 只允许 USER actor 写,本门面不缓存不透传明文。
  */
 
+import { STORAGE } from '@/brand';
+
 export {
   getLegacyApi as getApi,
   LegacyApiClient as RealApiClient,
@@ -25,11 +27,11 @@ export type { IApiClient } from '@/api/types';
 
 // 旧 API 形态:MockApiClient 仅在 VITE_USE_MOCK=true 时启用(由 main.tsx 选);此处不再提供 mock 入口。
 
-/** 旧版 token 清理(供 authStore 兼容调用;voyager 已改用 cookie session)。 */
+/** 旧版 token 清理(供 authStore 兼容调用;本应用已改用 cookie session)。 */
 export function clearLegacyTokenStorage(): void {
   try {
     if (typeof localStorage === 'undefined') return;
-    for (const k of ['voyager_token', 'voyager_session', 'token', 'session']) {
+    for (const k of [STORAGE.legacy.token, STORAGE.legacy.session, 'token', 'session']) {
       localStorage.removeItem(k);
     }
   } catch {

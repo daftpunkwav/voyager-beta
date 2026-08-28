@@ -1,13 +1,38 @@
 <!doctype html>
 <html lang="zh-CN" data-theme="light">
   <head>
+    <!--
+      主题首屏同步(§10.11):
+      在 React 水合前根据 localStorage 持久化主题或系统偏好设置 data-theme,
+      避免 system 模式下首屏闪烁。
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('%UI_STORE_KEY%')
+            || localStorage.getItem('%UI_STORE_LEGACY_KEY%');
+          var theme = stored ? JSON.parse(stored).state?.theme : null;
+          if (theme === 'system' || !theme) {
+            theme = window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light';
+          }
+          document.documentElement.setAttribute(
+            'data-theme',
+            theme === 'dark' ? 'dark' : 'light'
+          );
+        } catch (e) {
+          // 隐私模式/无 localStorage 时保持默认 light
+        }
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
     <meta name="color-scheme" content="light dark" />
-    <meta name="description" content="Voyager — Agent 协作的本地工作台" />
+    <meta name="description" content="%PRODUCT_NAME% — %PRODUCT_TAGLINE%" />
     <meta name="theme-color" content="#007aff" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0a2540" media="(prefers-color-scheme: dark)" />
     <!--
@@ -37,7 +62,7 @@
         form-action 'self';
       "
     />
-    <title>Voyager</title>
+    <title>%PRODUCT_NAME%</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

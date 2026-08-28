@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { useUIStore } from '@/stores/uiStore';
 
 /**
@@ -23,19 +23,20 @@ function readSystemPrefersDark(): boolean {
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
+function subscribeSystemTheme(callback: () => void): () => void {
+  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+  mq.addEventListener('change', callback);
+  return () => mq.removeEventListener('change', callback);
+}
+
 /** 当前是否处于深色视觉（含 system 跟随） */
 export function useIsDarkTheme(): boolean {
   const theme = useUIStore((s) => s.theme);
-  const [systemDark, setSystemDark] = useState(readSystemPrefersDark);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const update = () => setSystemDark(mq.matches);
-    update();
-    mq.addEventListener('change', update);
-    return () => mq.removeEventListener('change', update);
-  }, []);
+  const systemDark = useSyncExternalStore(
+    subscribeSystemTheme,
+    readSystemPrefersDark,
+    () => false
+  );
 
   return theme === 'dark' || (theme === 'system' && systemDark);
 }

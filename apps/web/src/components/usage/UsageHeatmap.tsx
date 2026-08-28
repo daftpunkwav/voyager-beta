@@ -1,10 +1,15 @@
-// @ts-nocheck — 待后端契约确认:UsageHeatmap.tsx:41 页面读 heatmap[].calls/intensity,后端 get_usage_stats 不返回 heatmap 数据(services/llm/store.py),边界归一需臆造数据;其余错误已清
 import { useMemo } from 'react';
 import type { LlmUsageSummary } from '@/api/types';
 import { GLASS_CHIP } from '@/constants/glassTokens';
 
 interface UsageHeatmapProps {
   heatmap: LlmUsageSummary['heatmap'];
+}
+
+interface HeatCell {
+  date: string;
+  calls: number;
+  intensity: number;
 }
 
 /** 本地日历日 YYYY-MM-DD（勿用 toISOString，会按 UTC 错日） */
@@ -15,9 +20,19 @@ function ymdLocal(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+function normalizeHeatmap(raw: LlmUsageSummary['heatmap']): HeatCell[] {
+  if (!raw || raw.length === 0) return [];
+  const maxCalls = Math.max(...raw.map((c) => c.calls), 1);
+  return raw.map((c) => ({
+    date: c.date,
+    calls: c.calls,
+    intensity: c.intensity ?? c.calls / maxCalls,
+  }));
+}
+
 /** 将按日数据排成 GitHub 式周列（7 行 × N 周） */
-function buildWeekColumns(heatmap: LlmUsageSummary['heatmap']) {
-  if (!heatmap.length) return [] as Array<Array<(typeof heatmap)[number] | null>>;
+function buildWeekColumns(heatmap: HeatCell[]) {
+  if (!heatmap.length) return [] as Array<Array<HeatCell | null>>;
 
   const byDate = new Map(heatmap.map((c) => [c.date, c]));
   const first = new Date(`${heatmap[0]?.date ?? ''}T12:00:00`);
@@ -30,9 +45,9 @@ function buildWeekColumns(heatmap: LlmUsageSummary['heatmap']) {
   const end = new Date(last);
   end.setDate(end.getDate() + (6 - end.getDay()));
 
-  const columns: Array<Array<(typeof heatmap)[number] | null>> = [];
+  const columns: Array<Array<HeatCell | null>> = [];
   const cursor = new Date(start);
-  let col: Array<(typeof heatmap)[number] | null> = [];
+  let col: Array<HeatCell | null> = [];
 
   while (cursor <= end) {
     const key = ymdLocal(cursor);
@@ -58,7 +73,7 @@ function levelOf(intensity: number): 0 | 1 | 2 | 3 {
 
 /** GitHub 风格活跃热力图（周列布局） */
 export function UsageHeatmap({ heatmap }: UsageHeatmapProps) {
-  const weeks = useMemo(() => buildWeekColumns(heatmap), [heatmap]);
+  const weeks = useMemo(() => buildWeekColumns(normalizeHeatmap(heatmap)), [heatmap]);
 
   return (
     <div className={`${GLASS_CHIP} usage-panel usage-heat-panel`}>

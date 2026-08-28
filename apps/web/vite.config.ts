@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import path from 'path';
+import { readFileSync } from 'fs';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -15,9 +16,29 @@ const pdfjsDir = path
   .join('/');
 
 const BACKEND = process.env.VITE_API_TARGET || 'http://127.0.0.1:8000';
+const brand = JSON.parse(
+  readFileSync(path.resolve(__dirname, '../../brand.json'), 'utf8'),
+) as {
+  productName: string;
+  productTagline: string;
+  storage: { uiStore: string; legacy: { uiStore: string } };
+};
 
 export default defineConfig({
+  define: {
+    __BRAND__: JSON.stringify(brand),
+  },
   plugins: [
+    {
+      name: 'inject-brand',
+      transformIndexHtml(html) {
+        return html
+          .replaceAll('%PRODUCT_NAME%', brand.productName)
+          .replaceAll('%PRODUCT_TAGLINE%', brand.productTagline)
+          .replaceAll('%UI_STORE_KEY%', brand.storage.uiStore)
+          .replaceAll('%UI_STORE_LEGACY_KEY%', brand.storage.legacy.uiStore);
+      },
+    },
     react(),
     viteStaticCopy({
       targets: [

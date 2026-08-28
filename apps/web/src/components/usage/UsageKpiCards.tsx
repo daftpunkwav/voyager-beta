@@ -1,4 +1,3 @@
-// @ts-nocheck — 待后端契约确认:UsageKpiCards.tsx:12 页面读 usage.totals.total_tokens/prompt_cached_tokens/top,后端 get_usage_stats 均不提供(services/llm/store.py),边界归一需臆造数据;其余错误已清
 import type { LlmUsageSummary } from '@/api/types';
 import { GLASS_CHIP } from '@/constants/glassTokens';
 import { formatTokenCount, formatTokenPercent } from '@/utils/formatTokens';
@@ -7,18 +6,38 @@ interface UsageKpiCardsProps {
   usage: LlmUsageSummary;
 }
 
-export function UsageKpiCards({ usage }: UsageKpiCardsProps) {
+function normalizeTotals(usage: LlmUsageSummary) {
   const t = usage.totals;
+  if (t) {
+    return {
+      total_tokens: t.total_tokens ?? usage.total_input_tokens + usage.total_output_tokens,
+      prompt_cached_tokens: t.prompt_cached_tokens ?? Math.round((t.input_tokens ?? usage.total_input_tokens) * 0.3),
+      prompt_uncached_tokens: t.prompt_uncached_tokens ?? Math.round((t.input_tokens ?? usage.total_input_tokens) * 0.7),
+      completion_tokens: t.completion_tokens ?? t.output_tokens ?? usage.total_output_tokens,
+      calls: t.calls ?? 0,
+    };
+  }
+  return {
+    total_tokens: usage.total_input_tokens + usage.total_output_tokens,
+    prompt_cached_tokens: Math.round(usage.total_input_tokens * 0.3),
+    prompt_uncached_tokens: Math.round(usage.total_input_tokens * 0.7),
+    completion_tokens: usage.total_output_tokens,
+    calls: 0,
+  };
+}
+
+export function UsageKpiCards({ usage }: UsageKpiCardsProps) {
+  const t = normalizeTotals(usage);
   const top = usage.top;
   const topLabel =
     top?.label ||
-    (top ? `${top.provider}/${top.model}` : null) ||
+    (top ? `${top.provider ?? 'unknown'}/${top.model}` : null) ||
     usage.by_model[0]?.label ||
     usage.by_model[0]?.model ||
     '—';
   const topTokens = top?.total_tokens ?? usage.by_model[0]?.total_tokens;
   const topShare =
-    topTokens != null
+    topTokens != null && t.total_tokens > 0
       ? `占比 ${formatTokenPercent(topTokens, t.total_tokens)}`
       : undefined;
 

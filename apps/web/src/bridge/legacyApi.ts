@@ -2,11 +2,11 @@
  * 保留旧调用形态(命名中性,domain 归类为 agent / source / note / graph / setting / usage / system)。
  *
  * 设计目的:让已迁移的旧 page / hooks / components 在不修改源码的情况下,
- * 通过本层接进 voyager 的 capability 框架(§2.1 一份 Action 模型)。
+ * 通过本层接进 capability 框架(§2.1 一份 Action 模型)。
  *
  * 命名约定:
  *  - 域:旧 IApiClient 的 7 个域(auth/projects/notes/graph/settings/overview/agent)
- *    → voyager 的 7 个 capability 域(notes/llm/graph/sources/browser/code-exec/settings/agent)
+ *    → 本仓库的 capability 域(notes/llm/graph/sources/browser/code-exec/settings/agent)
  *  - 能力名:旧 method 名 → 新 capability 名(同名直转,异名显式映射)
  *  - 字段:旧 Project → 新 Repo;旧 Note 的 project_id → 新 source_id;session → 无后端实体
  *

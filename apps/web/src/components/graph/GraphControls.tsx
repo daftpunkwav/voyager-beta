@@ -19,32 +19,6 @@ const LAYOUTS: { id: GraphLayoutMode; label: string }[] = [
   { id: 'radial', label: '径向' },
 ];
 
-/** 交互控件：点这些不触发收起 */
-const INTERACTIVE_SELECTOR = [
-  'button',
-  'a',
-  'input',
-  'select',
-  'textarea',
-  'label',
-  '[role="button"]',
-  '[role="slider"]',
-  '[role="group"]',
-  '.graph-search',
-  '.view-switch',
-  '.layout-switch',
-  '.graph-threshold',
-  '.graph-legend',
-  '.graph-batch-actions',
-  '.graph-batch-panel',
-  '.graph-index-trigger',
-  '.legend-item',
-].join(', ');
-
-function isInteractiveTarget(target: EventTarget | null): boolean {
-  return target instanceof Element && Boolean(target.closest(INTERACTIVE_SELECTOR));
-}
-
 /** 图谱顶栏：单列列表式排布，可收起 */
 export function GraphControls({
   showLayout = true,
@@ -77,12 +51,14 @@ export function GraphControls({
 
   const handlePanelClick = (e: MouseEvent<HTMLDivElement>) => {
     if (leftPanelCollapsed) return;
-    if (isInteractiveTarget(e.target)) return;
+    // 仅当点击的是工具栏容器本身时才收起；子元素不触发
+    if (e.target !== e.currentTarget) return;
     setLeftPanelCollapsed(true);
   };
 
   return (
     <div
+      data-graph-toolbar
       className={`graph-toolbar graph-toolbar--column glass-card glass-card--overview-outer${
         leftPanelCollapsed ? ' is-collapsed' : ''
       }`}

@@ -1,4 +1,4 @@
-/** Voyager 应用壳:液态玻璃导航(Sidebar + Topbar)
+/** 应用壳:液态玻璃导航(Sidebar + Topbar)
  * + 路由感知 activePage(给 Sidebar 用)
  * + 常驻 ServiceBadges 条 + PageProbe + FloatingChat(chat 路由时 FloatingChat 隐藏)。
  *

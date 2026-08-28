@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { STORAGE, migrateKey } from '@/brand';
+
+migrateKey(STORAGE.uiStore, STORAGE.legacy.uiStore);
 
 export type Theme = 'dark' | 'light' | 'system';
 
@@ -74,7 +77,7 @@ export const useUIStore = create<UIState>()(
       },
     }),
     {
-      name: 'voyager-ui-store',
+      name: STORAGE.uiStore,
       partialize: (state) => ({
         theme: state.theme,
         sidebarCollapsed: state.sidebarCollapsed,

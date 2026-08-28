@@ -1,4 +1,3 @@
-// @ts-nocheck — 待后端契约确认:UsageDonut.tsx:38 页面读 by_model[].label/model/total_tokens 与 by_provider[].provider,后端 get_usage_stats 的 by_model 为 {model,input,output,calls} 且无 by_provider(services/llm/store.py),边界归一需臆造数据;其余错误已清
 import { useMemo, useState } from 'react';
 import type { LlmUsageSummary } from '@/api/types';
 import { GLASS_CHIP } from '@/constants/glassTokens';
@@ -29,6 +28,13 @@ function arcPath(cx: number, cy: number, r: number, start: number, end: number) 
   return `M ${s.x} ${s.y} A ${r} ${r} 0 ${large} 0 ${e.x} ${e.y}`;
 }
 
+function totalTokens(usage: LlmUsageSummary): number {
+  return (
+    usage.totals?.total_tokens ??
+    usage.total_input_tokens + usage.total_output_tokens
+  );
+}
+
 export function UsageDonut({ usage }: UsageDonutProps) {
   const [mode, setMode] = useState<DonutMode>('model');
 
@@ -39,7 +45,7 @@ export function UsageDonut({ usage }: UsageDonutProps) {
             key: r.label || r.model,
             tokens: r.total_tokens,
           }))
-        : usage.by_provider.map((r) => ({
+        : (usage.by_provider ?? []).map((r) => ({
             key: r.provider || '(unknown)',
             tokens: r.total_tokens,
           }));
@@ -54,7 +60,7 @@ export function UsageDonut({ usage }: UsageDonutProps) {
     }));
   }, [usage, mode]);
 
-  const total = slices.reduce((s, x) => s + x.tokens, 0) || usage.totals.total_tokens;
+  const total = slices.reduce((s, x) => s + x.tokens, 0) || totalTokens(usage);
   const cx = 70;
   const cy = 70;
   const r = 52;

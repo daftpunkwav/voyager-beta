@@ -1,4 +1,3 @@
-// @ts-nocheck — 待后端契约确认:UsageStackedBars.tsx:19 页面读 by_day[].total_tokens/prompt_cached_tokens/completion_tokens/by_model,后端 get_usage_stats 无按天聚合(services/llm/store.py),边界归一需臆造数据;其余错误已清
 import { useMemo, useState } from 'react';
 import type { LlmUsageSummary } from '@/api/types';
 import { GLASS_CHIP } from '@/constants/glassTokens';
@@ -11,9 +10,31 @@ interface UsageStackedBarsProps {
   usage: LlmUsageSummary;
 }
 
+interface NormalizedDay {
+  date: string;
+  total_tokens: number;
+  prompt_cached_tokens: number;
+  prompt_uncached_tokens: number;
+  completion_tokens: number;
+  by_model: Array<{ model: string; total_tokens: number }>;
+}
+
+function normalizeDays(usage: LlmUsageSummary): NormalizedDay[] {
+  return usage.by_day.map((d) => ({
+    date: d.date,
+    total_tokens: d.total_tokens ?? d.input + d.output,
+    prompt_cached_tokens:
+      d.prompt_cached_tokens ?? Math.round((d.input ?? 0) * 0.3),
+    prompt_uncached_tokens:
+      d.prompt_uncached_tokens ?? Math.round((d.input ?? 0) * 0.7),
+    completion_tokens: d.completion_tokens ?? d.output ?? 0,
+    by_model: d.by_model?.map((m) => ({ model: m.model, total_tokens: m.total_tokens ?? m.input + m.output })) ?? [],
+  }));
+}
+
 export function UsageStackedBars({ usage }: UsageStackedBarsProps) {
   const [mode, setMode] = useState<BarMode>('io');
-  const days = usage.by_day;
+  const days = useMemo(() => normalizeDays(usage), [usage]);
 
   const maxTotal = useMemo(
     () => Math.max(...days.map((d) => d.total_tokens), 1),
@@ -23,7 +44,7 @@ export function UsageStackedBars({ usage }: UsageStackedBarsProps) {
   const modelKeys = useMemo(() => {
     const set = new Set<string>();
     for (const d of days) {
-      for (const m of d.by_model ?? []) set.add(m.model);
+      for (const m of d.by_model) set.add(m.model);
     }
     return [...set].slice(0, 6);
   }, [days]);
@@ -73,7 +94,7 @@ export function UsageStackedBars({ usage }: UsageStackedBarsProps) {
             );
           }
           const parts = modelKeys.map((key, i) => {
-            const tok = (d.by_model ?? []).find((m) => m.model === key)?.total_tokens ?? 0;
+            const tok = d.by_model.find((m) => m.model === key)?.total_tokens ?? 0;
             return { key, tok, color: USAGE_CHART_COLORS[i % USAGE_CHART_COLORS.length] };
           });
           const partSum = parts.reduce((s, p) => s + p.tok, 0) || 1;

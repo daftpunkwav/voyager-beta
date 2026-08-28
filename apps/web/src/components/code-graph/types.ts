@@ -1,4 +1,4 @@
-/** L1 代码图谱节点/边类型（对齐引擎 layout3d 输出 + Voyager 契约） */
+/** L1 代码图谱节点/边类型（对齐引擎 layout3d 输出 + 本仓库契约） */
 
 export type NodeStatus =
   | 'dead'

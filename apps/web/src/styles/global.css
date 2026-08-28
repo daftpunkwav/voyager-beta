@@ -22,7 +22,7 @@ a {
 }
 
 /* ---------- 列表 item 渐入(全局) ---------- */
-@keyframes voyagerItemFadeIn {
+@keyframes itemFadeIn {
   from { opacity: 0; transform: translateX(-6px); }
   to   { opacity: 1; transform: translateX(0); }
 }
@@ -32,7 +32,7 @@ a {
 .session-item,
 .health-card,
 .persona-card {
-  animation: voyagerItemFadeIn var(--dur-base) var(--ease-apple) both;
+  animation: itemFadeIn var(--dur-base) var(--ease-apple) both;
 }
 .list > *:nth-child(2), .repo-card:nth-child(2), .note-item:nth-child(2), .session-item:nth-child(2), .health-card:nth-child(2), .persona-card:nth-child(2) { animation-delay: 40ms; }
 .list > *:nth-child(3), .repo-card:nth-child(3), .note-item:nth-child(3), .session-item:nth-child(3), .health-card:nth-child(3), .persona-card:nth-child(3) { animation-delay: 80ms; }
@@ -286,23 +286,23 @@ a {
    ========================================================================== */
 
 /* -- 弹层 · Apple sheet 弹入:overlay 淡入 + 面板上移缩放(spring) -- */
-@keyframes voyagerOverlayIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes voyagerSheetIn {
+@keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheetIn {
   from { opacity: 0; transform: translateY(16px) scale(0.96); }
   to   { opacity: 1; transform: none; }
 }
-@keyframes voyagerDrawerIn { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
-.modal-overlay, .drawer-overlay { animation: voyagerOverlayIn var(--dur-fast, 150ms) var(--ease-apple) both; }
-.modal { animation: voyagerSheetIn var(--dur-slow, 350ms) var(--ease-spring) both; }
-.drawer { animation: voyagerDrawerIn var(--dur-base, 250ms) var(--ease-apple) both; }
+@keyframes drawerIn { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.modal-overlay, .drawer-overlay { animation: overlayIn var(--dur-fast, 150ms) var(--ease-apple) both; }
+.modal { animation: sheetIn var(--dur-slow, 350ms) var(--ease-spring) both; }
+.drawer { animation: drawerIn var(--dur-base, 250ms) var(--ease-apple) both; }
 
 /* -- 下拉/菜单 pop-in -- */
-@keyframes voyagerPopIn {
+@keyframes popIn {
   from { opacity: 0; transform: translateY(4px) scale(0.98); }
   to   { opacity: 1; transform: none; }
 }
 .chat-more-pop, .glass-select__menu, .filter-dropdown__menu {
-  animation: voyagerPopIn var(--dur-fast, 150ms) var(--ease-apple) both;
+  animation: popIn var(--dur-fast, 150ms) var(--ease-apple) both;
 }
 
 /* -- 卡片网格入场 stagger(统计卡/健康卡/团队卡) -- */
@@ -318,16 +318,16 @@ a {
 .filter-chip:active, .page-btn:active, .icon-btn:active { transform: scale(0.94); }
 
 /* -- 悬浮对话球:入场 pop + hover 抬升;面板弹入 -- */
-@keyframes voyagerFloatIn {
+@keyframes floatIn {
   from { opacity: 0; transform: translateY(12px) scale(0.9); }
   to   { opacity: 1; transform: none; }
 }
-.float-dot { animation: voyagerFloatIn var(--dur-slow, 350ms) var(--ease-spring) both; }
+.float-dot { animation: floatIn var(--dur-slow, 350ms) var(--ease-spring) both; }
 .float-dot:hover {
   transform: translateY(-2px) scale(1.05);
   box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
 }
-.float-panel { animation: voyagerSheetIn var(--dur-base, 250ms) var(--ease-spring) both; }
+.float-panel { animation: sheetIn var(--dur-base, 250ms) var(--ease-spring) both; }
 
 /* -- 主题切换平滑过渡(仅颜色类属性,避免 backdrop-filter 抖动) -- */
 body { transition: background var(--dur-slow, 350ms) var(--ease-apple); }

@@ -1,7 +1,7 @@
-// @ts-nocheck — 待后端契约确认:LlmUsageDashboard.tsx:100 getLlmUsage(get_usage_stats)后端仅返回 {days,input_tokens,output_tokens,calls,by_model[{model,input,output,calls}]}(services/llm/store.py usage_stats),页面消费的 totals/heatmap/recent 字段后端不存在,边界归一需臆造数据;其余错误已清
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getApi } from '@/api/client';
+import type { LlmUsageSummary } from '@/api/types';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { GLASS_CHIP, GLASS_INNER, GLASS_OUTER } from '@/constants/glassTokens';
@@ -27,16 +27,63 @@ function fmtTs(ts: string | null): string {
   }
 }
 
+function normalizeUsage(raw: unknown): LlmUsageSummary {
+  const u = raw as Partial<LlmUsageSummary>;
+  const byModel = Array.isArray(u.by_model)
+    ? u.by_model.map((m) => ({
+        model: m.model ?? 'unknown',
+        label: m.label,
+        provider: m.provider,
+        input: m.input ?? 0,
+        output: m.output ?? 0,
+        total_tokens: m.total_tokens ?? m.input + m.output,
+        calls: m.calls ?? 0,
+        cost: m.cost ?? 0,
+      }))
+    : [];
+  const byDay = Array.isArray(u.by_day)
+    ? u.by_day.map((d) => ({
+        date: d.date ?? '',
+        input: d.input ?? 0,
+        output: d.output ?? 0,
+        total_tokens: d.total_tokens ?? d.input + d.output,
+        prompt_cached_tokens: d.prompt_cached_tokens,
+        prompt_uncached_tokens: d.prompt_uncached_tokens,
+        completion_tokens: d.completion_tokens,
+        calls: d.calls ?? 0,
+        cost: d.cost ?? 0,
+        by_model: d.by_model,
+      }))
+    : [];
+  const totalInput = u.total_input_tokens ?? byDay.reduce((s, d) => s + d.input, 0);
+  const totalOutput = u.total_output_tokens ?? byDay.reduce((s, d) => s + d.output, 0);
+  return {
+    total_input_tokens: totalInput,
+    total_output_tokens: totalOutput,
+    total_cost: u.total_cost ?? 0,
+    by_model: byModel,
+    by_day: byDay,
+    totals: u.totals,
+    top: u.top,
+    by_provider: u.by_provider,
+    heatmap: u.heatmap,
+    recent: u.recent,
+  };
+}
+
 /** 一屏用量仪表盘 */
 export function LlmUsageDashboard() {
   const [days, setDays] = useState<(typeof DAYS_OPTIONS)[number]>(30);
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['llm-usage', days],
-    queryFn: () => getApi().getLlmUsage(days),
+    queryFn: async () => {
+      const res = await getApi().getLlmUsage(days);
+      return normalizeUsage(res.data);
+    },
   });
 
-  const usage = data?.data;
+  const usage = data;
 
   return (
     <section className={`usage-dashboard ${GLASS_OUTER}`}>
@@ -103,7 +150,7 @@ export function LlmUsageDashboard() {
             <UsageDonut usage={usage} />
           </div>
           <UsageStackedBars usage={usage} />
-          {usage.recent.length > 0 ? (
+          {usage.recent && usage.recent.length > 0 ? (
             <div className={`${GLASS_CHIP} usage-recent`}>
               <h3 className="usage-panel-title">最近调用</h3>
               <ul className="usage-recent-list">
