@@ -2,13 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getApi } from '@/api/client';
 import { useNoteStore } from '@/stores/noteStore';
 import { invalidateOverviewQueries } from '@/utils/invalidateOverview';
+import type { NotesListState } from '@/pages/notes/noteUtils';
 
-export function useAllNotes() {
+export function useAllNotes(state: NotesListState = 'active') {
   return useQuery({
-    queryKey: ['notes', 'all'],
+    queryKey: ['notes', 'all', state],
     queryFn: async () => {
-      const api = getApi();
-      const res = await api.listAllNotes();
+      const res = await getApi().searchNotes('', { state, limit: 500 });
       return res.data;
     },
   });
@@ -102,10 +102,54 @@ export function useDeleteNote() {
   });
 }
 
+export function useLinkNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, sourceId }: { id: string; sourceId: string | null }) => {
+      await getApi().linkNote(id, sourceId);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['notes'] });
+      void invalidateOverviewQueries(qc);
+    },
+  });
+}
+
+/** 只改置顶/归档,不碰标题正文(与 update 自动存版本的路径分开)。 */
+export function usePatchNoteMeta() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      pinned,
+      archived,
+    }: {
+      id: string;
+      pinned?: boolean;
+      archived?: boolean;
+    }) => {
+      const res = await getApi().updateNote(id, { pinned, archived });
+      return res.data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['notes'] });
+      void invalidateOverviewQueries(qc);
+    },
+  });
+}
+
 // ---------- 功能面扩展(阶段 13):回收站/版本/标签/TOC/反链/导出/附件 ----------
 
 /** 打开笔记前取全文(list_notes 只回摘要;直接装摘要会把正文截断)。 */
-export async function fetchNoteFull(id: string): Promise<{ id: string; title: string; content: string }> {
+export async function fetchNoteFull(id: string): Promise<{
+  id: string;
+  title: string;
+  content: string;
+  source_id?: string;
+  project_id?: string;
+  pinned?: boolean;
+  archived?: boolean;
+}> {
   const res = await getApi().getNote(id);
   return res.data;
 }

@@ -6,6 +6,7 @@
 
 import type { PageProbe } from '@/bridge/pageContext';
 import { activityProvider } from '@/pages/activity/provider';
+import { notesProvider } from '@/pages/notes/provider';
 import { teamProvider } from '@/pages/team/provider';
 
 export type { PageProbe } from '@/bridge/pageContext';
@@ -13,5 +14,6 @@ export type { PageProbe } from '@/bridge/pageContext';
 /** 路由 -> probe 注册表(各页在此注册;页面自治,新增页面 = 加一条)。 */
 export const PAGE_PROBES: Record<string, PageProbe> = {
   '/activity': activityProvider,
+  '/notes': notesProvider,
   '/team': teamProvider,
 };

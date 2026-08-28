@@ -11,6 +11,8 @@ import { subscribe } from '@/bridge/stream';
 import { useChatStore } from '@/stores/chatStore';
 import { MessageList, TaskCards } from '@/widgets/chat/MessageList';
 import { AskDialog } from '@/widgets/chat/AskDialog';
+import { safeInternalPath } from '@/utils/safeUrl';
+import { NavIcons } from '@/components/icons/NavIcons';
 
 interface FloatingState {
   open: boolean;
@@ -33,7 +35,7 @@ function useFloatingStream(onNavigate: (path: string) => void, active: boolean) 
     ];
     return subscribe(patterns, (ev) => {
       if (ev.type === 'agent.navigate') {
-        const path = String(ev.payload.path ?? '');
+        const path = safeInternalPath(ev.payload.path);
         if (path) onNavigate(path);
         return;
       }
@@ -53,6 +55,7 @@ export function FloatingChat() {
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const messages = useChatStore((s) => s.messages);
+  const connected = useChatStore((s) => s.connected);
 
   const onNavigate = useCallback(
     (path: string) => {
@@ -69,6 +72,15 @@ export function FloatingChat() {
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
   }, [open, messages.length]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, setOpen]);
 
   const send = async () => {
     const content = draft.trim();
@@ -90,11 +102,13 @@ export function FloatingChat() {
       if (resp.ok && body?.seq) {
         useChatStore.getState().appendLocal({ seq: body.seq, role: 'user', content });
       } else {
+        setDraft(content);
         useChatStore.getState().appendLocal({
           seq: -Date.now(), role: 'system', content: `发送失败(${resp.status})`,
         });
       }
     } catch {
+      setDraft(content);
       useChatStore.getState().appendLocal({
         seq: -Date.now(), role: 'system', content: '发送失败:后端不可达',
       });
@@ -108,9 +122,11 @@ export function FloatingChat() {
       <button
         type="button"
         className="float-dot"
-        aria-label={`打开对话(未读 ${unread})`}
+        aria-label={unread > 0 ? `打开对话,未读 ${unread} 条` : '打开对话'}
+        aria-expanded={false}
         onClick={() => setOpen(true)}
       >
+        <NavIcons.chat width={22} height={22} />
         {unread > 0 ? <span className="float-dot__unread">{Math.min(unread, 99)}</span> : null}
       </button>
     );
@@ -121,7 +137,7 @@ export function FloatingChat() {
       <div className="float-panel__head">
         <span className="float-panel__title">对话</span>
         <span className="small muted">
-          {useChatStore.getState().connected ? '在线' : '重连中…'}
+          {connected ? '在线' : '重连中…'}
         </span>
         <button type="button" className="btn btn-sm" onClick={() => setOpen(false)}>
           收起
@@ -144,7 +160,7 @@ export function FloatingChat() {
             }
           }}
         />
-        <button type="button" className="btn btn-primary" disabled={sending || !draft.trim()}>
+        <button type="button" className="btn btn-primary" disabled={sending || !draft.trim()} onClick={() => void send()}>
           发送
         </button>
       </div>

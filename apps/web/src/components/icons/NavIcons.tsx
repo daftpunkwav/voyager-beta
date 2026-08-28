@@ -2,13 +2,14 @@ import type { SVGProps } from 'react';
 
 type IconProps = SVGProps<SVGSVGElement>;
 
+/** 侧栏 / 空态共用:描边 1.75、圆角端点,避免有的空心有的实心。 */
 function IconBase({ children, ...props }: IconProps & { children: React.ReactNode }) {
   return (
     <svg
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="1.75"
       strokeLinecap="round"
       strokeLinejoin="round"
       width={18}
@@ -29,11 +30,10 @@ export const NavIcons = {
   ),
   team: (props: IconProps) => (
     <IconBase {...props}>
-      {/* 两个人形(更清晰的"团队"语义,不再像 3 个点) */}
-      <path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
-      <path d="M16 11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" />
-      <path d="M2 20c0-3 2.5-5 6-5s6 2 6 5" />
-      <path d="M14 20c0-2 1.8-3.5 4-3.5s4 1.5 4 3.5" />
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </IconBase>
   ),
   sources: (props: IconProps) => (
@@ -43,23 +43,21 @@ export const NavIcons = {
   ),
   graph: (props: IconProps) => (
     <IconBase {...props}>
-      {/* 中心节点(实心) + 4 周围空心小圆 + 4 连线 — 网络拓扑感(非 3 圆点) */}
-      <circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none" />
-      <circle cx="4"  cy="4"  r="1.6" fill="none" />
-      <circle cx="20" cy="4"  r="1.6" fill="none" />
-      <circle cx="4"  cy="20" r="1.6" fill="none" />
-      <circle cx="20" cy="20" r="1.6" fill="none" />
-      <path d="M5.4 5.4L9.4 9.4M14.6 9.4L18.6 5.4M5.4 18.6L9.4 14.6M14.6 14.6L18.6 18.6" />
+      <circle cx="6" cy="12" r="2.5" />
+      <circle cx="17" cy="6" r="2.5" />
+      <circle cx="17" cy="18" r="2.5" />
+      <path d="M8.3 11.1L14.7 7.4M8.3 12.9L14.7 16.6" />
     </IconBase>
   ),
   activity: (props: IconProps) => (
     <IconBase {...props}>
-      <path d="M3 12h4l3-7 4 14 3-7h4" />
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3.2 1.8" />
     </IconBase>
   ),
   health: (props: IconProps) => (
     <IconBase {...props}>
-      <path d="M3 12h4l2-5 4 10 2-5h6" />
+      <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
     </IconBase>
   ),
   overview: (props: IconProps) => (
@@ -74,9 +72,9 @@ export const NavIcons = {
     <IconBase {...props}>
       <path d="M4 19V5" />
       <path d="M4 19h16" />
-      <path d="M8 17V11" />
-      <path d="M12 17V7" />
-      <path d="M16 17v-4" />
+      <path d="M8 16V11" />
+      <path d="M12 16V8" />
+      <path d="M16 16v-3" />
     </IconBase>
   ),
   notes: (props: IconProps) => (
@@ -87,8 +85,15 @@ export const NavIcons = {
   ),
   settings: (props: IconProps) => (
     <IconBase {...props}>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+      <path d="M4 21v-7" />
+      <path d="M4 10V3" />
+      <path d="M12 21v-9" />
+      <path d="M12 8V3" />
+      <path d="M20 21v-5" />
+      <path d="M20 12V3" />
+      <circle cx="4" cy="12" r="2" />
+      <circle cx="12" cy="10" r="2" />
+      <circle cx="20" cy="14" r="2" />
     </IconBase>
   ),
 };

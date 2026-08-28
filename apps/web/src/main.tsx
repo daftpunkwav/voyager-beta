@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App } from '@/App';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { useThemeBridge } from '@/shell/themeBridge';
-import { initActivityReport } from '@/bridge/activity';
 import { ensureSession } from '@/bridge/session';
 
 // —— 全局样式(液态玻璃设计系统 + shell + 全局 + 各 page 私有) ——
@@ -32,36 +31,20 @@ const queryClient = new QueryClient({
  * 签名匹配 ErrorBoundary.fallback: (error, reset) => ReactNode */
 function RootErrorFallback(_error: Error, reset: () => void) {
   return (
-    <div
-      role="alert"
-      style={{
-        padding: 32,
-        fontFamily: 'system-ui, sans-serif',
-        color: '#3a3a3c',
-      }}
-    >
-      <h2 style={{ marginTop: 0 }}>应用出现未捕获错误</h2>
-      <p>请刷新页面或点击下方按钮重试。详细信息请查看浏览器控制台。</p>
-      <button
-        type="button"
-        onClick={reset}
-        style={{
-          padding: '8px 16px',
-          borderRadius: 8,
-          border: '1px solid #c7c7cc',
-          background: '#fff',
-          cursor: 'pointer',
-        }}
-      >
-        重试
-      </button>
+    <div className="page-scaffold" role="alert">
+      <div className="page-scaffold__state">
+        <h2>应用出现未捕获错误</h2>
+        <p>请刷新页面或点击下方按钮重试。详细信息请查看浏览器控制台。</p>
+        <button type="button" className="btn btn-primary" onClick={reset}>
+          重试
+        </button>
+      </div>
     </div>
   );
 }
 
 function Root() {
   useThemeBridge();
-  void initActivityReport();
   return (
     <StrictMode>
       <ErrorBoundary fallback={RootErrorFallback}>
@@ -80,6 +63,5 @@ if (!rootEl) {
   throw new Error('Root element #root not found');
 }
 
-void ensureSession().finally(() => {
-  createRoot(rootEl).render(<Root />);
-});
+void ensureSession();
+createRoot(rootEl).render(<Root />);

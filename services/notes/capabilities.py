@@ -118,6 +118,53 @@ async def _emit(type_: str, note_id: str, **payload) -> None:
         )
 
 
+# ---------- 笔记页界面(与全站 appearance.* 分离;用户按钮 = 本能力) ----------
+
+_UI_FONT_MIN, _UI_FONT_MAX, _UI_FONT_DEFAULT = 13, 20, 15
+_UI_MODES = ("edit", "preview", "split")
+_UI_LAYOUTS = ("list", "card")
+_UI_LIST_STATES = ("active", "archived")
+_UI_KEYS = {
+    "font_size": "notes.ui.font_size",
+    "mode": "notes.ui.mode",
+    "layout": "notes.ui.layout",
+    "sync_scroll": "notes.ui.sync_scroll",
+    "list_state": "notes.ui.list_state",
+}
+
+
+def _ui_get(key: str, default):
+    s = _require_deps().settings
+    if s is None:
+        return default
+    try:
+        val = s.get(key)
+    except ServiceError:
+        return default
+    return default if val is None else val
+
+
+def _read_notes_view() -> dict:
+    mode = str(_ui_get("notes.ui.mode", "edit"))
+    layout = str(_ui_get("notes.ui.layout", "list"))
+    list_state = str(_ui_get("notes.ui.list_state", "active"))
+    return {
+        "font_size": int(_ui_get("notes.ui.font_size", _UI_FONT_DEFAULT)),
+        "mode": mode if mode in _UI_MODES else "edit",
+        "layout": layout if layout in _UI_LAYOUTS else "list",
+        "sync_scroll": bool(_ui_get("notes.ui.sync_scroll", True)),
+        "list_state": list_state if list_state in _UI_LIST_STATES else "active",
+        "persisted": _require_deps().settings is not None,
+    }
+
+
+async def _emit_notes_ui(payload: dict, actor: ActorRef) -> None:
+    deps = _require_deps()
+    if deps.bus is not None:
+        await deps.bus.publish(Event(type="notes.ui.changed", actor=actor,
+                                     payload=payload))
+
+
 # ---------- 创建与读取 ----------
 
 @capability(registry, name="create_note", description="新建 Markdown 笔记", cost=2)
@@ -158,6 +205,94 @@ def list_notes(source_id: str | None = None, tag: str = "",
         limit = page_size_cap
     return deps.store.list(source_id=source_id, tag=tag, query=query,
                            state=view, sort=order, limit=limit)
+
+
+@capability(registry, name="get_notes_view",
+            description="读笔记页界面:字号(13-20,仅笔记)/视图 edit|preview|split/"
+                        "列表 list|card/同步滚动/在用或归档。与全站字号无关。")
+def get_notes_view() -> dict:
+    return _read_notes_view()
+
+
+@capability(registry, name="set_notes_view",
+            description="改笔记页界面(用户点按钮与 agent 调本能力等价,不影响全站)。"
+                        "font_size 或 font_delta 调字号;mode=edit|preview|split;"
+                        "layout=list|card;sync_scroll;list_state=active|archived;"
+                        "note_id 打开一篇(含 new);index=true 回到列表。",
+            cost=1)
+async def set_notes_view(font_size: int | None = None,
+                         font_delta: int | None = None,
+                         mode: str | None = None,
+                         layout: str | None = None,
+                         sync_scroll: bool | None = None,
+                         list_state: str | None = None,
+                         note_id: str | None = None,
+                         index: bool = False,
+                         _actor: ActorRef = None) -> dict:
+    touched = any(v is not None for v in (
+        font_size, font_delta, mode, layout, sync_scroll, list_state, note_id,
+    )) or index
+    if not touched:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           "至少提供一个界面参数",
+                           hint="font_size / font_delta / mode / layout / "
+                                "sync_scroll / list_state / note_id / index")
+    if mode is not None and mode not in _UI_MODES:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           f"mode 须为 {list(_UI_MODES)}")
+    if layout is not None and layout not in _UI_LAYOUTS:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           f"layout 须为 {list(_UI_LAYOUTS)}")
+    if list_state is not None and list_state not in _UI_LIST_STATES:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           f"list_state 须为 {list(_UI_LIST_STATES)}")
+    if font_size is not None and not (_UI_FONT_MIN <= int(font_size) <= _UI_FONT_MAX):
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           f"font_size 须在 {_UI_FONT_MIN}–{_UI_FONT_MAX}")
+    if note_id and note_id != "new" and not index:
+        _get_any(note_id)
+
+    view = _read_notes_view()
+    patch: dict = {}
+    if font_size is not None:
+        patch["font_size"] = int(font_size)
+    elif font_delta is not None:
+        nxt = int(view["font_size"]) + int(font_delta)
+        patch["font_size"] = max(_UI_FONT_MIN, min(_UI_FONT_MAX, nxt))
+    if mode is not None:
+        patch["mode"] = mode
+    if layout is not None:
+        patch["layout"] = layout
+    if sync_scroll is not None:
+        patch["sync_scroll"] = bool(sync_scroll)
+    if list_state is not None:
+        patch["list_state"] = list_state
+
+    actor = _actor or _ACTOR
+    deps = _require_deps()
+    persisted = deps.settings is not None
+    if patch and deps.settings is not None:
+        for field, value in patch.items():
+            await deps.settings.set(_UI_KEYS[field], value, actor)
+        view = _read_notes_view()
+    else:
+        view = {**view, **patch, "persisted": persisted}
+
+    action = "index" if index else ("open" if note_id else None)
+    out = {
+        **view,
+        "persisted": persisted,
+        "action": action,
+        "note_id": None if index else note_id,
+    }
+    # 事件只带本次变更,避免用整份快照盖掉并行的字号/视图本地乐观更新
+    await _emit_notes_ui({
+        **patch,
+        "action": action,
+        "note_id": out["note_id"],
+        "persisted": persisted,
+    }, actor)
+    return out
 
 
 # ---------- 编辑与状态 ----------

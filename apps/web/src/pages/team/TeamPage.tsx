@@ -9,6 +9,7 @@ import { callCapability } from '@/bridge/client';
 import { GlassCard } from '@/components/common/GlassCard';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
+import { extractErrorMessage } from '@/utils/errors';
 
 interface RunningSubagent {
   id: string;
@@ -32,11 +33,13 @@ export function TeamPage() {
   const [running, setRunning] = useState<RunningSubagent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
+      setError(null);
       try {
         const [p, t, s] = await Promise.all([
           callCapability<PersonaList['personas'] | PersonaList>('agent', 'list_personas', {}),
@@ -48,7 +51,7 @@ export function TeamPage() {
         setTools(Array.isArray(t) ? t : t.tools ?? []);
         setRunning(s.running ?? []);
       } catch (err) {
-        if (alive) setError(err instanceof Error ? err.message : String(err));
+        if (alive) setError(extractErrorMessage(err));
       } finally {
         if (alive) setLoading(false);
       }
@@ -56,7 +59,7 @@ export function TeamPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [retryTick]);
 
   if (loading) {
     return (
@@ -73,15 +76,7 @@ export function TeamPage() {
             title="加载失败"
             description={error}
             icon={EmptyStateIcons.team}
-            action={
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => window.location.reload()}
-              >
-                刷新页面
-              </button>
-            }
+            onRetry={() => setRetryTick((n) => n + 1)}
           />
         </div>
       </div>
@@ -90,12 +85,6 @@ export function TeamPage() {
 
   return (
     <div className="team-page page-scaffold">
-      <header className="page-scaffold__head">
-        <div>
-          <h1>团队</h1>
-          <p className="page-scaffold__subtitle">查看可用人格、当前工具面、注册自建 subagent</p>
-        </div>
-      </header>
       <div className="page-scaffold__body">
 
       <section className="team-section">

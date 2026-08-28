@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { GlassCard } from '@/components/common/GlassCard';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
+import { extractErrorMessage, BACKEND_UNREACHABLE } from '@/utils/errors';
 
 interface HealthRecord {
   service: string;
@@ -25,38 +26,35 @@ export function HealthPage() {
   const [payload, setPayload] = useState<HealthPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     let alive = true;
     const fetchHealth = async () => {
       try {
-        // §4.2.16 健康检查:直接 fetch gateway /health 端点;
-        // 该端点不是 capability(只读健康摘要,无副作用),由 vite proxy 转发到 8000。
-        // 若未来需鉴权,改为 callCapability('system', 'get_health', {})。
-        const healthResp = await fetch('/health');
+        const healthResp = await fetch('/health', { credentials: 'include' });
         if (!healthResp.ok) {
-          // 无 JSON 信封的失败(代理在后端未启动时的 500)按网络不可达提示
           const errBody = (await healthResp.json().catch(() => null)) as { error?: { message?: string } } | null;
-          throw new Error(errBody?.error?.message ?? '无法连接后端服务，请确认后端已启动');
+          throw new Error(errBody?.error?.message ?? BACKEND_UNREACHABLE);
         }
         const body = (await healthResp.json()) as HealthPayload;
         if (!alive) return;
         setPayload(body);
+        setError(null);
       } catch (err) {
-        if (alive) {
-          setError(err instanceof TypeError ? '无法连接后端服务，请确认后端已启动' : err instanceof Error ? err.message : String(err));
-        }
+        if (alive) setError(extractErrorMessage(err));
       } finally {
         if (alive) setLoading(false);
       }
     };
+    setLoading(true);
     void fetchHealth();
     const t = window.setInterval(fetchHealth, 15000);
     return () => {
       alive = false;
       window.clearInterval(t);
     };
-  }, []);
+  }, [retryTick]);
 
   return (
     <div className="health-page page-scaffold">
@@ -68,15 +66,7 @@ export function HealthPage() {
             title="无法获取状态"
             description={error}
             icon={EmptyStateIcons.health}
-            action={
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => window.location.reload()}
-              >
-                刷新页面
-              </button>
-            }
+            onRetry={() => setRetryTick((n) => n + 1)}
           />
         </div>
       ) : !payload ? (
@@ -85,12 +75,6 @@ export function HealthPage() {
         </div>
       ) : (
         <>
-          <header className="page-scaffold__head">
-            <div>
-              <h1>服务状态</h1>
-              <p className="page-scaffold__subtitle">实时健康探测与后端服务可用性</p>
-            </div>
-          </header>
           <div className="page-scaffold__body">
             <GlassCard className={`health-overall health-overall--${payload.overall ?? 'unknown'}`}>
               <span className="label">整体</span>

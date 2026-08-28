@@ -1,69 +1,109 @@
-import { Link } from 'react-router-dom';
+import type { KeyboardEvent } from 'react';
 import type { Note } from '@/api/types';
-import { formatDate, formatRelativeTime } from '@/utils/date';
+import { noteSnippet, noteSourceId, noteUpdatedLabel } from './noteUtils';
 
 interface NoteListProps {
   notes: Note[];
-  projectNames: Map<string, string>;
-  selectedId: string | null;
+  projectNames?: Map<string, string>;
+  selectedId?: string | null;
   onSelect: (note: Note) => void;
-  variant?: 'default' | 'card';
+  onPin?: (note: Note, pinned: boolean) => void;
+  emptyLabel?: string;
+  variant?: 'list' | 'card';
 }
 
-function stripSnippet(content: string): string {
-  return content.replace(/[#*`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80);
+function PinButton({
+  pinned,
+  onClick,
+}: {
+  pinned: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`note-pin${pinned ? ' is-on' : ''}`}
+      aria-label={pinned ? '取消置顶' : '置顶'}
+      aria-pressed={pinned}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+    >
+      <svg viewBox="0 0 24 24" fill={pinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" width={14} height={14} aria-hidden>
+        <path d="M12 17v5M8 3h8l-1 7h3l-6 7-6-7h3L8 3z" />
+      </svg>
+    </button>
+  );
 }
 
-export function NoteList({ notes, projectNames, selectedId, onSelect, variant = 'card' }: NoteListProps) {
+export function NoteList({
+  notes,
+  projectNames,
+  selectedId,
+  onSelect,
+  onPin,
+  emptyLabel = '暂无笔记',
+  variant = 'list',
+}: NoteListProps) {
   if (notes.length === 0) {
-    return <p className="muted" style={{ padding: 12 }}>暂无笔记</p>;
-  }
-
-  if (variant === 'default') {
-    return (
-      <>
-        {notes.map((n) => (
-          <button
-            key={n.id}
-            type="button"
-            data-testid="note-item"
-            className={`note-card ${selectedId === n.id ? 'active' : ''}`}
-            onClick={() => onSelect(n)}
-          >
-            <div className="note-card-title">{n.title}</div>
-            <div className="note-card-meta">
-              <Link to={`/sources/repo/${n.project_id}`} onClick={(e) => e.stopPropagation()}>
-                {projectNames.get(n.project_id) ?? n.project_id}
-              </Link>
-              <span className="dot" />
-              <span>{formatRelativeTime(n.updated_at)}</span>
-            </div>
-            <div className="note-card-snippet">{stripSnippet(n.content)}</div>
-          </button>
-        ))}
-      </>
-    );
+    return <p className="muted notes-list-empty">{emptyLabel}</p>;
   }
 
   return (
     <>
-      {notes.map((n) => (
-        <button
-          key={n.id}
-          type="button"
-          data-testid="note-item"
-          className={`note-card ${selectedId === n.id ? 'active' : ''}`}
-          onClick={() => onSelect(n)}
-        >
-          <div className="note-card-title">{n.title}</div>
-          <div className="note-card-meta">
-            <span>{projectNames.get(n.project_id) ?? n.project_id}</span>
-            <span className="dot" />
-            <span>{formatDate(n.updated_at)}</span>
+      {notes.map((n) => {
+        const src = noteSourceId(n);
+        const name = projectNames?.get(src) ?? src;
+        const projectLabel = src ? name || '未命名项目' : '';
+        const snippet = noteSnippet(n);
+        const time = noteUpdatedLabel(n);
+        const pinned = Boolean(n.pinned);
+        const onKey = (e: KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onSelect(n);
+          }
+        };
+        if (variant === 'card') {
+          return (
+            <div
+              key={n.id}
+              role="button"
+              tabIndex={0}
+              data-testid="note-item"
+              className={`note-grid-card${selectedId === n.id ? ' active' : ''}${pinned ? ' is-pinned' : ''}`}
+              onClick={() => onSelect(n)}
+              onKeyDown={onKey}
+            >
+              {onPin ? <PinButton pinned={pinned} onClick={() => onPin(n, !pinned)} /> : null}
+              {projectLabel ? <span className="project-tag">{projectLabel}</span> : null}
+              <h4>{n.title || '无标题'}</h4>
+              {snippet ? <p className="snippet">{snippet.slice(0, 160)}</p> : <p className="snippet muted">无摘要</p>}
+              <div className="meta">
+                <span>{time || '刚刚'}</span>
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div
+            key={n.id}
+            role="button"
+            tabIndex={0}
+            data-testid="note-item"
+            className={`note-row${selectedId === n.id ? ' active' : ''}${pinned ? ' is-pinned' : ''}`}
+            onClick={() => onSelect(n)}
+            onKeyDown={onKey}
+          >
+            {onPin ? <PinButton pinned={pinned} onClick={() => onPin(n, !pinned)} /> : <span className="note-pin-slot" />}
+            <div className="note-row-title">{n.title || '无标题'}</div>
+            <div className="note-row-snippet">{snippet ? snippet.slice(0, 120) : '无摘要'}</div>
+            <div className="note-row-project">{projectLabel || '—'}</div>
+            <div className="note-row-time">{time || '—'}</div>
           </div>
-          <div className="note-card-snippet">{stripSnippet(n.content)}</div>
-        </button>
-      ))}
+        );
+      })}
     </>
   );
 }

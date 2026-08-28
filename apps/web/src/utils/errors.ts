@@ -5,6 +5,9 @@ interface LegacyErrorEnvelope {
   error: { message: string };
 }
 
+/** 后端不可达时的统一用户文案(空态 / fetch / capability)。 */
+export const BACKEND_UNREACHABLE = '无法连接后端服务，请确认后端已启动';
+
 /** 判断是否为 API 错误响应 */
 export function isApiError(err: unknown): err is LegacyErrorEnvelope {
   return (
@@ -20,14 +23,12 @@ export function extractErrorMessage(err: unknown): string {
   if (isApiError(err)) {
     return err.error.message;
   }
-  // 网络错误统一提示，不硬编码端口（端口可通过 VITE_API_TARGET 等环境变量覆盖）
-  const NETWORK_HINT = '无法连接后端，请确认 API 服务已启动且端口配置正确（开发默认经 Vite 代理转发）';
   if (err instanceof TypeError && /fetch|network|Failed to fetch/i.test(err.message)) {
-    return NETWORK_HINT;
+    return BACKEND_UNREACHABLE;
   }
   if (err instanceof Error) {
     if (/Failed to fetch|NetworkError|Load failed/i.test(err.message)) {
-      return NETWORK_HINT;
+      return BACKEND_UNREACHABLE;
     }
     return err.message;
   }

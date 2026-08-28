@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   useCategories,
@@ -19,6 +19,7 @@ import { CategoryTagManager } from '@/components/project/CategoryTagManager';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
+import { BACKEND_UNREACHABLE } from '@/utils/errors';
 import { formatNumber } from '@/utils/format';
 import { GLASS_OUTER } from '@/constants/glassTokens';
 
@@ -55,7 +56,6 @@ export function ProjectsPage({ embedded = false }: { embedded?: boolean }) {
   const page = useProjectStore((s) => s.page);
   const pageSize = useProjectStore((s) => s.pageSize);
   const setPage = useProjectStore((s) => s.setPage);
-  const search = useProjectStore((s) => s.search);
   const selectedIds = useProjectStore((s) => s.selectedIds);
   const clearSelected = useProjectStore((s) => s.clearSelected);
   const deleteMutation = useDeleteProject();
@@ -74,18 +74,10 @@ export function ProjectsPage({ embedded = false }: { embedded?: boolean }) {
     if (searchParams.get('import') === 'stars') setStarsOpen(true);
   }, [searchParams]);
 
-  const total = data?.total ?? 0;
   const totalPages = data ? Math.ceil(data.total / pageSize) : 1;
   const byP = stats?.by_progress;
 
   const languages = useProjectLanguages(data?.items ?? []);
-
-  const subtitle = useMemo(() => {
-    const parts: string[] = [];
-    if (search) parts.push(`"${search}"`);
-    const tail = parts.length ? ` · 已筛选 ${parts.join(' · ')}` : '';
-    return `${total} 个项目 · 最后同步于 ${new Date().toLocaleDateString('zh-CN')}${tail}`;
-  }, [total, search]);
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
@@ -151,13 +143,9 @@ export function ProjectsPage({ embedded = false }: { embedded?: boolean }) {
         <div className="page-scaffold__state">
           <EmptyState
             title="无法加载项目库"
-            description={error instanceof Error ? error.message : '请检查后端服务后重试'}
+            description={error instanceof Error ? error.message : BACKEND_UNREACHABLE}
             icon={EmptyStateIcons.library}
-            action={
-              <button type="button" className="btn btn-ghost" onClick={() => void refetch()}>
-                重试
-              </button>
-            }
+            onRetry={() => void refetch()}
           />
         </div>
       </div>
@@ -168,10 +156,6 @@ export function ProjectsPage({ embedded = false }: { embedded?: boolean }) {
     <>
       {!embedded && (
         <div className="page-head">
-          <div>
-            <h1>我的项目库</h1>
-            <p className="subtitle">{subtitle}</p>
-          </div>
           <div className="actions">
             <button
               type="button"

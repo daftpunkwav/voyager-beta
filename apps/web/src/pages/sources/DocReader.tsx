@@ -46,7 +46,7 @@ export function DocReader() {
           title="无法加载文档"
           description={error instanceof Error ? error.message : '文档不存在或服务不可用'}
           icon={EmptyStateIcons.library}
-          action={<button type="button" className="btn btn-ghost" onClick={() => void refetch()}>重试</button>}
+          onRetry={() => void refetch()}
         />
       </div>
     );

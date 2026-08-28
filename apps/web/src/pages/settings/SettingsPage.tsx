@@ -56,15 +56,7 @@ export function SettingsPage() {
             title="无法加载设置"
             description={error ?? '后端服务未启动或不可达。请检查 gateway 是否运行后重试。'}
             icon={EmptyStateIcons.settings}
-            action={
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => void loadSettings()}
-              >
-                重试
-              </button>
-            }
+            onRetry={() => void loadSettings()}
           />
         </div>
       </div>
@@ -112,12 +104,6 @@ export function SettingsPage() {
 
   return (
     <div className="page-scaffold settings-page">
-      <header className="page-scaffold__head">
-        <div>
-          <h1>设置</h1>
-          <p className="page-scaffold__subtitle">个性化、账号、模型与数据管理</p>
-        </div>
-      </header>
       <div className="settings-shell">
         <nav className="subnav" aria-label="设置分类">
           <div className="subnav-title">分类</div>

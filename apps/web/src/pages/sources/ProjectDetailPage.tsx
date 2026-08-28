@@ -28,6 +28,7 @@ import { categoryLabel } from '@/utils/labels';
 import { AGENT_CATALOG } from '@/constants/agentCatalog';
 import { GLASS_INNER, GLASS_OUTER } from '@/constants/glassTokens';
 import { callCapability } from '@/bridge/client';
+import { routes } from '@/utils/routes';
 import {
   ProjectAiPanel,
   type ProjectAiLine,
@@ -150,7 +151,7 @@ function CodeGraphIndexCard({ projectId }: { projectId: string }) {
 
         {isReady && (
           <Link
-            to={`/graph/projects/${projectId}`}
+            to={routes.codeGraph(projectId)}
             className={`btn btn-sm ${GLASS_INNER}`}
             style={{ height: 28, fontSize: 12 }}
           >
@@ -223,7 +224,7 @@ export function ProjectDetailPage() {
   useEffect(() => {
     if (isError) {
       addToast({ type: 'error', message: '项目不存在' });
-      navigate('/projects', { replace: true });
+      navigate(routes.sources, { replace: true });
     }
   }, [isError, navigate, addToast]);
 
@@ -701,7 +702,7 @@ export function ProjectDetailPage() {
                   if (!p) return null;
                   const [, repoName] = p.name.split('/');
                   return (
-                    <Link key={r.id} className="pd-related-item" to={`/projects/${r.id}`}>
+                    <Link key={r.id} className="pd-related-item" to={routes.sourceRepo(r.id)}>
                       <div
                         className="pd-related-avatar"
                         style={{ background: REPO_AVATAR_GRADIENTS[i % REPO_AVATAR_GRADIENTS.length] }}
@@ -847,7 +848,7 @@ export function ProjectDetailPage() {
         danger
         onConfirm={() => {
           deleteProject.mutate(project.id, {
-            onSuccess: () => navigate('/projects'),
+            onSuccess: () => navigate(routes.sources),
           });
           setDeleteOpen(false);
         }}

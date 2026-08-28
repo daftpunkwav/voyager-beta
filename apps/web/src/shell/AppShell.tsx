@@ -1,6 +1,6 @@
 /** 应用壳:液态玻璃导航(Sidebar + Topbar)
  * + 路由感知 activePage(给 Sidebar 用)
- * + 常驻 ServiceBadges 条 + PageProbe + FloatingChat(chat 路由时 FloatingChat 隐藏)。
+ * + PageProbe + FloatingChat(chat 路由时 FloatingChat 隐藏)。
  *
  * 关键修复(vs. 之前版本):移除给 .app 加 .agent-shell 的逻辑。
  * 旧实现让 .app 被 4 列 grid 覆盖,主列只剩 280px,导致 Topbar 压缩到 280px
@@ -11,10 +11,12 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar, type SidebarPageKey } from '@/components/layout/Sidebar';
 import { Topbar } from '@/components/layout/Topbar';
 import { ToastContainer } from '@/components/common/ToastContainer';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+import { EmptyState } from '@/components/common/EmptyState';
 import { PageProbe } from '@/widgets/PageProbe';
 import { FloatingChat } from '@/widgets/FloatingChat';
-import { ServiceBadges } from './ServiceBadge';
 import { useUIStore } from '@/stores/uiStore';
+import { useNotesUiBridge } from '@/pages/notes/notesUiBridge';
 
 function resolveActivePage(pathname: string): SidebarPageKey {
   if (pathname === '/' || pathname.startsWith('/chat')) return 'chat';
@@ -32,13 +34,32 @@ function resolveActivePage(pathname: string): SidebarPageKey {
 }
 
 /** 标准应用壳:Sidebar + Topbar(搜索/主题/通知/avatar) + <Outlet/>
- * + 服务状态条 + PageProbe + FloatingChat。 */
+ * + PageProbe + FloatingChat。 */
+function pageErrorFallback(error: Error, reset: () => void) {
+  return (
+    <div className="page-scaffold">
+      <div className="page-scaffold__state">
+        <EmptyState
+          title="这一页出错了"
+          description={error.message || '可以重试,或换一条导航再进。'}
+          action={
+            <button type="button" className="btn btn-primary" onClick={reset}>
+              重试
+            </button>
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
 export function AppShell() {
   const { pathname } = useLocation();
   const activePage = resolveActivePage(pathname);
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const onChat = pathname === '/' || pathname.startsWith('/chat');
+  useNotesUiBridge();
 
   return (
     <div
@@ -49,6 +70,9 @@ export function AppShell() {
         .filter(Boolean)
         .join(' ')}
     >
+      <a className="skip-link" href="#main-content">
+        跳到主内容
+      </a>
       <Sidebar activePage={activePage} />
       {/* 侧边栏收起钮：吸附在侧边栏与主列的中缝上，垂直位置固定，收起/展开只沿水平滑动 */}
       <button
@@ -76,9 +100,10 @@ export function AppShell() {
       </button>
       <div className="main">
         <Topbar />
-        <ServiceBadges />
-        <main className="content">
-          <Outlet />
+        <main id="main-content" className="content" tabIndex={-1}>
+          <ErrorBoundary key={pathname} fallback={pageErrorFallback}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
       <ToastContainer />

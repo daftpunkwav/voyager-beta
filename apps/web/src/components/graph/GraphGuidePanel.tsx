@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { EmbedAgentChat } from '@/components/agent/EmbedAgentChat';
+import { EmbedAgentChat } from '@/widgets/EmbedAgentChat';
 import { AgentAvatar, type LookTarget } from '@/components/agent/AgentAvatar';
 
 interface GraphGuidePanelProps {

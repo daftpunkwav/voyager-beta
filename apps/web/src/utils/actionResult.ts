@@ -1,5 +1,8 @@
 /** Agent 写操作结果解析（与后端 __action__ 约定对齐） */
 
+import { routes } from './routes';
+import { safeInternalPath } from './safeUrl';
+
 export interface ActionLink {
   label: string;
   href: string;
@@ -49,7 +52,7 @@ export function parseActionResult(value: unknown): ActionResultView | null {
       action: 'session_projects',
       ok: obj.ok !== false,
       summary: `会话已绑定 ${count} 个项目`,
-      links: [{ label: '项目库', href: '/projects' }],
+      links: [{ label: '资源库', href: routes.sources }],
       resource:
         obj.project_ids && typeof obj === 'object'
           ? { type: 'session', project_ids: obj.project_ids, count }
@@ -79,11 +82,12 @@ export function parseActionResult(value: unknown): ActionResultView | null {
   const linksRaw = Array.isArray(obj.links) ? obj.links : [];
   const links: ActionLink[] = linksRaw
     .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object')
-    .map((x) => ({
-      label: String(x.label ?? '打开'),
-      href: String(x.href ?? '#'),
-    }))
-    .filter((l) => l.href && l.href !== '#');
+    .map((x) => {
+      const href = safeInternalPath(x.href);
+      if (!href) return null;
+      return { label: String(x.label ?? '打开'), href };
+    })
+    .filter((l): l is ActionLink => l != null);
 
   const resource =
     obj.resource && typeof obj.resource === 'object' && !Array.isArray(obj.resource)

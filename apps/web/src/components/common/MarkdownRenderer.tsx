@@ -6,6 +6,7 @@
  */
 
 import { Children, isValidElement, useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -16,6 +17,8 @@ import { cn } from '@/utils/cn';
 import { tryParseAsciiArchLayers, looksLikeMarkdownTable } from '@/utils/asciiArch';
 import { looksLikeMermaid, MermaidBlock } from '@/components/common/MermaidBlock';
 import { Lightbox } from '@/components/common/Lightbox';
+import { safeHttpUrl, safeImgSrc, safeInternalPath } from '@/utils/safeUrl';
+import { routes } from '@/utils/routes';
 
 interface MarkdownRendererProps {
   content: string;
@@ -145,7 +148,7 @@ export function MarkdownRenderer({
   onWikiLink,
 }: MarkdownRendererProps) {
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
-  // slugger 有内部去重计数器:每次渲染新实例,避免跨渲染串号
+  const navigate = useNavigate();
   const slugs = new GithubSlugger();
   const prepared = preprocessWikiLinks(content);
 
@@ -184,34 +187,62 @@ export function MarkdownRenderer({
           },
           a: ({ children, href, ...props }) => {
             if (typeof href === 'string' && href.startsWith('#wiki:')) {
-              const target = decodeURIComponent(href.slice('#wiki:'.length));
+              let target = href.slice('#wiki:'.length);
+              try {
+                target = decodeURIComponent(target);
+              } catch {
+                /* 非法百分号编码:用原串当标题 */
+              }
+              target = target.trim();
+              if (!target) return <span>{children}</span>;
+              const to = routes.note(target);
               return (
                 <a
                   {...props}
-                  href={`/notes?note=${encodeURIComponent(target)}`}
+                  href={to}
                   className="md-wiki-link"
                   title={`内链:${target}`}
                   onClick={(e) => {
                     e.preventDefault();
                     if (onWikiLink) onWikiLink(target);
-                    else window.location.href = `/notes?note=${encodeURIComponent(target)}`;
+                    else navigate(to);
                   }}
                 >
                   {children}
                 </a>
               );
             }
+            const internal = typeof href === 'string' ? safeInternalPath(href) : null;
+            if (internal) {
+              return (
+                <a
+                  {...props}
+                  href={internal}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate(internal);
+                  }}
+                >
+                  {children}
+                </a>
+              );
+            }
+            const safe = typeof href === 'string' ? safeHttpUrl(href) : undefined;
+            if (!safe) {
+              return <span>{children}</span>;
+            }
             return (
-              <a {...props} href={href} target="_blank" rel="noreferrer noopener">
+              <a {...props} href={safe} target="_blank" rel="noreferrer noopener">
                 {children}
               </a>
             );
           },
           img: ({ src, alt, ...props }) => {
-            const resolved =
+            const resolved = safeImgSrc(
               typeof src === 'string' && src.startsWith('attachment://')
-                ? `/api/notes/assets/${src.slice('attachment://'.length)}`
-                : typeof src === 'string' ? src : undefined;
+                ? src
+                : src,
+            );
             if (!resolved) return null;
             return (
               <img

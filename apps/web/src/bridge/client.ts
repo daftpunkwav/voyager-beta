@@ -1,5 +1,7 @@
 /** 统一能力调用通道:POST /api/<domain>/capabilities/<name>,统一解 {result}/{error} 信封。 */
 
+import { BACKEND_UNREACHABLE } from '@/utils/errors';
+
 export class ServiceError extends Error {
   constructor(
     public code: string,
@@ -30,7 +32,7 @@ export async function callCapability<T = unknown>(
       body: JSON.stringify(args),
     });
   } catch {
-    throw new ServiceError('NETWORK', '无法连接后端服务', '请确认后端已启动');
+    throw new ServiceError('NETWORK', BACKEND_UNREACHABLE);
   }
 
   const body = await resp.json().catch(() => null);
@@ -38,7 +40,7 @@ export async function callCapability<T = unknown>(
     // 无 JSON 信封的失败响应(如 dev/preview 代理在后端未启动时返回的 500 空 body)
     // 对用户等价于"后端不可达",不展示含糊的"请求失败(500)"
     if (body === null) {
-      throw new ServiceError('NETWORK', '无法连接后端服务', '请确认后端服务已启动', '', resp.status);
+      throw new ServiceError('NETWORK', BACKEND_UNREACHABLE, '', '', resp.status);
     }
     const err = body?.error ?? {};
     throw new ServiceError(
@@ -68,7 +70,7 @@ export async function uploadFile(
       headers: { 'X-Trace-Id': crypto.randomUUID() },
     });
   } catch {
-    throw new ServiceError('NETWORK', '无法连接后端服务', '请确认后端已启动');
+    throw new ServiceError('NETWORK', BACKEND_UNREACHABLE);
   }
   const body = await resp.json().catch(() => null);
   if (!resp.ok) {

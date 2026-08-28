@@ -2,7 +2,8 @@
  *  页面私有组件(§10.1),只被 NotesPage 使用;数据全部来自既有后端能力。
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import GithubSlugger from 'github-slugger';
 import {
   useBacklinks,
@@ -15,6 +16,7 @@ import {
   useTrashNotes,
 } from '@/hooks/useNotes';
 import { useUIStore } from '@/stores/uiStore';
+import { routes } from '@/utils/routes';
 
 /** 版本历史抽屉:列举 → 选版对比(字符数) → 回退(回退本身再成快照)。 */
 export function VersionDrawer({ noteId, open, onClose }: { noteId: string; open: boolean; onClose: () => void }) {
@@ -22,6 +24,14 @@ export function VersionDrawer({ noteId, open, onClose }: { noteId: string; open:
   const restore = useRestoreVersion();
   const [selected, setSelected] = useState<number | null>(null);
   const addToast = useUIStore((s) => s.addToast);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
   if (!open) return null;
   return (
     <div className="drawer-overlay" onClick={onClose}>
@@ -87,6 +97,14 @@ export function TrashPanel({ open, onClose, onOpenNote }: { open: boolean; onClo
   const purge = usePurgeNote();
   const empty = useEmptyTrash();
   const addToast = useUIStore((s) => s.addToast);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
   if (!open) return null;
   return (
     <div className="drawer-overlay" onClick={onClose}>
@@ -159,25 +177,29 @@ export function TocPanel({ noteId }: { noteId: string }) {
   const { data } = useNoteToc(noteId);
   const toc = data?.toc ?? [];
   if (toc.length === 0) return null;
+  const slugs = new GithubSlugger();
   return (
     <nav className="toc-panel" aria-label="目录">
       <h4 className="small muted">大纲</h4>
       <ul>
-        {toc.map((h, i) => (
-          <li key={`${i}-${h.text}`} style={{ paddingLeft: (h.level - 1) * 12 }}>
-            <a
-              href={`#${slugify(h.text)}`}
-              onClick={(e) => {
-                e.preventDefault();
-                document
-                  .getElementById(slugify(h.text))
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }}
-            >
-              {h.text}
-            </a>
-          </li>
-        ))}
+        {toc.map((h, i) => {
+          const id = slugs.slug(h.text);
+          return (
+            <li key={`${i}-${h.text}`} style={{ paddingLeft: (h.level - 1) * 12 }}>
+              <a
+                href={`#${id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  document
+                    .getElementById(id)
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+              >
+                {h.text}
+              </a>
+            </li>
+          );
+        })}
       </ul>
     </nav>
   );
@@ -194,16 +216,10 @@ export function BacklinkPanel({ noteId }: { noteId: string }) {
       <ul>
         {backlinks.map((b) => (
           <li key={b.id}>
-            <a href={`/notes?note=${b.id}`}>{b.title}</a>
+            <Link to={routes.note(b.id)}>{b.title}</Link>
           </li>
         ))}
       </ul>
     </div>
   );
-}
-
-// 与 MarkdownRenderer 共用 github-slugger 单实例,避免重复标题 slug 不一致。
-const _slugger = new GithubSlugger();
-function slugify(text: string): string {
-  return _slugger.slug(text);
 }

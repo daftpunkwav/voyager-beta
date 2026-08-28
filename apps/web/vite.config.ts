@@ -81,6 +81,24 @@ export default defineConfig({
       '/health': { target: BACKEND, changeOrigin: true },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // 重库单独分包;不要拆 React,避免双实例。
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (/node_modules[/\\](react|react-dom|scheduler)[/\\]/.test(id)) return;
+          if (/node_modules[/\\](three|@react-three)[/\\]/.test(id)) return 'vendor-three';
+          if (/node_modules[/\\]mermaid[/\\]/.test(id)) return 'vendor-mermaid';
+          if (/node_modules[/\\]pdfjs-dist[/\\]/.test(id)) return 'vendor-pdfjs';
+          if (/node_modules[/\\](@codemirror|codemirror|@lezer)[/\\]/.test(id)) {
+            return 'vendor-codemirror';
+          }
+          if (/node_modules[/\\]d3/.test(id)) return 'vendor-d3';
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',

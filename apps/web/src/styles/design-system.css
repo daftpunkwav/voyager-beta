@@ -42,6 +42,12 @@
   --text-300: #aeaeb2;
   --text-200: #c7c7cc;
   --text-100: #e3e3e8;
+  /* 兼容旧 token(--text-1/2/3 曾用于资源库等,未定义时颜色会失效) */
+  --text-1: var(--text-800);
+  --text-2: var(--text-600);
+  --text-3: var(--text-500);
+  --bg-elev: var(--bg-50);
+  --bg-glass: rgba(120, 120, 128, 0.12);
 
   /* State */
   --success: #34c759;
@@ -79,18 +85,19 @@
   --font-sans: "DM Sans", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Mono", "Sarasa Mono SC", "Sarasa Term SC", "Noto Sans Mono CJK SC", "Source Han Mono SC", Consolas, "Courier New", monospace;
 
-  /* Markdown 输出面板（代码 / 表格 / 引用 / 架构卡）统一表面 */
-  --md-panel-bg: #1c1c1e;
-  --md-panel-bg-elevated: rgba(255, 255, 255, 0.06);
-  --md-panel-border: rgba(255, 255, 255, 0.12);
+  /* Markdown 输出面板（代码 / 表格 / 引用 / 架构卡）· 浅色纸面 */
+  --md-panel-bg: #f5f5f7;
+  --md-panel-bg-elevated: rgba(0, 0, 0, 0.04);
+  --md-panel-border: rgba(0, 0, 0, 0.08);
+  --md-panel-rule: rgba(0, 0, 0, 0.08);
   --md-panel-radius: 12px;
   --md-panel-pad: 14px 16px;
-  --md-panel-fg: #f5f5f7;
-  --md-panel-muted: rgba(245, 245, 247, 0.72);
-  --md-panel-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  --md-panel-accent: #0a84ff;
-  --md-inline-code-bg: rgba(255, 255, 255, 0.1);
-  --md-inline-code-fg: #9cd1ff;
+  --md-panel-fg: #1d1d1f;
+  --md-panel-muted: #3c3c43;
+  --md-panel-shadow: none;
+  --md-panel-accent: #007aff;
+  --md-inline-code-bg: rgba(0, 122, 255, 0.08);
+  --md-inline-code-fg: #004fad;
 
   /* Spacing / Radius / Shadow */
   --sp: 4px;
@@ -260,11 +267,23 @@
   --cat-tools-bg:    rgba(174, 174, 178, 0.14); --cat-tools-fg:   #d1d1d6;
   --cat-learning-bg: rgba(255, 159, 10, 0.2);  --cat-learning-fg: #ffb340;
   --cat-other-bg:    rgba(174, 174, 178, 0.14); --cat-other-fg:   #aeaeb2;
+
+  /* Markdown 面板 · 夜面（浅色默认是纸面） */
+  --md-panel-bg: #1c1c1e;
+  --md-panel-bg-elevated: rgba(255, 255, 255, 0.06);
+  --md-panel-border: rgba(255, 255, 255, 0.12);
+  --md-panel-rule: rgba(255, 255, 255, 0.1);
+  --md-panel-fg: #f5f5f7;
+  --md-panel-muted: rgba(245, 245, 247, 0.72);
+  --md-panel-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --md-panel-accent: #0a84ff;
+  --md-inline-code-bg: rgba(255, 255, 255, 0.1);
+  --md-inline-code-fg: #9cd1ff;
 }
 
 /* ---------- Reset ---------- */
 *, *::before, *::after { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+html, body { margin: 0; padding: 0; height: 100%; }
 html {
   scroll-behavior: smooth;
   /* 全局字体缩放基准: rem 字号随用户设置成比例变化 */
@@ -403,7 +422,10 @@ img, svg { display: block; max-width: 100%; }
 .app {
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
   position: relative;
   z-index: var(--z-content);
   transition: grid-template-columns 0.2s var(--ease);
@@ -511,8 +533,17 @@ img, svg { display: block; max-width: 100%; }
 .sidebar-name { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
 .sidebar-version { font-size: 10px; color: var(--text-400); letter-spacing: 0.04em; font-family: var(--font-mono); }
 .sidebar-section {
-  font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--text-400); padding: 14px 12px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sidebar-section > .label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-400);
+  padding: 14px 12px 6px;
 }
 
 .nav-item {
@@ -540,7 +571,6 @@ img, svg { display: block; max-width: 100%; }
 }
 .nav-item:hover {
   background: rgba(0, 0, 0, 0.04);
-  transform: translateX(2px);
 }
 [data-theme="dark"] .nav-item:hover {
   background: rgba(255, 255, 255, 0.08);
@@ -558,8 +588,7 @@ img, svg { display: block; max-width: 100%; }
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 2px 10px rgba(0,122,255,0.18);
 }
 .nav-item.disabled { opacity: 0.4; pointer-events: none; }
-.nav-item svg { width: 18px; height: 18px; flex-shrink: 0; transition: transform var(--dur-fast) var(--ease-apple); }
-.nav-item:hover svg { transform: scale(1.08); }
+.nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
 .nav-badge {
   margin-left: auto;
   background: rgba(0,0,0,0.08);
@@ -571,8 +600,34 @@ img, svg { display: block; max-width: 100%; }
 .nav-item.active .nav-badge { background: var(--brand-500); color: #fff; }
 .nav-item.ai-badge .nav-badge { background: linear-gradient(135deg, var(--chart-5), var(--chart-4)); color: #fff; }
 
-.sidebar-footer { margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(0,0,0,0.06); }
+.sidebar-footer { margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(0, 0, 0, 0.06); }
 [data-theme="dark"] .sidebar-footer { border-top-color: rgba(255,255,255,0.08); }
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-nav, 10px);
+  color: inherit;
+  text-decoration: none;
+}
+.sidebar-user:hover { background: rgba(0, 0, 0, 0.04); }
+[data-theme="dark"] .sidebar-user:hover { background: rgba(255, 255, 255, 0.08); }
+.sidebar-user .avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.sidebar-user__meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  flex: 1;
+  min-width: 0;
+}
+.sidebar-user__name { font-size: 12px; font-weight: 600; }
+.sidebar-user__hint { font-size: 10px; color: var(--text-400); }
 
 /* Glass Topbar · Apple 签名组合 rgba(255,255,255,0.78) + saturate(180%) blur(24px) */
 .topbar {
@@ -592,9 +647,17 @@ img, svg { display: block; max-width: 100%; }
   background: rgba(0, 0, 0, 0.72);
   border-bottom-color: rgba(255,255,255,0.08);
 }
-.topbar-crumb { font-size: 13.5px; color: var(--text-500); display: flex; align-items: center; gap: 8px; }
-.topbar-crumb strong { color: var(--text-800); font-weight: 600; }
-.topbar-crumb .sep { opacity: 0.5; }
+.topbar-title {
+  margin: 0;
+  flex-shrink: 0;
+  height: 36px;
+  line-height: 36px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--text-800);
+  white-space: nowrap;
+}
 .topbar-spacer { flex: 1; }
 .topbar-search {
   display: flex; align-items: center; gap: 8px;
@@ -619,7 +682,14 @@ img, svg { display: block; max-width: 100%; }
 }
 [data-theme="dark"] .topbar-search { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.1); }
 [data-theme="dark"] .topbar-search:focus-within { background: rgba(255, 255, 255, 0.12); }
-.topbar-search input { flex: 1; border: 0; background: transparent; outline: 0; font: inherit; color: var(--text-800); }
+.topbar-search input { flex: 1; border: 0; background: transparent; outline: 0; font: inherit; color: var(--text-800); appearance: none; -webkit-appearance: none; }
+.topbar-search input[type="search"]::-webkit-search-decoration,
+.topbar-search input[type="search"]::-webkit-search-cancel-button,
+.topbar-search input[type="search"]::-webkit-search-results-button,
+.topbar-search input[type="search"]::-webkit-search-results-decoration {
+  display: none;
+  -webkit-appearance: none;
+}
 .topbar-search input::placeholder { color: var(--text-400); }
 .topbar-search svg { width: 14px; height: 14px; }
 .topbar-search kbd {
@@ -674,6 +744,55 @@ img, svg { display: block; max-width: 100%; }
   background: var(--error);
   border: 1.5px solid var(--bg-50);
 }
+.topbar-help { position: relative; }
+.topbar-help__panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 248px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--apple-border-soft, #e5e5ea);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+  z-index: 80;
+  animation: sheetIn 180ms var(--ease-apple, cubic-bezier(0.32, 0.72, 0, 1)) both;
+}
+.topbar-help__panel h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-800);
+}
+.topbar-help__panel p {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-600);
+  line-height: 1.9;
+}
+.topbar-help__panel kbd {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-200, #f2f2f7);
+  border: 1px solid var(--bg-300, #e5e5ea);
+  color: var(--text-700);
+}
+[data-theme="dark"] .topbar-help__panel {
+  background: rgba(28, 28, 30, 0.96);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+[data-theme="dark"] .topbar-help__panel kbd {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: var(--text-200);
+}
 .avatar {
   width: 32px; height: 32px;
   border-radius: var(--radius-pill);
@@ -694,9 +813,32 @@ img, svg { display: block; max-width: 100%; }
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
+.skip-link {
+  position: absolute;
+  left: 16px;
+  top: -64px;
+  z-index: 2000;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--brand-500);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+.skip-link:focus {
+  top: 12px;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+#main-content:focus { outline: none; }
+
 .content {
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
   padding: clamp(16px, 2.5vw, 32px);
   max-width: var(--content-max);
   width: 100%;
@@ -838,7 +980,7 @@ img, svg { display: block; max-width: 100%; }
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.5);
   backdrop-filter: blur(30px) saturate(180%);
   -webkit-backdrop-filter: blur(30px) saturate(180%);
@@ -871,7 +1013,7 @@ img, svg { display: block; max-width: 100%; }
   height: 64px;
   display: grid;
   place-items: center;
-  border-radius: 20px;
+  border-radius: var(--radius-icon);
   margin-bottom: 20px;
   background: linear-gradient(135deg, rgba(0, 122, 255, 0.14), rgba(94, 92, 230, 0.10));
   color: var(--brand-600);
@@ -1393,7 +1535,7 @@ textarea.field { height: auto; padding: 12px 14px; min-height: 80px; align-items
 .markdown blockquote {
   border-left: 3px solid var(--md-panel-accent);
   padding: 12px 16px 12px 14px;
-  color: var(--md-panel-muted);
+  color: var(--md-panel-fg);
 }
 .markdown blockquote > :first-child { margin-top: 0; }
 .markdown blockquote > :last-child { margin-bottom: 0; }
@@ -1440,7 +1582,7 @@ textarea.field { height: auto; padding: 12px 14px; min-height: 80px; align-items
 .markdown-table-wrap th,
 .markdown-table-wrap td {
   border: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--md-panel-rule);
   padding: 10px 14px;
   text-align: left;
   vertical-align: top;
@@ -1495,8 +1637,8 @@ textarea.field { height: auto; padding: 12px 14px; min-height: 80px; align-items
   font-size: 11px;
   font-weight: 700;
   color: #fff;
-  background: rgba(10, 132, 255, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: var(--brand-500);
+  border: 1px solid var(--md-panel-border);
 }
 .md-arch-stack__body {
   min-width: 0;
@@ -1526,12 +1668,12 @@ textarea.field { height: auto; padding: 12px 14px; min-height: 80px; align-items
   word-break: break-word;
 }
 
-/* 聊天气泡 / 嵌入：表格走统一深色面板，分隔线在暗色下可见 */
+/* 聊天气泡 / 嵌入：表格走统一面板 token,分隔线随主题 */
 .msg-content .markdown-table-wrap,
 .embed-msg .markdown-table-wrap {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid var(--md-panel-border);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -1539,13 +1681,13 @@ textarea.field { height: auto; padding: 12px 14px; min-height: 80px; align-items
 .embed-msg .markdown-table-wrap th {
   background: var(--md-panel-bg-elevated);
   color: var(--md-panel-fg);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  border-bottom: 1px solid var(--md-panel-rule);
 }
 .msg-content .markdown-table-wrap td,
 .embed-msg .markdown-table-wrap td {
   border: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--md-panel-rule);
+  border-right: 1px solid var(--md-panel-rule);
   color: var(--md-panel-muted);
 }
 .msg-content .markdown-table-wrap td:last-child,
@@ -1569,8 +1711,8 @@ textarea.field { height: auto; padding: 12px 14px; min-height: 80px; align-items
   padding: 12px;
   overflow-x: auto;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--md-panel-border);
+  background: var(--md-panel-bg);
 }
 .md-mermaid svg {
   max-width: 100%;

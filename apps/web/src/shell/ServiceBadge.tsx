@@ -19,8 +19,9 @@ export function ServiceBadges() {
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
+    const ac = new AbortController();
     const check = () => {
-      fetch('/health')
+      fetch('/health', { credentials: 'include', signal: ac.signal })
         .then((r) => {
           if (!r.ok) throw new Error(String(r.status));
           return r.json();
@@ -30,9 +31,10 @@ export function ServiceBadges() {
           setServices(body.services ?? {});
           setLoaded(true);
         })
-        .catch(() => {
-          // 不可达:标记离线态,30s 后重试(后端可能稍后被拉起)
+        .catch((err: unknown) => {
           if (!alive) return;
+          if (err instanceof DOMException && err.name === 'AbortError') return;
+          // 不可达:标记离线态,30s 后重试(后端可能稍后被拉起)
           setServices({});
           setLoaded(true);
           timer = setTimeout(check, RETRY_MS);
@@ -46,6 +48,7 @@ export function ServiceBadges() {
     });
     return () => {
       alive = false;
+      ac.abort();
       if (timer) clearTimeout(timer);
       off();
     };

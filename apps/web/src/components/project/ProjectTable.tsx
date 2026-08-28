@@ -11,6 +11,7 @@ import {
   splitRepoName,
 } from '@/utils/format';
 import { useProjectStore } from '@/stores/projectStore';
+import { routes } from '@/utils/routes';
 
 interface ProjectTableProps {
   projects: Project[];
@@ -123,7 +124,7 @@ export function ProjectTable({
                 data-project-id={p.id}
                 data-testid={`project-row-${p.id}`}
                 className={isSelected ? 'is-selected' : undefined}
-                onClick={() => navigate(`/projects/${p.id}`)}
+                onClick={() => navigate(routes.sourceRepo(p.id))}
               >
                 <td className="col-check" onClick={(e) => e.stopPropagation()}>
                   <input
@@ -185,7 +186,7 @@ export function ProjectTable({
                     <button
                       type="button"
                       className="btn-scout"
-                      onClick={() => navigate(`/projects/${p.id}`)}
+                      onClick={() => navigate(routes.sourceRepo(p.id))}
                     >
                       查看
                     </button>

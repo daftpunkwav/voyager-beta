@@ -5,12 +5,14 @@
 
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import type { Options as SanitizeOptions } from 'rehype-sanitize';
 import { type ChatMessage, useChatStore } from '@/stores/chatStore';
+import { routes } from '@/utils/routes';
+import { safeHttpUrl, safeInternalPath } from '@/utils/safeUrl';
 
 /** 允许 highlight.js 注入的 class,与 MarkdownRenderer 同一防线(纵深防御) */
 const sanitizeSchema: SanitizeOptions = {
@@ -22,6 +24,23 @@ const sanitizeSchema: SanitizeOptions = {
     pre: [...(defaultSchema.attributes?.pre ?? []), ['className']],
   },
 };
+
+const mdComponents: Components = {
+  a({ href, children }) {
+    const internal = safeInternalPath(href);
+    if (internal) return <a href={internal}>{children}</a>;
+    const http = safeHttpUrl(href);
+    if (http) {
+      return (
+        <a href={http} target="_blank" rel="noopener noreferrer">
+          {children}
+        </a>
+      );
+    }
+    return <span>{children}</span>;
+  },
+};
+
 export function MessageList() {
   const messages = useChatStore((s) => s.messages);
   const thinking = useChatStore((s) => s.thinking);
@@ -29,7 +48,13 @@ export function MessageList() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    const reduce =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    bottomRef.current?.scrollIntoView({
+      behavior: reduce ? 'auto' : 'smooth',
+      block: 'end',
+    });
   }, [messages.length, thinking, artifacts.length]);
 
   return (
@@ -38,7 +63,7 @@ export function MessageList() {
         <Bubble key={`${m.seq}-${m.role}`} msg={m} />
       ))}
       {artifacts.map((a) => (
-        <Link key={a.seq} to={`/notes?open=${a.noteId}`} className="note-artifact">
+        <Link key={a.seq} to={routes.note(a.noteId)} className="note-artifact">
           <span className="note-artifact__icon" aria-hidden>
             ▤
           </span>
@@ -71,6 +96,7 @@ function Bubble({ msg }: { msg: ChatMessage }) {
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           rehypePlugins={[rehypeHighlight, [rehypeSanitize, sanitizeSchema]]}
+          components={mdComponents}
         >
           {msg.content}
         </ReactMarkdown>

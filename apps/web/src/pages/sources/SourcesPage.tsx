@@ -4,11 +4,13 @@
  * 同目录复用合法);全部/文档/网页走跨类型 list_sources 卡片流。
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useSourceEvents, useSourceStream } from '@/hooks/useSources';
 import { useProjectStore } from '@/stores/projectStore';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
+import { BACKEND_UNREACHABLE } from '@/utils/errors';
 import { ProjectsPage } from './ProjectsPage';
 import { ImportCenter, type ImportTab } from './ImportCenter';
 import { SourceCard } from './SourceCard';
@@ -26,6 +28,12 @@ export function SourcesPage() {
   const [tab, setTab] = useState<KindTab>('');
   const [importOpen, setImportOpen] = useState(false);
   const [importTab, setImportTab] = useState<ImportTab>('files');
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) useProjectStore.getState().setSearch(q);
+  }, [searchParams]);
 
   const { data: items, isLoading, isError, error, refetch } = useSourceStream({
     kind: tab || undefined,
@@ -48,12 +56,8 @@ export function SourcesPage() {
   // 仓库 tab:既有 repo 页全量承接(自带筛选/统计/批量操作)
   if (tab === 'repo') {
     return (
-      <>
+      <div className="page-scaffold sources-page">
         <div className="page-head">
-          <div>
-            <h1>资源库</h1>
-            <p className="subtitle">仓库 · 文档 · 网页,一切可学习的内容都在这里</p>
-          </div>
           <KindTabs tab={tab} onChange={setTab} />
           <div className="actions">
             <button type="button" className="btn glass-card glass-card--control liquid-glass--pill liquid-glass--interactive" onClick={() => openImport('github')}>
@@ -63,17 +67,13 @@ export function SourcesPage() {
         </div>
         <ProjectsPage embedded />
         <ImportCenter open={importOpen} initialTab={importTab} onClose={() => setImportOpen(false)} />
-      </>
+      </div>
     );
   }
 
   return (
-    <>
+    <div className="page-scaffold sources-page">
       <div className="page-head">
-        <div>
-          <h1>资源库</h1>
-          <p className="subtitle">仓库 · 文档 · 网页,一切可学习的内容都在这里</p>
-        </div>
         <KindTabs tab={tab} onChange={setTab} />
         <div className="actions">
           <button
@@ -97,24 +97,19 @@ export function SourcesPage() {
         <div className="page-scaffold__state">
           <EmptyState
             title="无法加载资源库"
-            description={error instanceof Error ? error.message : '请检查后端服务后重试'}
+            description={error instanceof Error ? error.message : BACKEND_UNREACHABLE}
             icon={EmptyStateIcons.library}
-            action={
-              <button type="button" className="btn btn-ghost" onClick={() => void refetch()}>
-                重试
-              </button>
-            }
+            onRetry={() => void refetch()}
           />
         </div>
       ) : filtered.length === 0 ? (
         <div className="page-scaffold__state">
           <EmptyState
             title={search ? '没有匹配的资源' : '资料库还是空的'}
-            description={search ? `没有找到"${search}"相关的资源` : '导入 GitHub 仓库、上传文档或保存网页,开始构建你的学习资料库'}
             icon={EmptyStateIcons.library}
             action={!search && (
               <button type="button" className="btn btn-primary" onClick={() => openImport('files')}>
-                导入第一份资料
+                导入
               </button>
             )}
           />
@@ -128,7 +123,7 @@ export function SourcesPage() {
       )}
 
       <ImportCenter open={importOpen} initialTab={importTab} onClose={() => setImportOpen(false)} />
-    </>
+    </div>
   );
 }
 

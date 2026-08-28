@@ -12,7 +12,7 @@ import {
 } from '@/utils/importRepoFilter';
 import { ImportAgentModal } from './ImportAgentModal';
 import { ImportRepoFilterBar } from './ImportRepoFilterBar';
-import { EmbedAgentChat } from '@/components/agent/EmbedAgentChat';
+import { EmbedAgentChat } from '@/widgets/EmbedAgentChat';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { STORAGE, migrateKey } from '@/brand';
 

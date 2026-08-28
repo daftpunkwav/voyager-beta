@@ -14,7 +14,7 @@ import {
 } from '@/utils/importRepoFilter';
 import { ImportAgentModal } from './ImportAgentModal';
 import { ImportRepoFilterBar } from './ImportRepoFilterBar';
-import { EmbedAgentChat } from '@/components/agent/EmbedAgentChat';
+import { EmbedAgentChat } from '@/widgets/EmbedAgentChat';
 
 type ImportTab = 'paste' | 'search';
 

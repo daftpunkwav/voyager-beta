@@ -14,6 +14,8 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { formatRelativeTime, formatDateTime } from '@/utils/date';
 import { formatNumber, langCssClass, REPO_AVATAR_GRADIENTS, splitRepoName } from '@/utils/format';
 import { activityItemHref } from '@/utils/overviewLinks';
+import { routes } from '@/utils/routes';
+import { safeHttpUrl } from '@/utils/safeUrl';
 import { GLASS_CHIP, GLASS_INNER, GLASS_OUTER } from '@/constants/glassTokens';
 import { getMorseHopPx, HERO_MORSE_BITS, HERO_MORSE_INTERVAL_MS } from './morse';
 import { AgentCarousel } from '@/components/agent/AgentCarousel';
@@ -210,7 +212,7 @@ export function OverviewPage() {
           <p className="lede">{heroLede}</p>
           <div className="quick-actions">
             <Link
-              to="/agent"
+              to={routes.chat}
               className={`btn ${GLASS_INNER} liquid-glass--pulse liquid-glass-btn quick-action-brand`}
               onMouseEnter={handleChatBtnLook}
               onMouseMove={handleChatBtnLook}
@@ -219,7 +221,7 @@ export function OverviewPage() {
               和 Agent 对话
             </Link>
             <Link
-              to="/projects"
+              to={routes.sources}
               className={`btn ${GLASS_INNER} liquid-glass-btn`}
             >
               浏览项目库
@@ -290,7 +292,7 @@ export function OverviewPage() {
           <div className="section-head" style={{ marginTop: 0 }}>
             <h3>最近活动</h3>
             <Link
-              to="/agent"
+              to={routes.activity}
               className={`more ${GLASS_INNER}`}
             >
               查看全部 →
@@ -357,7 +359,7 @@ export function OverviewPage() {
                 <Link
                   key={item.id}
                   className={`project-item ${GLASS_INNER}`}
-                  to={`/projects/${item.project_id}`}
+                  to={item.project_id ? routes.sourceRepo(item.project_id) : routes.sources}
                   aria-describedby={`rec-reason-${item.id}`}
                   data-testid="overview-recommend-item"
                 >
@@ -409,7 +411,7 @@ export function OverviewPage() {
                 <Link
                   key={n.id}
                   className={`note-item ${GLASS_INNER}`}
-                  to={`/projects/${n.project_id}`}
+                  to={routes.note(n.id, n.project_id)}
                   data-testid="overview-note-item"
                 >
                   <div className="note-title">{n.title}</div>
@@ -460,7 +462,7 @@ export function OverviewPage() {
                     className={`trending-card ${GLASS_INNER}`}
                     data-testid="overview-trending-card"
                     style={{ ['--card-w' as string]: `${widthPct.toFixed(2)}%` }}
-                    href={r.url}
+                    href={safeHttpUrl(r.url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     onMouseEnter={(event) => handleTrendingCardEnter(r, event)}

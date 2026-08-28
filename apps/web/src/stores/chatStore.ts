@@ -23,7 +23,7 @@ export interface ProgressCard {
   error?: string;
 }
 
-/** 笔记产物卡(note.created):点击跳 /notes?open=<id>。 */
+/** 笔记产物卡(note.created):点击跳 /notes?note=<id>。 */
 export interface NoteArtifact {
   seq: number;
   noteId: string;

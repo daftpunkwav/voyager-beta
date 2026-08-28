@@ -3,8 +3,10 @@
 .main {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-height: 0;
+  height: 100%;
   min-width: 0;
+  overflow: hidden;
   position: relative;
 }
 
@@ -256,19 +258,19 @@
 .main:has(.chat-layout) > .content { flex: 1; min-height: 0; }
 .chat-layout { height: 100%; min-height: 0; }
 
-/* 笔记页新版 .notes-shell 占满视口(旧 .notes-page 选择器也保留兼容) */
-.main:has(.notes-shell) { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
-.app:has(.notes-shell) { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
-.content:has(.notes-shell) {
+/* 笔记详情页占满视口;索引页走普通 page-scaffold,不走这里 */
+.main:has(.notes-workspace-page) { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
+.app:has(.notes-workspace-page) { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
+.content:has(.notes-workspace-page) {
   padding: 0;
   max-width: none;
-  height: 100%;
   min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  flex: 1;
 }
-.main:has(.notes-shell) > .content { flex: 1; min-height: 0; }
+.main:has(.notes-workspace-page) > .content { flex: 1; min-height: 0; }
 
 /* 团队页占满视口，三栏布局内部滚动 */
 .main:has(.team-page) { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
@@ -1065,6 +1067,10 @@
   gap: 12px;
   min-height: 0;
 }
+.activity-page__toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
 .activity-list {
   display: flex;
   flex-direction: column;
@@ -1321,10 +1327,14 @@
   border-radius: 50%;
   border: none;
   background: var(--brand-500);
+  color: #fff;
+  display: grid;
+  place-items: center;
   box-shadow: 0 4px 14px rgba(0, 100, 214, 0.35);
   cursor: pointer;
   z-index: var(--z-modal, 1000);
 }
+.float-dot svg { width: 22px; height: 22px; }
 .float-dot:hover { background: var(--brand-600); }
 .float-dot__unread {
   position: absolute;

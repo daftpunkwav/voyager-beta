@@ -1,6 +1,6 @@
 {
   "name": "notes",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "protocol": "0.1.0",
   "port": 8020,
   "capabilities": [
@@ -25,7 +25,9 @@
     "read_version",
     "restore_version",
     "export_note",
-    "add_asset"
+    "add_asset",
+    "get_notes_view",
+    "set_notes_view"
   ],
   "subscribes": [],
   "publishes": [
@@ -33,7 +35,8 @@
     "note.edited",
     "note.deleted",
     "note.restored",
-    "note.purged"
+    "note.purged",
+    "notes.ui.changed"
   ],
   "status": "implemented"
 }

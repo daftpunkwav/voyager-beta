@@ -221,6 +221,8 @@ export interface Note {
   project_id?: string;
   node_id?: string;
   tags: string[];
+  pinned?: boolean;
+  archived?: boolean;
   created_ts: number;
   updated_ts: number;
   created_at?: number;

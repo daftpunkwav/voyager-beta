@@ -10,7 +10,7 @@ import { GlassCard } from '@/components/common/GlassCard';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { summarize, type FeedEvent } from '@/bridge/feed';
-import { extractErrorMessage } from '@/utils/errors';
+import { extractErrorMessage, BACKEND_UNREACHABLE } from '@/utils/errors';
 
 interface FetchResp {
   events?: FeedEvent[];
@@ -33,10 +33,12 @@ export function ActivityPage() {
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
+    setError(null);
     (async () => {
       try {
         const url = new URL('/api/activity/feed', window.location.origin);
@@ -45,7 +47,7 @@ export function ActivityPage() {
         if (!resp.ok) {
           // 优先透出后端 JSON 信封里的 message;无信封(如代理在后端未启动时的 500)给网络提示
           const body = (await resp.json().catch(() => null)) as { error?: { message?: string } } | null;
-          throw new Error(body?.error?.message ?? '无法连接后端服务，请确认后端已启动');
+          throw new Error(body?.error?.message ?? BACKEND_UNREACHABLE);
         }
         const body = (await resp.json()) as FetchResp;
         if (!alive) return;
@@ -59,18 +61,14 @@ export function ActivityPage() {
     return () => {
       alive = false;
     };
-  }, [kind]);
+  }, [kind, retryTick]);
 
   const hasContent = !loading && !error && events.length > 0;
 
   return (
     <div className="activity-page page-scaffold">
       {hasContent && (
-        <header className="page-scaffold__head activity-page__head">
-          <div>
-            <h1>活动</h1>
-            <p className="page-scaffold__subtitle">Agent 事件流与操作审计</p>
-          </div>
+        <div className="activity-page__toolbar">
           <select
             className="filter-native-select"
             value={kind}
@@ -79,6 +77,7 @@ export function ActivityPage() {
               if (v) setParams({ kind: v });
               else setParams({});
             }}
+            aria-label="筛选活动类型"
           >
             {KIND_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -86,7 +85,7 @@ export function ActivityPage() {
               </option>
             ))}
           </select>
-        </header>
+        </div>
       )}
 
       {loading ? (
@@ -99,15 +98,7 @@ export function ActivityPage() {
             title="加载失败"
             description={error}
             icon={EmptyStateIcons.activity}
-            action={
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => window.location.reload()}
-              >
-                刷新页面
-              </button>
-            }
+            onRetry={() => setRetryTick((n) => n + 1)}
           />
         </div>
       ) : events.length === 0 ? (

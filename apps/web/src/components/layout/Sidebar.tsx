@@ -4,22 +4,23 @@ import { NavIcons } from '@/components/icons/NavIcons';
 import { userInitials } from '@/utils/user';
 import { useUIStore } from '@/stores/uiStore';
 import { PRODUCT_NAME } from '@/brand';
+import { routes } from '@/utils/routes';
 
 /** 导航分组:Agent / 领域 / 系统(随阶段点亮,未开放的不上导航)。 */
 const NAV_ITEMS = [
   // —— Agent 主线 ——
-  { key: 'chat', label: '对话', path: '/', badge: 'AI' as const, group: 'agent' },
-  { key: 'team', label: '团队', path: '/team', badge: null, group: 'agent' },
+  { key: 'chat', label: '对话', path: routes.chat, badge: 'AI' as const, group: 'agent' },
+  { key: 'team', label: '团队', path: routes.team, badge: null, group: 'agent' },
   // —— 领域 ——
-  { key: 'notes', label: '笔记', path: '/notes', badge: null, group: 'domain' },
-  { key: 'sources', label: '资源库', path: '/sources', badge: null, group: 'domain' },
-  { key: 'graph', label: '图谱', path: '/graph', badge: null, group: 'domain' },
+  { key: 'notes', label: '笔记', path: routes.notes, badge: null, group: 'domain' },
+  { key: 'sources', label: '资源库', path: routes.sources, badge: null, group: 'domain' },
+  { key: 'graph', label: '图谱', path: routes.graph, badge: null, group: 'domain' },
   // —— 系统 ——
-  { key: 'overview', label: '总览', path: '/overview', badge: null, group: 'system' },
-  { key: 'health', label: '服务状态', path: '/system/health', badge: null, group: 'system' },
-  { key: 'activity', label: '活动', path: '/activity', badge: null, group: 'system' },
-  { key: 'usage', label: '用量', path: '/usage', badge: null, group: 'system' },
-  { key: 'settings', label: '设置', path: '/settings', badge: null, group: 'system' },
+  { key: 'overview', label: '总览', path: routes.overview, badge: null, group: 'system' },
+  { key: 'health', label: '服务状态', path: routes.health, badge: null, group: 'system' },
+  { key: 'activity', label: '活动', path: routes.activity, badge: null, group: 'system' },
+  { key: 'usage', label: '用量', path: routes.usage, badge: null, group: 'system' },
+  { key: 'settings', label: '设置', path: routes.settings, badge: null, group: 'system' },
 ] as const;
 
 export type SidebarPageKey =
@@ -51,9 +52,7 @@ export function Sidebar({ activePage }: SidebarProps) {
         {!collapsed && (
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
             <span className="sidebar-name">{PRODUCT_NAME}</span>
-            <span style={{ fontSize: 10, color: 'var(--text-400)', letterSpacing: '0.06em' }}>
-              v1.0.0
-            </span>
+            <span className="sidebar-version">v1.0.0</span>
           </div>
         )}
       </div>
@@ -95,21 +94,14 @@ export function Sidebar({ activePage }: SidebarProps) {
       })}
 
       <div className="sidebar-footer">
-        <Link
-          className="nav-item"
-          to="/team"
-          title={user?.username ?? '访客'}
-          style={{ padding: '8px 10px' }}
-        >
-          <div className="avatar" style={{ width: 28, height: 28, fontSize: 11 }}>
+        <Link className="sidebar-user" to={routes.team} title={user?.username ?? '访客'}>
+          <div className="avatar" aria-hidden>
             {initials}
           </div>
           {!collapsed && (
-            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, flex: 1, minWidth: 0 }}>
-              <span style={{ fontSize: 12, fontWeight: 600 }}>{user?.username ?? '访客'}</span>
-              <span style={{ fontSize: 10, color: 'var(--text-400)' }}>
-                本机工作台
-              </span>
+            <div className="sidebar-user__meta">
+              <span className="sidebar-user__name">{user?.username ?? '访客'}</span>
+              <span className="sidebar-user__hint">本机工作台</span>
             </div>
           )}
         </Link>

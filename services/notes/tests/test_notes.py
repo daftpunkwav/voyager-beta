@@ -8,8 +8,10 @@ from platform_actor import ActorContext
 from platform_capability import execute
 from platform_contracts import LOCAL_USER, ActorKind, ActorRef, ServiceError
 from platform_eventbus import EventBus, EventLog
+from platform_settings import SettingsStore
 
 from services.notes.capabilities import Deps, init_deps, registry
+from services.notes.settings import DEFS
 from services.notes.store import NoteStore
 
 USER_CTX = ActorContext(actor=LOCAL_USER)
@@ -19,11 +21,15 @@ AGENT_CTX = ActorContext(actor=ActorRef(kind=ActorKind.AGENT, id="agent.main", s
 @pytest.fixture()
 def deps(tmp_path):
     log = EventLog(tmp_path / "events.db")
+    bus = EventBus(log)
     store = NoteStore(tmp_path / "notes.db", history_keep=5)
-    init_deps(Deps(store=store, bus=EventBus(log), workspace=tmp_path))
+    settings = SettingsStore(tmp_path / "settings.db", bus)
+    settings.register_fresh(DEFS)
+    init_deps(Deps(store=store, bus=bus, settings=settings, workspace=tmp_path))
     yield store, log
     store.close()
     log.close()
+    settings.close()
 
 
 class TestCrud:
@@ -231,6 +237,59 @@ class TestExportAndLinkFields:
         assert updated["pinned"] is True
 
 
+class TestNotesView:
+    async def test_get_defaults(self, deps) -> None:
+        view = await execute(registry, "get_notes_view", USER_CTX, {})
+        assert view["font_size"] == 15
+        assert view["mode"] == "edit"
+        assert view["layout"] == "list"
+        assert view["sync_scroll"] is True
+        assert view["list_state"] == "active"
+        assert view["persisted"] is True
+
+    async def test_user_and_agent_same_write(self, deps) -> None:
+        """用户点「预览 / A+」与 agent 调 set_notes_view 落同一设置(铁律 4)。"""
+        _, log = deps
+        user = await execute(registry, "set_notes_view", USER_CTX,
+                             {"mode": "preview", "font_delta": 2})
+        assert user["mode"] == "preview"
+        assert user["font_size"] == 17
+        agent = await execute(registry, "set_notes_view", AGENT_CTX,
+                              {"mode": "edit", "font_size": 13})
+        assert agent["mode"] == "edit" and agent["font_size"] == 13
+        stored = await execute(registry, "get_notes_view", AGENT_CTX, {})
+        assert stored["mode"] == "edit" and stored["font_size"] == 13
+        types = [e.type for _, e in log.read_after()]
+        assert types.count("notes.ui.changed") >= 2
+
+    async def test_ui_event_only_carries_changed_fields(self, deps) -> None:
+        _, log = deps
+        await execute(registry, "set_notes_view", USER_CTX, {"mode": "split"})
+        events = [e for _, e in log.read_after() if e.type == "notes.ui.changed"]
+        payload = events[-1].payload
+        assert payload["mode"] == "split"
+        assert "font_size" not in payload
+
+    async def test_open_note_and_index(self, deps) -> None:
+        note = await execute(registry, "create_note", USER_CTX, {"title": "开"})
+        opened = await execute(registry, "set_notes_view", AGENT_CTX,
+                               {"note_id": note["id"], "mode": "preview"})
+        assert opened["action"] == "open" and opened["note_id"] == note["id"]
+        back = await execute(registry, "set_notes_view", USER_CTX, {"index": True})
+        assert back["action"] == "index" and back["note_id"] is None
+
+    async def test_rejects_bad_mode(self, deps) -> None:
+        with pytest.raises(ServiceError) as exc:
+            await execute(registry, "set_notes_view", USER_CTX, {"mode": "zen"})
+        assert exc.value.body.code == "NOTES.INVALID_INPUT"
+
+    async def test_font_delta_clamps(self, deps) -> None:
+        await execute(registry, "set_notes_view", USER_CTX, {"font_size": 20})
+        out = await execute(registry, "set_notes_view", AGENT_CTX,
+                            {"font_delta": 5})
+        assert out["font_size"] == 20
+
+
 class TestMigration:
     async def test_legacy_db_upgrades_with_defaults(self, tmp_path) -> None:
         """旧 schema(无 archived/pinned/trashed_ts)打开后自动补列且数据保留。"""
@@ -391,6 +450,9 @@ class TestRegistryCard:
         import json as _json
         from pathlib import Path as _Path
 
+        from services.notes.assets import register as register_assets
+
+        register_assets(registry)
         card = _json.loads(
             (_Path(__file__).parent.parent / "service.json").read_text(encoding="utf-8"))
-        assert sorted(card["capabilities"]) == registry.names()
+        assert set(card["capabilities"]) == set(registry.names())

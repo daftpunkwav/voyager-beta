@@ -8,6 +8,7 @@ import {
   AGENT_CATALOG,
   type AgentDefinition,
 } from '@/constants/agentCatalog';
+import { routes } from '@/utils/routes';
 import { GLASS_INNER, GLASS_OUTER } from '@/constants/glassTokens';
 
 const GAP_PX = 16;
@@ -245,7 +246,7 @@ export function AgentCarousel({
                 <Link
                   key={`${agent.id}-${i}`}
                   className="agent-carousel-card"
-                  to={`/agent?agent=${agent.id}`}
+                  to={`${routes.chat}?agent=${encodeURIComponent(agent.id)}`}
                   onMouseEnter={(e) => handleCardEnter(e, agent.id)}
                 >
                   <div className={`agent-card-glass ${GLASS_OUTER}`} aria-hidden />

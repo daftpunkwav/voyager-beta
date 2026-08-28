@@ -2,6 +2,14 @@
 
 /* ---------- 类型切换 ---------- */
 
+.sources-page.page-scaffold {
+  gap: 0;
+}
+.sources-page .page-head {
+  align-items: center;
+  margin-bottom: 16px;
+}
+
 .kind-tabs {
   display: inline-flex;
   gap: 4px;
@@ -13,7 +21,7 @@
 .kind-tab {
   border: 0;
   background: transparent;
-  color: var(--text-2);
+  color: var(--text-600);
   font-size: 13px;
   font-weight: 500;
   padding: 6px 16px;
@@ -22,11 +30,11 @@
   transition: all var(--dur-fast, 150ms) var(--ease-apple, cubic-bezier(0.32, 0.72, 0, 1));
 }
 
-.kind-tab:hover { color: var(--text-1); }
+.kind-tab:hover { color: var(--text-800); }
 
 .kind-tab.is-active {
-  background: var(--bg-elev, #fff);
-  color: var(--text-1);
+  background: var(--bg-50);
+  color: var(--text-800);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.10);
 }
 
@@ -84,7 +92,7 @@
 
 .source-card__status.is-ok { color: #30d158; background: rgba(48, 209, 88, 0.14); }
 .source-card__status.is-busy { color: #ff9f0a; background: rgba(255, 159, 10, 0.14); }
-.source-card__status.is-idle { color: var(--text-3); background: rgba(120, 120, 128, 0.14); }
+.source-card__status.is-idle { color: var(--text-500); background: rgba(120, 120, 128, 0.14); }
 .source-card__status.is-fail { color: #ff453a; background: rgba(255, 69, 58, 0.14); }
 
 .source-card__title {
@@ -101,7 +109,7 @@
 .source-card__subtitle {
   margin: 0;
   font-size: 12.5px;
-  color: var(--text-3);
+  color: var(--text-500);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -119,7 +127,7 @@
 .source-card__time {
   margin-left: auto;
   font-size: 11.5px;
-  color: var(--text-3);
+  color: var(--text-500);
 }
 
 /* ---------- 导入中心 ---------- */

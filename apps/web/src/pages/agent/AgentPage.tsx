@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useAgentStore } from '@/stores/agentStore';
 import { ChatPanel } from '@/components/agent/ChatPanel';
 import { AgentContextSidebar } from '@/components/agent/AgentContextSidebar';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { formatRelativeTime } from '@/utils/date';
 import { AGENT_TAG_CLASS } from '@/utils/labels';
-import { personaDisplayName } from '@/constants/personas';
-import type { AgentSession } from '@/api/types';
+import { personaDisplayName, canonicalPersonaId } from '@/constants/personas';
+import { AGENT_CATALOG } from '@/constants/agentCatalog';
+import type { AgentId, AgentSession } from '@/api/types';
 import { STORAGE, migrateKey, readKey, writeKey } from '@/brand';
 
 migrateKey(STORAGE.sessionDrawer, STORAGE.legacy.sessionDrawer);
@@ -46,6 +47,8 @@ export function AgentPage() {
   const switchSession = useAgentStore((s) => s.switchSession);
   const createSession = useAgentStore((s) => s.createSession);
   const deleteSession = useAgentStore((s) => s.deleteSession);
+  const setActiveAgent = useAgentStore((s) => s.setActiveAgent);
+  const [searchParams] = useSearchParams();
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [batchDeleteIds, setBatchDeleteIds] = useState<string[] | null>(null);
   const [sessionSearch, setSessionSearch] = useState('');
@@ -98,6 +101,15 @@ export function AgentPage() {
   useEffect(() => {
     void loadSessions();
   }, [loadSessions]);
+
+  // 总览轮播深链 /?agent=recon → 高亮对应人格(仅目录内已知 ID)
+  useEffect(() => {
+    const raw = searchParams.get('agent');
+    if (!raw) return;
+    const id = canonicalPersonaId(raw);
+    if (!AGENT_CATALOG.some((a) => a.id === id)) return;
+    setActiveAgent(id as AgentId);
+  }, [searchParams, setActiveAgent]);
 
   const filteredSessions = useMemo(() => {
     const q = sessionSearch.toLowerCase();

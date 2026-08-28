@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getApi } from '@/api/client';
 import type { LlmUsageSummary } from '@/api/types';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
+import { BACKEND_UNREACHABLE } from '@/utils/errors';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { GLASS_CHIP, GLASS_INNER, GLASS_OUTER } from '@/constants/glassTokens';
 import { formatTokenCount } from '@/utils/formatTokens';
@@ -87,14 +88,6 @@ export function LlmUsageDashboard() {
 
   return (
     <section className={`usage-dashboard ${GLASS_OUTER}`}>
-      {usage && (
-        <header className="page-scaffold__head">
-          <div>
-            <h1>用量</h1>
-            <p className="page-scaffold__subtitle">LLM 调用统计、模型分布与热力趋势</p>
-          </div>
-        </header>
-      )}
       {isLoading && (
         <div className="page-scaffold__state">
           <LoadingSpinner label="加载用量统计中…" />
@@ -104,13 +97,9 @@ export function LlmUsageDashboard() {
         <div className="page-scaffold__state">
           <EmptyState
             title="用量统计服务暂不可用"
-            description={(error as Error | null)?.message || '无法连接后端服务'}
+            description={(error as Error | null)?.message || BACKEND_UNREACHABLE}
             icon={EmptyStateIcons.usage}
-            action={
-              <button type="button" className="btn btn-ghost" onClick={() => void refetch()}>
-                重试
-              </button>
-            }
+            onRetry={() => void refetch()}
           />
         </div>
       )}

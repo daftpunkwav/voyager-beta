@@ -12,6 +12,9 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { formatNumber, REPO_AVATAR_GRADIENTS, splitRepoName } from '@/utils/format';
 import { getApi } from '@/api/client';
+import { routes } from '@/utils/routes';
+import { safeHttpUrl } from '@/utils/safeUrl';
+import { BACKEND_UNREACHABLE } from '@/utils/errors';
 import type { GraphNode } from '@/api/types';
 // 玻璃层级 token(旧 OVERVIEW_OUTER_GLASS / OVERVIEW_INNER_GLASS 已统一至此)
 import { GLASS_INNER, GLASS_OUTER } from '@/constants/glassTokens';
@@ -160,8 +163,8 @@ export function GraphPage() {
   const selectedRepo = selectedNode ? splitRepoName(selectedNode.name) : null;
   const selectedGithubUrl =
     selectedRepo?.owner && selectedRepo.repo
-      ? `https://github.com/${selectedRepo.owner}/${selectedRepo.repo}`
-      : null;
+      ? safeHttpUrl(`https://github.com/${selectedRepo.owner}/${selectedRepo.repo}`)
+      : undefined;
 
   if (isLoading) {
     return (
@@ -177,13 +180,9 @@ export function GraphPage() {
         <div className="page-scaffold__state">
           <EmptyState
             title="无法加载图谱"
-            description={error instanceof Error ? error.message : '请检查后端服务后重试'}
+            description={error instanceof Error ? error.message : BACKEND_UNREACHABLE}
             icon={EmptyStateIcons.graph}
-            action={
-              <button type="button" className="btn btn-ghost" onClick={() => void refetch()}>
-                重试
-              </button>
-            }
+            onRetry={() => void refetch()}
           />
         </div>
       </div>
@@ -324,9 +323,11 @@ export function GraphPage() {
               cameraResetTick={cameraResetTick}
               onNodeClick={(n) => selectNode(n.id)}
               onNodeDoubleClick={(n) =>
-                navigate(n.kind === 'doc' || n.kind === 'web'
-                  ? `/sources/${n.kind}/${n.resourceId}`
-                  : `/graph/projects/${n.resourceId ?? n.id}`)
+                navigate(
+                  n.kind === 'doc' || n.kind === 'web'
+                    ? routes.sourceOf(n.kind, n.resourceId ?? n.id)
+                    : routes.codeGraph(n.resourceId ?? n.id),
+                )
               }
             />
           )}
@@ -347,9 +348,7 @@ export function GraphPage() {
                     className={`graph-list-item${selectedNodeId === n.id ? ' is-selected' : ''}`}
                     onClick={() => selectNode(n.id)}
                     onDoubleClick={() =>
-                      navigate(n.kind === 'doc' || n.kind === 'web'
-                        ? `/sources/${n.kind}/${n.resourceId}`
-                        : `/sources/repo/${n.resourceId}`)
+                      navigate(routes.sourceOf(n.kind, n.resourceId ?? n.id))
                     }
                   >
                     <div
@@ -398,7 +397,7 @@ export function GraphPage() {
                         className="graph-list-action"
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/graph/projects/${n.resourceId ?? n.id}`);
+                          navigate(routes.codeGraph(n.resourceId ?? n.id));
                         }}
                       >
                         代码图谱 →
@@ -460,7 +459,12 @@ export function GraphPage() {
                           type="button"
                           className="btn btn-primary btn-block"
                           onClick={() =>
-                            navigate(`/sources/${selectedNode.kind}/${selectedNode.resourceId}`)
+                            navigate(
+                              routes.sourceOf(
+                                selectedNode.kind,
+                                selectedNode.resourceId ?? selectedNode.id,
+                              ),
+                            )
                           }
                         >
                           打开资源
@@ -497,7 +501,7 @@ export function GraphPage() {
                           type="button"
                           className="btn btn-primary btn-block"
                           onClick={() =>
-                            navigate(`/graph/projects/${selectedNode.resourceId ?? selectedNode.id}`)
+                            navigate(routes.codeGraph(selectedNode.resourceId ?? selectedNode.id))
                           }
                         >
                           打开代码图谱
@@ -506,7 +510,9 @@ export function GraphPage() {
                           type="button"
                           className="btn btn--secondary btn-block"
                           onClick={() =>
-                            navigate(`/sources/repo/${selectedNode.resourceId ?? selectedNode.id}`)
+                            navigate(
+                              routes.sourceRepo(selectedNode.resourceId ?? selectedNode.id),
+                            )
                           }
                         >
                           项目详情
@@ -521,7 +527,9 @@ export function GraphPage() {
                         {visibleSimilarNodes.map(({ node, similarity }) => {
                           const { owner, repo } = splitRepoName(node.name);
                           const githubUrl =
-                            owner && repo ? `https://github.com/${owner}/${repo}` : null;
+                            owner && repo
+                              ? safeHttpUrl(`https://github.com/${owner}/${repo}`)
+                              : undefined;
                           return (
                             <div
                               key={node.id}

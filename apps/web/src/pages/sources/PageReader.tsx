@@ -26,7 +26,7 @@ export function PageReader() {
           title="无法加载网页"
           description={error instanceof Error ? error.message : '剪藏不存在或服务不可用'}
           icon={EmptyStateIcons.library}
-          action={<button type="button" className="btn btn-ghost" onClick={() => void refetch()}>重试</button>}
+          onRetry={() => void refetch()}
         />
       </div>
     );
