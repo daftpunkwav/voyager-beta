@@ -18,6 +18,7 @@ import { tryParseAsciiArchLayers, looksLikeMarkdownTable } from '@/utils/asciiAr
 import { looksLikeMermaid, MermaidBlock } from '@/components/common/MermaidBlock';
 import { Lightbox } from '@/components/common/Lightbox';
 import { safeHttpUrl, safeImgSrc, safeInternalPath } from '@/utils/safeUrl';
+import { notesHlMarkProps, NOTE_HL_KIND } from '@/pages/notes/noteMarks';
 import { routes } from '@/utils/routes';
 
 interface MarkdownRendererProps {
@@ -57,12 +58,6 @@ const sanitizeSchema: SanitizeOptions = {
     img: [...(defaultSchema.attributes?.img ?? []), ['className', 'loading']],
   },
 };
-
-function markClassName(raw: unknown): string {
-  const text = Array.isArray(raw) ? raw.join(' ') : String(raw ?? '');
-  const m = /\bnotes-hl-(warm|cool|rose|lime)\b/.exec(text);
-  return `notes-hl-${m?.[1] ?? 'warm'}`;
-}
 
 function nodeText(node: ReactNode): string {
   if (node == null || typeof node === 'boolean') return '';
@@ -127,13 +122,15 @@ function CodeCopyButton({ text }: { text: string }) {
 
 /** 代码围栏里误写入的 ==tone:…==:仅用于 ASCII 架构图识别,不改源码。 */
 function recoverTonedMarkup(text: string): string {
+  const closed = new RegExp(`==(${NOTE_HL_KIND}):((?:(?!==).)+)==`, 'gi');
+  const open = new RegExp(`==(${NOTE_HL_KIND}):`, 'gi');
   let s = text;
   for (let n = 0; n < 16; n += 1) {
-    const next = s.replace(/==(warm|cool|rose|lime):((?:(?!==).)+)==/g, '$2');
+    const next = s.replace(closed, '$2');
     if (next === s) break;
     s = next;
   }
-  s = s.replace(/==(warm|cool|rose|lime):/g, '');
+  s = s.replace(open, '');
   return s.replace(/(^|[^=])==(?!=)/gm, '$1');
 }
 
@@ -184,9 +181,18 @@ function MarkdownRendererInner({
           [rehypeSanitize, sanitizeSchema],
         ]}
         components={{
-          mark: ({ className: markCls, children, node: _node, ...props }) => (
-            <mark {...props} className={markClassName(markCls)}>{children}</mark>
-          ),
+          mark: ({ className: markCls, children, node: _node, style: _style, ...props }) => {
+            const hl = notesHlMarkProps(markCls);
+            return (
+              <mark
+                {...props}
+                className={hl.className}
+                style={hl.color ? { ['--notes-hl' as string]: hl.color } : undefined}
+              >
+                {children}
+              </mark>
+            );
+          },
           h1: ({ children, ...props }) => {
             const id = slugs.slug(nodeText(children));
             return <h1 {...props} id={id}>{children}</h1>;
@@ -297,13 +303,13 @@ function MarkdownRendererInner({
               );
             }
             const layers = tryParseAsciiArchLayers(text)
-              ?? (/(==(warm|cool|rose|lime):)/.test(text)
+              ?? (new RegExp(`==(${NOTE_HL_KIND}):`).test(text)
                 ? tryParseAsciiArchLayers(recoverTonedMarkup(text))
                 : null);
             if (layers) return <ArchStack layers={layers} />;
             const lang = extractCodeLang(children);
             if (looksLikeMermaid(lang, text)) {
-              const code = /==(warm|cool|rose|lime):/.test(text)
+              const code = new RegExp(`==(${NOTE_HL_KIND}):`).test(text)
                 ? recoverTonedMarkup(text)
                 : text;
               return <MermaidBlock code={code} />;

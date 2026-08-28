@@ -5,16 +5,27 @@
  * 预览:在段落 phrasing 上跨节点包 <mark>,加粗/链接可落在底纹内,不再把 == 漏到画面上。
  */
 
-export const NOTE_HL_TONES = ['warm', 'cool', 'rose', 'lime'] as const;
-export type NoteHlTone = (typeof NOTE_HL_TONES)[number];
+export const NOTE_HL_TONES = ['warm', 'cool', 'rose', 'lime', 'violet', 'sand'] as const;
+export type NoteHlTone = (typeof NOTE_HL_TONES)[number] | `rgb${string}`;
 export type NoteHlAction = NoteHlTone | 'clear';
 
-export const NOTE_HL_LABEL: Record<NoteHlTone, string> = {
+export const NOTE_HL_LABEL: Record<(typeof NOTE_HL_TONES)[number], string> = {
   warm: '暖黄底纹',
   cool: '冷蓝底纹',
   rose: '玫红底纹',
   lime: '青绿底纹',
+  violet: '青紫底纹',
+  sand: '沙橙底纹',
 };
+
+/** 标记名:常驻色或 rgb + 6 位十六进制(小写)。 */
+export const NOTE_HL_KIND = 'warm|cool|rose|lime|violet|sand|rgb[0-9a-fA-F]{6}';
+export const NOTES_HL_RGB_KEY = 'notes-hl-rgb';
+export const NOTES_HL_RGB_DEFAULT = '7c3aed';
+
+const RGB_TONE = /^rgb[0-9a-f]{6}$/;
+const HEX6 = /^[0-9a-f]{6}$/;
+const TONE_AT = new RegExp(`^(${NOTE_HL_KIND}):`, 'i');
 
 const FENCE_OPEN = /^( {0,3})(`{3,}|~{3,})(.*)$/;
 const BLOCK_PREFIX =
@@ -43,22 +54,58 @@ interface TextSpan {
   tone: NoteHlTone | null;
 }
 
+export function isRgbTone(tone: string): boolean {
+  return RGB_TONE.test(tone);
+}
+
+/** 接受 warm / rgb7c3aed / #7c3aed / 7c3aed,非法则 null。 */
+export function parseHlTone(raw: string): NoteHlTone | null {
+  const t = raw.trim().toLowerCase();
+  if ((NOTE_HL_TONES as readonly string[]).includes(t)) return t as (typeof NOTE_HL_TONES)[number];
+  if (RGB_TONE.test(t)) return t as NoteHlTone;
+  const hex = t.startsWith('#') ? t.slice(1) : t;
+  if (HEX6.test(hex)) return `rgb${hex}` as NoteHlTone;
+  return null;
+}
+
+export function rgbToneHex(tone: string): string | null {
+  if (!isRgbTone(tone)) return null;
+  return `#${tone.slice(3)}`;
+}
+
+function readToneAt(text: string, innerFrom: number): { tone: NoteHlTone; innerStart: number } | null {
+  const m = TONE_AT.exec(text.slice(innerFrom));
+  if (!m || m.index !== 0) return null;
+  return { tone: m[1].toLowerCase() as NoteHlTone, innerStart: innerFrom + m[0].length };
+}
+
 export function parseNoteHighlight(text: string): { tone: NoteHlTone; inner: string } | null {
   if (!text) return null;
-  const token = /^==(warm|cool|rose|lime):([\s\S]*)==$/.exec(text);
-  if (token && !token[2].includes('==')) return { tone: token[1] as NoteHlTone, inner: token[2] };
-  const bare = /^==([\s\S]*)==$/.exec(text);
-  if (!bare || bare[1].includes('==')) return null;
-  const inner = bare[1];
-  for (const t of NOTE_HL_TONES) {
-    const prefix = `${t}:`;
-    if (inner.startsWith(prefix)) return { tone: t, inner: inner.slice(prefix.length) };
+  if (!(text.startsWith('==') && text.endsWith('==') && text.length >= 4)) return null;
+  const body = text.slice(2, -2);
+  if (body.includes('==')) return null;
+  const m = TONE_AT.exec(body);
+  if (m && m.index === 0) {
+    return { tone: m[1].toLowerCase() as NoteHlTone, inner: body.slice(m[0].length) };
   }
-  return { tone: 'warm', inner };
+  return { tone: 'warm', inner: body };
 }
 
 export function wrapNoteHighlight(inner: string, tone: NoteHlTone): string {
   return `==${tone}:${inner}==`;
+}
+
+/** 预览 sanitizer 只放行已识别的 notes-hl-* class;自定义色带 --notes-hl。 */
+export function notesHlMarkProps(raw: unknown): { className: string; color?: string } {
+  const text = Array.isArray(raw) ? raw.join(' ') : String(raw ?? '');
+  const named = new RegExp(`\\bnotes-hl-(${NOTE_HL_TONES.join('|')})\\b`).exec(text);
+  if (named) return { className: `notes-hl-${named[1]}` };
+  const rgb = /\bnotes-hl-(rgb[0-9a-f]{6})\b/i.exec(text);
+  if (rgb) {
+    const token = rgb[1].toLowerCase();
+    return { className: `notes-hl-rgb notes-hl-${token}`, color: `#${token.slice(3)}` };
+  }
+  return { className: 'notes-hl-warm' };
 }
 
 export function splitBlockPrefix(line: string): { prefix: string; rest: string } {
@@ -77,7 +124,7 @@ function flattenTonedMarkup(text: string): string {
       s = s.slice(0, m.start) + s.slice(m.innerStart, m.innerEnd) + s.slice(m.end);
     }
   }
-  s = s.replace(/==(warm|cool|rose|lime):/g, '');
+  s = s.replace(new RegExp(`==(${NOTE_HL_KIND}):`, 'gi'), '');
   return s.replace(/(^|[^=])==(?!=)/g, '$1');
 }
 
@@ -125,14 +172,11 @@ export function scanMarks(text: string, tonedOnly = false): NoteMarkSpan[] {
     let tone: NoteHlTone = 'warm';
     let innerStart = i + 2;
     let toned = false;
-    for (const t of NOTE_HL_TONES) {
-      const prefix = `${t}:`;
-      if (text.startsWith(prefix, i + 2)) {
-        tone = t;
-        innerStart = i + 2 + prefix.length;
-        toned = true;
-        break;
-      }
+    const hit = readToneAt(text, i + 2);
+    if (hit) {
+      tone = hit.tone;
+      innerStart = hit.innerStart;
+      toned = true;
     }
     if (tonedOnly && !toned) {
       i += 1;
@@ -376,7 +420,7 @@ function stripAllMarks(text: string): string {
     }
   }
   // 未闭合的 ==tone: 残留(架构图按行写入却没写成对);不剥裸 ==,以免改代码字面量
-  return s.replace(/==(warm|cool|rose|lime):/g, '');
+  return s.replace(new RegExp(`==(${NOTE_HL_KIND}):`, 'gi'), '');
 }
 
 function intervalTransform(doc: string, from: number, to: number, action: NoteHlAction): string {
@@ -461,9 +505,10 @@ export function flattenMultilineMarks(md: string): string {
 }
 
 function markNode(tone: NoteHlTone, children: MdNode[]): MdNode {
+  const className = isRgbTone(tone) ? ['notes-hl-rgb', `notes-hl-${tone}`] : [`notes-hl-${tone}`];
   return {
     type: 'mark',
-    data: { hName: 'mark', hProperties: { className: [`notes-hl-${tone}`] } },
+    data: { hName: 'mark', hProperties: { className } },
     children,
   };
 }

@@ -4,6 +4,8 @@ import {
   applyNoteHighlightInDoc,
   expandHighlightRange,
   flattenMultilineMarks,
+  notesHlMarkProps,
+  parseHlTone,
   parseNoteHighlight,
   remarkNoteMarks,
   scanMarks,
@@ -16,7 +18,20 @@ describe('noteMarks', () => {
   it('解析带色标与裸 ==text==', () => {
     expect(parseNoteHighlight('==cool:中间件==')).toEqual({ tone: 'cool', inner: '中间件' });
     expect(parseNoteHighlight('==中间件==')).toEqual({ tone: 'warm', inner: '中间件' });
+    expect(parseNoteHighlight('==violet:紫==')).toEqual({ tone: 'violet', inner: '紫' });
+    expect(parseNoteHighlight('==rgb7c3aed:自定义==')).toEqual({ tone: 'rgb7c3aed', inner: '自定义' });
     expect(parseNoteHighlight('普通')).toBeNull();
+  });
+
+  it('自定义色可写 rgb / #hex,工具栏同色再点去掉', () => {
+    expect(parseHlTone('#7C3AED')).toBe('rgb7c3aed');
+    expect(wrapNoteHighlight('x', 'sand')).toBe('==sand:x==');
+    expect(toggleNoteHighlight('词', 'rgb7c3aed')).toBe('==rgb7c3aed:词==');
+    expect(toggleNoteHighlight('==rgb7c3aed:词==', 'rgb7c3aed')).toBe('词');
+    expect(notesHlMarkProps('notes-hl-rgb notes-hl-rgb7c3aed')).toEqual({
+      className: 'notes-hl-rgb notes-hl-rgb7c3aed',
+      color: '#7c3aed',
+    });
   });
 
   it('工具栏同色再点则去掉,换色则改写', () => {

@@ -39,6 +39,15 @@ describe('笔记预览底纹', () => {
     expect(container.querySelector('mark')).toBeNull();
   });
 
+  it('青紫与自定义 RGB 底纹能上色', () => {
+    const violet = preview('==violet:紫段==');
+    expect(violet.container.querySelector('mark.notes-hl-violet')?.textContent).toBe('紫段');
+    const rgb = preview('==rgb7c3aed:自定义==');
+    const mark = rgb.container.querySelector('mark.notes-hl-rgb') as HTMLElement | null;
+    expect(mark?.textContent).toBe('自定义');
+    expect(mark?.style.getPropertyValue('--notes-hl')).toBe('#7c3aed');
+  });
+
   it('围栏里误写入的架构图底纹预览仍能识别为层级图', () => {
     const md = [
       '```',
