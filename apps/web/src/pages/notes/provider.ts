@@ -21,7 +21,7 @@ export const notesProvider: PageProbe = {
     }
     const q = query.trim().slice(0, 20);
     return {
-      summary: `笔记首页 · ${layout} · ${listState === 'archived' ? '归档' : '在用'} · ${sort} · ${filter}${q ? ` · 「${q}」` : ''}${panel === 'trash' ? ' · 回收站' : ''}`,
+      summary: `笔记首页 · ${layout} · ${listState === 'archived' ? '归档' : '当前'} · ${sort} · ${filter}${q ? ` · 「${q}」` : ''}${panel === 'trash' ? ' · 回收站' : ''}`,
       selected: editingNoteId === 'new' ? 'new' : '',
     };
   },

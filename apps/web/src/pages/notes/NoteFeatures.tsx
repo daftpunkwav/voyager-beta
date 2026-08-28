@@ -1,4 +1,4 @@
-/** 笔记功能面组件:版本历史抽屉 / 回收站面板 / TOC 大纲 / 反链列表。
+/** 笔记功能面组件:版本历史抽屉 / 回收站弹窗 / TOC 大纲 / 反链列表。
  *  页面私有组件(§10.1);目录大纲来自当前正文,反链与版本走既有后端能力。
  */
 
@@ -36,7 +36,7 @@ export function VersionDrawer({ noteId, open, onClose }: { noteId: string; open:
   if (!open) return null;
   return createPortal(
     <div className="drawer-overlay notes-drawer-overlay" onClick={onClose}>
-      <aside className="drawer version-drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="版本历史">
+      <aside className="drawer version-drawer glass-card glass-card--dialog" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="版本历史">
         <header className="version-drawer__head">
           <h3>版本历史</h3>
           <button type="button" className="icon-btn" aria-label="关闭" onClick={onClose}>✕</button>
@@ -92,7 +92,7 @@ export function VersionDrawer({ noteId, open, onClose }: { noteId: string; open:
   );
 }
 
-/** 回收站:恢复 / 彻底删 / 清空(全带确认语义的不可逆操作集中处理)。 */
+/** 回收站:居中弹窗,恢复 / 彻底删 / 清空。 */
 export function TrashPanel({ open, onClose, onOpenNote }: { open: boolean; onClose: () => void; onOpenNote: (id: string) => void }) {
   const { data: notes = [] } = useTrashNotes(open);
   const restore = useRestoreNote();
@@ -109,14 +109,20 @@ export function TrashPanel({ open, onClose, onOpenNote }: { open: boolean; onClo
   }, [open, onClose]);
   if (!open) return null;
   return createPortal(
-    <div className="drawer-overlay notes-drawer-overlay" onClick={onClose}>
-      <aside className="drawer trash-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="回收站">
+    <div className="modal-overlay" role="presentation" onClick={onClose}>
+      <aside
+        className="modal modal--wide trash-panel glass-card glass-card--dialog"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="回收站"
+      >
         <header className="version-drawer__head">
           <h3>回收站({notes.length})</h3>
           <div className="trash-panel__head-actions">
             <button
               type="button"
-              className="btn btn-sm"
+              className="btn btn-sm btn-danger trash-panel__purge"
               disabled={notes.length === 0 || empty.isPending}
               onClick={() => {
                 if (window.confirm('彻底清空回收站?此操作不可撤销。')) {

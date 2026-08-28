@@ -89,7 +89,8 @@ export function NotesWorkspaceBar({
       <button type="button" className="btn btn-primary btn-sm" onClick={onNew}>
         新建
       </button>
-      <button type="button" className="btn btn-sm notes-assist-btn" onClick={onAssist}>
+      <button type="button" className="notes-rail-miyai notes-assist-btn liquid-glass liquid-glass--pill liquid-glass--green liquid-glass--interactive" onClick={onAssist}>
+        <span className="notes-rail-miyai__orb agent-organizer" aria-hidden />
         {personaDisplayName('organizer')}
       </button>
       <div className="view-toggle" role="group" aria-label="展现形式">
@@ -105,6 +106,19 @@ export function NotesWorkspaceBar({
             {m === 'edit' ? '编辑' : m === 'preview' ? '预览' : '分栏'}
           </button>
         ))}
+        <span className="view-toggle__rule" aria-hidden />
+        <button
+          type="button"
+          className={`view-btn${mode === 'split' && syncScroll ? ' active' : ''}`}
+          data-testid="notes-sync-scroll"
+          aria-pressed={mode === 'split' && syncScroll}
+          aria-label="同步滚动"
+          title={mode === 'split' ? '同步滚动' : '同步滚动仅分栏可用'}
+          disabled={mode !== 'split'}
+          onClick={onToggleSync}
+        >
+          同步
+        </button>
       </div>
       <div className="notes-font-ctrl" role="group" aria-label="正文字号" data-testid="notes-font-ctrl">
         <button
@@ -127,17 +141,6 @@ export function NotesWorkspaceBar({
           A+
         </button>
       </div>
-      {mode === 'split' && (
-        <button
-          type="button"
-          className={`btn btn-sm notes-sync-btn${syncScroll ? ' is-on' : ''}`}
-          data-testid="notes-sync-scroll"
-          aria-pressed={syncScroll}
-          onClick={onToggleSync}
-        >
-          同步滚动
-        </button>
-      )}
       {hasToc && (
         <button
           type="button"

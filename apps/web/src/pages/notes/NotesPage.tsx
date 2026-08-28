@@ -7,6 +7,7 @@ import {
   useDeleteNote,
   useLinkNote,
   usePatchNoteMeta,
+  useBatchNotes,
   useUpdateNote,
 } from '@/hooks/useNotes';
 import { useProjects } from '@/hooks/useProjects';
@@ -37,12 +38,15 @@ import {
   commitNotesSort,
   commitNotesSourceId,
   commitNotesSyncScroll,
+  commitNotesTocWidth,
   openNotesAssist,
 } from './notesView';
 import {
   extractNoteToc,
   isPersistedNoteId,
   noteSourceId,
+  NOTES_TOC_WIDTH_MAX,
+  NOTES_TOC_WIDTH_MIN,
   parseSplitRatio,
   syncScrollRatio,
   type NoteTocItem,
@@ -64,6 +68,7 @@ export function NotesPage() {
   const syncScroll = useNotesUiStore((s) => s.syncScroll);
   const splitRatio = useNotesUiStore((s) => s.splitRatio);
   const setSplitRatio = useNotesUiStore((s) => s.setSplitRatio);
+  const tocWidth = useNotesUiStore((s) => s.tocWidth);
   const query = useNotesUiStore((s) => s.query);
   const sort = useNotesUiStore((s) => s.sort);
   const filter = useNotesUiStore((s) => s.filter);
@@ -81,6 +86,7 @@ export function NotesPage() {
   const deleteNote = useDeleteNote();
   const linkNote = useLinkNote();
   const patchMeta = usePatchNoteMeta();
+  const batchNotes = useBatchNotes();
   const addToast = useUIStore((s) => s.addToast);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [newProjectId, setNewProjectId] = useState(() => searchParams.get('project') ?? '');
@@ -99,6 +105,7 @@ export function NotesPage() {
   const [previewBody, setPreviewBody] = useState('');
   const [tocOpen, setTocOpen] = useState(true);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
   const noteSeqRef = useRef(0);
 
   useEffect(() => {
@@ -372,6 +379,38 @@ export function NotesPage() {
     }
   };
 
+  const runBatch = async (
+    ids: string[],
+    action: 'archive' | 'unarchive' | 'delete' | 'export',
+  ) => {
+    if (!ids.length) return;
+    try {
+      const res = await batchNotes.mutateAsync({ ids, action });
+      const ok = res.count;
+      const failed = res.failed.length;
+      const verb =
+        action === 'archive'
+          ? '归档'
+          : action === 'unarchive'
+            ? '取消归档'
+            : action === 'delete'
+              ? '移入回收站'
+              : '导出';
+      const exportPath = action === 'export' && failed === 0 ? res.paths?.[0] : undefined;
+      addToast({
+        type: failed === 0 ? 'success' : failed === ids.length ? 'error' : 'warning',
+        message:
+          exportPath && (res.paths?.length ?? 0) === 1
+            ? `已导出:${exportPath}`
+            : failed === 0
+              ? `已${verb} ${ok} 篇`
+              : `${verb}完成：成功 ${ok} / 失败 ${failed}`,
+      });
+    } catch (err) {
+      addToast({ type: 'error', message: err instanceof Error ? err.message : '操作失败' });
+    }
+  };
+
   const openAssist = () => {
     useFloatingStore.getState().setOpen(true);
     openNotesAssist();
@@ -400,6 +439,29 @@ export function NotesPage() {
       window.removeEventListener('pointerup', onUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+    };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
+  const onTocPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    const root = workspaceRef.current;
+    if (!root) return;
+    const onMove = (ev: PointerEvent) => {
+      const rect = root.getBoundingClientRect();
+      if (rect.width < 80) return;
+      const cap = Math.floor(rect.width * 0.6);
+      commitNotesTocWidth(Math.min(rect.right - ev.clientX, cap), false);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      commitNotesTocWidth(useNotesUiStore.getState().tocWidth, true);
     };
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
@@ -552,6 +614,10 @@ export function NotesPage() {
           onTrash={() => commitNotesPanel('trash')}
           onAssist={openAssist}
           onPin={(n, pinned) => void handlePin(n, pinned)}
+          onArchive={(ids, archived) => void runBatch(ids, archived ? 'archive' : 'unarchive')}
+          onExport={(ids) => void runBatch(ids, 'export')}
+          onDelete={(ids) => void runBatch(ids, 'delete')}
+          busy={batchNotes.isPending}
         />
         {drawers}
       </>
@@ -607,7 +673,7 @@ export function NotesPage() {
         <div className="notes-format-bar" ref={setFormatBarHost} data-testid="notes-format-bar" />
       ) : null}
 
-      <div className="notes-workspace">
+      <div className="notes-workspace" ref={workspaceRef}>
         <div
           ref={canvasRef}
           className={`notes-canvas is-${mode}`}
@@ -652,7 +718,34 @@ export function NotesPage() {
           </>
         )}
         </div>
-        {tocOpen && tocItems.length > 0 ? <TocPanel items={tocItems} onJump={jumpToc} /> : null}
+        {tocOpen && tocItems.length > 0 ? (
+          <div
+            className="notes-toc-wrap"
+            style={{ ['--notes-toc-width' as string]: `${tocWidth}px` }}
+          >
+            <button
+              type="button"
+              className="notes-toc-handle"
+              data-testid="notes-toc-handle"
+              aria-label="调整目录宽度"
+              aria-orientation="vertical"
+              aria-valuemin={NOTES_TOC_WIDTH_MIN}
+              aria-valuemax={NOTES_TOC_WIDTH_MAX}
+              aria-valuenow={tocWidth}
+              onPointerDown={onTocPointerDown}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowLeft') {
+                  e.preventDefault();
+                  commitNotesTocWidth(tocWidth + 16);
+                } else if (e.key === 'ArrowRight') {
+                  e.preventDefault();
+                  commitNotesTocWidth(tocWidth - 16);
+                }
+              }}
+            />
+            <TocPanel items={tocItems} onJump={jumpToc} />
+          </div>
+        ) : null}
       </div>
       {drawers}
     </div>
