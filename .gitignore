@@ -103,6 +103,12 @@ services/*/data/
 # 开发阶段执行文档(过程性产物,随迭代过时,不入库)
 docs/phases/
 
+# 本地讲解/学习站与生成脚本（不入库）
+docs-site/
+
+# 本地走查截图（不入库；docs/ 架构图与 public 静态资源仍提交）
+screenshots/
+
 # —— 迁移期备份(RepoPilot 旧 page / widget / shell 在探索阶段保留,不入库)——
 apps/web/src/_archived_*
 apps/web/src/**/_archived_*
