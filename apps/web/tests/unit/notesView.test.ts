@@ -15,6 +15,7 @@ afterEach(() => {
     panel: 'none',
     density: 'comfortable',
     syncScroll: true,
+    tocWidth: 188,
   });
 });
 
@@ -49,6 +50,13 @@ describe('applyNotesViewSnapshot', () => {
     expect(s.query).toBe('架构');
     expect(s.panel).toBe('trash');
     expect(s.density).toBe('compact');
+  });
+
+  it('写入目录宽度', () => {
+    applyNotesViewSnapshot({ toc_width: 260 });
+    expect(useNotesUiStore.getState().tocWidth).toBe(260);
+    applyNotesSettingKey('notes.ui.toc_width', 80);
+    expect(useNotesUiStore.getState().tocWidth).toBe(148);
   });
 
   it('settings.changed 单键写入,不碰全站字号键', () => {

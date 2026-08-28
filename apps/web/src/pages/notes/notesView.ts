@@ -23,6 +23,7 @@ import {
   NOTES_SORT_KEY,
   NOTES_SOURCE_KEY,
   NOTES_SYNC_KEY,
+  NOTES_TOC_WIDTH_KEY,
   parseNotesDensity,
   parseNotesFilter,
   parseNotesFontSize,
@@ -35,6 +36,7 @@ import {
   rememberNotesQuote,
   parseNotesSort,
   parseNotesSourceId,
+  parseNotesTocWidth,
   parseSyncScroll,
   type NotesDensity,
   type NotesFilter,
@@ -58,6 +60,7 @@ export interface NotesViewSnapshot {
   panel: NotesPanel;
   density: NotesDensity;
   persisted?: boolean;
+  toc_width?: number;
   action?: 'open' | 'index' | null;
   note_id?: string | null;
   assist?: boolean;
@@ -77,6 +80,7 @@ export interface NotesViewPatch {
   source_id?: string;
   panel?: NotesPanel;
   density?: NotesDensity;
+  toc_width?: number;
   assist?: boolean;
   quote?: string;
   note_id?: string;
@@ -95,6 +99,7 @@ type UiPatch = {
   panel?: NotesPanel;
   density?: NotesDensity;
   syncScroll?: boolean;
+  tocWidth?: number;
 };
 
 function cacheLocal(s: {
@@ -109,6 +114,7 @@ function cacheLocal(s: {
   panel: NotesPanel;
   density: NotesDensity;
   syncScroll: boolean;
+  tocWidth: number;
 }): void {
   writeKey(NOTES_FONT_KEY, String(s.fontSize));
   writeKey(NOTES_MODE_KEY, s.mode);
@@ -121,6 +127,7 @@ function cacheLocal(s: {
   writeKey(NOTES_PANEL_KEY, s.panel);
   writeKey(NOTES_DENSITY_KEY, s.density);
   writeKey(NOTES_SYNC_KEY, s.syncScroll ? '1' : '0');
+  writeKey(NOTES_TOC_WIDTH_KEY, String(s.tocWidth));
 }
 
 function boolish(value: unknown): boolean {
@@ -146,6 +153,7 @@ export function applyNotesViewSnapshot(raw: Partial<NotesViewSnapshot> | Record<
         ? raw.sync_scroll
         : parseSyncScroll(String(raw.sync_scroll));
   }
+  if (raw.toc_width != null) patch.tocWidth = parseNotesTocWidth(String(raw.toc_width));
   if (Object.keys(patch).length === 0) return;
   useNotesUiStore.getState().apply(patch);
   cacheLocal(useNotesUiStore.getState());
@@ -194,6 +202,10 @@ export function applyNotesSettingKey(key: string, value: unknown): void {
   }
   if (key === 'notes.ui.sync_scroll') {
     applyNotesViewSnapshot({ sync_scroll: boolish(value) });
+    return;
+  }
+  if (key === 'notes.ui.toc_width') {
+    applyNotesViewSnapshot({ toc_width: Number(value) });
   }
 }
 
@@ -286,6 +298,13 @@ export function commitNotesSyncScroll(syncScroll: boolean): void {
   useNotesUiStore.getState().apply({ syncScroll });
   writeKey(NOTES_SYNC_KEY, syncScroll ? '1' : '0');
   persistNotesView({ sync_scroll: syncScroll });
+}
+
+export function commitNotesTocWidth(width: number, persist = true): void {
+  const tocWidth = parseNotesTocWidth(String(width));
+  useNotesUiStore.getState().apply({ tocWidth });
+  writeKey(NOTES_TOC_WIDTH_KEY, String(tocWidth));
+  if (persist) persistNotesView({ toc_width: tocWidth });
 }
 
 export function bumpNotesFont(delta: number): void {

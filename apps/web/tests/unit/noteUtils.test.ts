@@ -13,6 +13,7 @@ import {
   parseNotesListState,
   parseNotesMode,
   parseNotesQuote,
+  parseNotesTocWidth,
   parseSplitRatio,
   parseSyncScroll,
   sortNotes,
@@ -38,7 +39,7 @@ describe('parseNotesLayout / parseSplitRatio / parseNotesListState', () => {
     expect(parseNotesLayout(null)).toBe('list');
   });
 
-  it('首页状态默认在用', () => {
+  it('首页状态默认当前', () => {
     expect(parseNotesListState('archived')).toBe('archived');
     expect(parseNotesListState('active')).toBe('active');
     expect(parseNotesListState(null)).toBe('active');
@@ -57,6 +58,15 @@ describe('parseNotesLayout / parseSplitRatio / parseNotesListState', () => {
     expect(parseNotesFontSize('18')).toBe(18);
     expect(parseNotesFontSize('8')).toBe(12);
     expect(parseNotesFontSize('40')).toBe(24);
+  });
+
+  it('目录宽度夹在 148–480,缺省 188', () => {
+    expect(parseNotesTocWidth(null)).toBe(188);
+    expect(parseNotesTocWidth('')).toBe(188);
+    expect(parseNotesTocWidth('240')).toBe(240);
+    expect(parseNotesTocWidth('80')).toBe(148);
+    expect(parseNotesTocWidth('900')).toBe(480);
+    expect(parseNotesTocWidth('nope')).toBe(188);
   });
 
   it('同步滚动缺省开启,仅 0 关闭', () => {
@@ -210,6 +220,8 @@ describe('extractNoteToc', () => {
 
   it('底纹标记不进目录展示字', () => {
     expect(tocHeadingLabel('==warm:架构==')).toBe('架构');
+    expect(tocHeadingLabel('==violet:目录==')).toBe('目录');
+    expect(tocHeadingLabel('==rgb7c3aed:标题==')).toBe('标题');
     expect(tocHeadingLabel('普通')).toBe('普通');
   });
 });

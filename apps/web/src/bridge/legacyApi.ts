@@ -338,6 +338,9 @@ class NotesApi {
     return this.cap('import_note', { file_path: filePath, ...meta });
   }
   exportNote(id: string) { return this.cap('export_note', { note_id: id }); }
+  batchNotes(ids: string[], action: string) {
+    return this.cap('batch_notes', { ids, action });
+  }
   addAsset(filePath: string, filename = '', noteId = '') {
     return this.cap('add_asset', { file_path: filePath, filename, note_id: noteId });
   }
@@ -491,6 +494,7 @@ export class LegacyApiClient {
   linkNote = this.notes.linkNote.bind(this.notes);
   importNote = this.notes.importNote.bind(this.notes);
   exportNote = this.notes.exportNote.bind(this.notes);
+  batchNotes = this.notes.batchNotes.bind(this.notes);
   addAsset = this.notes.addAsset.bind(this.notes);
   listAllNotes = this.notes.listAllNotes.bind(this.notes);
   getNote = this.notes.getNote.bind(this.notes);

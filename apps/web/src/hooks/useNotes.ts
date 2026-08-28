@@ -270,6 +270,29 @@ export function useExportNote() {
   });
 }
 
+export type NoteBatchAction = 'archive' | 'unarchive' | 'delete' | 'export' | 'pin' | 'unpin';
+
+export interface NoteBatchResult {
+  ok: string[];
+  failed: { id: string; error: string }[];
+  action: string;
+  count: number;
+  paths?: string[];
+}
+
+export function useBatchNotes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, action }: { ids: string[]; action: NoteBatchAction }) => {
+      return (await getApi().batchNotes(ids, action)).data as NoteBatchResult;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['notes'] });
+      void invalidateOverviewQueries(qc);
+    },
+  });
+}
+
 export function useRenameNoteTag() {
   const qc = useQueryClient();
   return useMutation({

@@ -1,6 +1,7 @@
 /** 笔记页纯函数:偏好 / 源 ID / 行前缀 / 时间标签。不依赖 React。 */
 
 import { formatRelativeTime } from '@/utils/date';
+import { NOTE_HL_KIND } from './noteMarks';
 
 export const NOTES_MODE_KEY = 'notes-mode';
 export const NOTES_LAYOUT_KEY = 'notes-layout';
@@ -14,10 +15,14 @@ export const NOTES_QUERY_KEY = 'notes-query';
 export const NOTES_SOURCE_KEY = 'notes-source';
 export const NOTES_PANEL_KEY = 'notes-panel';
 export const NOTES_DENSITY_KEY = 'notes-density';
+export const NOTES_TOC_WIDTH_KEY = 'notes-toc-width';
 
 export const NOTES_FONT_MIN = 12;
 export const NOTES_FONT_MAX = 24;
 export const NOTES_FONT_DEFAULT = 15;
+export const NOTES_TOC_WIDTH_MIN = 148;
+export const NOTES_TOC_WIDTH_MAX = 480;
+export const NOTES_TOC_WIDTH_DEFAULT = 188;
 
 export type NotesMode = 'edit' | 'preview' | 'split';
 export type NotesLayout = 'list' | 'card';
@@ -75,6 +80,13 @@ export function parseNotesFontSize(raw: string | null | undefined): number {
   const n = Number(raw);
   if (!Number.isFinite(n)) return NOTES_FONT_DEFAULT;
   return Math.min(NOTES_FONT_MAX, Math.max(NOTES_FONT_MIN, Math.round(n)));
+}
+
+export function parseNotesTocWidth(raw: string | null | undefined): number {
+  if (raw == null || raw === '') return NOTES_TOC_WIDTH_DEFAULT;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return NOTES_TOC_WIDTH_DEFAULT;
+  return Math.min(NOTES_TOC_WIDTH_MAX, Math.max(NOTES_TOC_WIDTH_MIN, Math.round(n)));
 }
 
 export function parseSyncScroll(raw: string | null | undefined): boolean {
@@ -361,6 +373,6 @@ export function extractNoteToc(content: string): NoteTocItem[] {
 
 /** 目录展示与 slug 用可见标题,去掉底纹标记,对齐预览 nodeText。 */
 export function tocHeadingLabel(text: string): string {
-  const stripped = text.replace(/==(warm|cool|rose|lime):/g, '').replace(/==/g, '').trim();
+  const stripped = text.replace(new RegExp(`==(${NOTE_HL_KIND}):`, 'gi'), '').replace(/==/g, '').trim();
   return stripped || text;
 }

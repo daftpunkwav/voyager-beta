@@ -15,6 +15,7 @@ import {
   NOTES_SOURCE_KEY,
   NOTES_SPLIT_KEY,
   NOTES_SYNC_KEY,
+  NOTES_TOC_WIDTH_KEY,
   parseNotesDensity,
   parseNotesFilter,
   parseNotesFontSize,
@@ -25,6 +26,7 @@ import {
   parseNotesQuery,
   parseNotesSort,
   parseNotesSourceId,
+  parseNotesTocWidth,
   parseSplitRatio,
   parseSyncScroll,
   type NotesDensity,
@@ -49,6 +51,7 @@ export interface NotesUiState {
   density: NotesDensity;
   splitRatio: number;
   syncScroll: boolean;
+  tocWidth: number;
   apply: (patch: Partial<Omit<NotesUiState, 'apply' | 'setSplitRatio'>>) => void;
   setSplitRatio: (ratio: number) => void;
 }
@@ -67,6 +70,7 @@ function seed(): Omit<NotesUiState, 'apply' | 'setSplitRatio'> {
     density: parseNotesDensity(readKey(NOTES_DENSITY_KEY, NOTES_DENSITY_KEY)),
     splitRatio: parseSplitRatio(readKey(NOTES_SPLIT_KEY, NOTES_SPLIT_KEY)),
     syncScroll: parseSyncScroll(readKey(NOTES_SYNC_KEY, NOTES_SYNC_KEY)),
+    tocWidth: parseNotesTocWidth(readKey(NOTES_TOC_WIDTH_KEY, NOTES_TOC_WIDTH_KEY)),
   };
 }
 
