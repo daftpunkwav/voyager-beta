@@ -237,6 +237,52 @@ class TestExportAndLinkFields:
         assert updated["pinned"] is True
 
 
+class TestBatchNotes:
+    async def test_batch_archive_delete_export(self, deps, tmp_path) -> None:
+        a = await execute(registry, "create_note", USER_CTX, {"title": "甲", "content": "a"})
+        b = await execute(registry, "create_note", USER_CTX, {"title": "乙", "content": "b"})
+        ids = [a["id"], b["id"]]
+        archived = await execute(registry, "batch_notes", USER_CTX,
+                                 {"ids": ids, "action": "archive"})
+        assert archived["count"] == 2 and archived["failed"] == []
+        listed = await execute(registry, "list_notes", USER_CTX, {"state": "archived"})
+        assert {n["id"] for n in listed} == set(ids)
+
+        restored = await execute(registry, "batch_notes", AGENT_CTX,
+                                 {"ids": ids, "action": "unarchive"})
+        assert restored["count"] == 2
+
+        exported = await execute(registry, "batch_notes", USER_CTX,
+                                 {"ids": ids, "action": "export"})
+        assert len(exported["paths"]) == 2
+        for p in exported["paths"]:
+            assert Path(p).exists()
+
+        trashed = await execute(registry, "batch_notes", USER_CTX,
+                                {"ids": ids, "action": "delete"})
+        assert trashed["count"] == 2
+        trash = await execute(registry, "list_notes", USER_CTX, {"state": "trash"})
+        assert {n["id"] for n in trash} == set(ids)
+
+    async def test_batch_partial_failure_and_validation(self, deps) -> None:
+        live = await execute(registry, "create_note", USER_CTX, {"title": "活"})
+        out = await execute(registry, "batch_notes", USER_CTX, {
+            "ids": [live["id"], "missing-id", live["id"]],
+            "action": "pin",
+        })
+        assert out["ok"] == [live["id"]]
+        assert len(out["failed"]) == 1
+        assert out["failed"][0]["id"] == "missing-id"
+        with pytest.raises(ServiceError) as exc:
+            await execute(registry, "batch_notes", USER_CTX,
+                          {"ids": [live["id"]], "action": "explode"})
+        assert exc.value.body.code == "NOTES.INVALID_INPUT"
+        with pytest.raises(ServiceError) as exc:
+            await execute(registry, "batch_notes", USER_CTX,
+                          {"ids": live["id"], "action": "pin"})
+        assert exc.value.body.code == "NOTES.INVALID_INPUT"
+
+
 class TestNotesView:
     async def test_get_defaults(self, deps) -> None:
         view = await execute(registry, "get_notes_view", USER_CTX, {})
@@ -251,6 +297,7 @@ class TestNotesView:
         assert view["source_id"] == ""
         assert view["panel"] == "none"
         assert view["density"] == "comfortable"
+        assert view["toc_width"] == 188
         assert view["persisted"] is True
 
     async def test_user_and_agent_same_write(self, deps) -> None:
@@ -310,6 +357,17 @@ class TestNotesView:
         stored = await execute(registry, "get_notes_view", USER_CTX, {})
         assert stored["sort"] == "created" and stored["filter"] == "today"
         assert stored["query"] == "架构" and stored["density"] == "compact"
+
+    async def test_toc_width_user_and_agent_same_write(self, deps) -> None:
+        user = await execute(registry, "set_notes_view", USER_CTX, {"toc_width": 260})
+        assert user["toc_width"] == 260
+        agent = await execute(registry, "set_notes_view", AGENT_CTX, {"toc_width": 900})
+        assert agent["toc_width"] == 480
+        stored = await execute(registry, "get_notes_view", USER_CTX, {})
+        assert stored["toc_width"] == 480
+        too_narrow = await execute(registry, "set_notes_view", AGENT_CTX,
+                                   {"toc_width": 10})
+        assert too_narrow["toc_width"] == 148
 
     async def test_assist_not_persisted(self, deps) -> None:
         _, log = deps

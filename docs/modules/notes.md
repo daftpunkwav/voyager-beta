@@ -8,11 +8,11 @@
   empty_trash / list_tags / rename_tag / get_backlinks / notes_stats /
   list_versions / read_version / restore_version(内容变更自动快照)/
   get_note_toc(跳过代码围栏;工作区三视图共用右侧目录,点标题跳编辑行/预览锚点)/ resolve_links([[内链]] 解析)/
-  edit_note_range(字符偏移原子编辑)/ mark_note_span(选区底纹 ==tone:text==;围栏与行内代码内不着色;套住已有底纹先拆平)/
+  mark_note_span(选区底纹 ==tone:text==;常驻 warm/cool/rose/lime/violet/sand,自定义 rgbRRGGBB;#RRGGBB 亦可;围栏与行内代码内不着色;套住已有底纹先拆平)/
   import_note(front-matter 导入)/
-  export_note(front-matter 导出)/ add_asset(图片附件,attachment:// 引用,
+  export_note(front-matter 导出)/ batch_notes(清单多选:归档/删除/导出/置顶,最多 100 篇)/ add_asset(图片附件,attachment:// 引用,
   workspace/ 内 file_path、扩展白名单、notes.assets.max_mb 上限)/
-  get_notes_view / set_notes_view(笔记页界面:字号/视图/布局/筛选/排序/回收站面板;
+  get_notes_view / set_notes_view(笔记页界面:字号/视图/布局/筛选/排序/回收站面板/目录宽度;
   assist 打开悬浮对话;quote 把选区交给侦察人格快速解读,均不落库。用户按钮与 agent 同权)`
 - **事件**:发布 `note.created / note.edited / note.deleted / note.restored /
   note.purged / notes.ui.changed`
@@ -20,7 +20,8 @@
   notes.trash.retention_days / notes.history.per_note / notes.export.dir /
   notes.assets.max_mb / notes.ui.font_size / notes.ui.mode / notes.ui.layout /
   notes.ui.sync_scroll / notes.ui.list_state / notes.ui.sort / notes.ui.filter /
-  notes.ui.query / notes.ui.source_id / notes.ui.panel / notes.ui.density`
+  notes.ui.query / notes.ui.source_id / notes.ui.panel / notes.ui.density /
+  notes.ui.toc_width`
 - **数据**:notes.db(笔记/版本/双链)+ assets.db(note_assets)独立命名空间;
   附件文件落 workspace/notes-assets/<asset_id><ext>(内容寻址,永不覆盖,
   immutable 缓存路由 `GET /api/notes/assets/{id}`)

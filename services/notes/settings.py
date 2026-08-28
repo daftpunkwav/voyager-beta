@@ -37,7 +37,7 @@ DEFS = [
                description="分栏时编辑与预览同步滚动"),
     SettingDef(key="notes.ui.list_state", module="notes", type=SettingType.CHOICE,
                default="active", choices=("active", "archived"),
-               description="笔记首页显示在用或归档"),
+               description="笔记首页显示当前或归档"),
     SettingDef(key="notes.ui.sort", module="notes", type=SettingType.CHOICE,
                default="updated", choices=("updated", "created", "title"),
                description="笔记首页排序:最近改/最近建/标题"),
@@ -56,4 +56,7 @@ DEFS = [
     SettingDef(key="notes.ui.density", module="notes", type=SettingType.CHOICE,
                default="comfortable", choices=("comfortable", "compact"),
                description="笔记首页列表疏密"),
+    SettingDef(key="notes.ui.toc_width", module="notes", type=SettingType.INT,
+               default=188, min=148, max=480,
+               description="笔记工作区目录宽度(px)"),
 ]

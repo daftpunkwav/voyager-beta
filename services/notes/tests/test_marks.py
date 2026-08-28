@@ -1,12 +1,37 @@
 """底纹纯函数:套选拆平、围栏跳过、可见文本匹配。"""
 
-from services.notes.marks import apply_in_range, apply_note_mark, find_marks, parse_mark, scan_marks
+import pytest
+
+from services.notes.marks import (
+    MarkError,
+    apply_in_range,
+    apply_note_mark,
+    find_marks,
+    normalize_tone,
+    parse_mark,
+    scan_marks,
+)
 
 
 def test_parse_toned_and_bare() -> None:
     assert parse_mark("==cool:中间件==") == ("cool", "中间件")
     assert parse_mark("==中间件==") == ("warm", "中间件")
+    assert parse_mark("==violet:紫==") == ("violet", "紫")
+    assert parse_mark("==rgb7c3aed:自定义==") == ("rgb7c3aed", "自定义")
     assert parse_mark("普通") is None
+
+
+def test_normalize_custom_rgb() -> None:
+    assert normalize_tone("#7C3AED") == "rgb7c3aed"
+    assert normalize_tone("7c3aed") == "rgb7c3aed"
+    assert normalize_tone("sand") == "sand"
+    with pytest.raises(MarkError):
+        normalize_tone("not-a-color")
+
+
+def test_apply_custom_rgb_and_named() -> None:
+    assert apply_note_mark("词", "词", "#7c3aed") == "==rgb7c3aed:词=="
+    assert apply_note_mark("==rgb7c3aed:词==", "词", "clear") == "词"
 
 
 def test_wrap_multiline_and_list() -> None:

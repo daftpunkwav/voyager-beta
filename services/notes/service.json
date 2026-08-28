@@ -25,6 +25,7 @@
     "read_version",
     "restore_version",
     "export_note",
+    "batch_notes",
     "add_asset",
     "get_notes_view",
     "set_notes_view",

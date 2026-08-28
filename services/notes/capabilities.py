@@ -122,6 +122,7 @@ async def _emit(type_: str, note_id: str, **payload) -> None:
 # ---------- 笔记页界面(与全站 appearance.* 分离;用户按钮 = 本能力) ----------
 
 _UI_FONT_MIN, _UI_FONT_MAX, _UI_FONT_DEFAULT = 12, 24, 15
+_UI_TOC_WIDTH_MIN, _UI_TOC_WIDTH_MAX, _UI_TOC_WIDTH_DEFAULT = 148, 480, 188
 _UI_MODES = ("edit", "preview", "split")
 _UI_LAYOUTS = ("list", "card")
 _UI_LIST_STATES = ("active", "archived")
@@ -144,6 +145,7 @@ _UI_KEYS = {
     "source_id": "notes.ui.source_id",
     "panel": "notes.ui.panel",
     "density": "notes.ui.density",
+    "toc_width": "notes.ui.toc_width",
 }
 
 
@@ -178,8 +180,17 @@ def _read_notes_view() -> dict:
         "source_id": str(_ui_get("notes.ui.source_id", "") or "")[:_UI_SOURCE_MAX],
         "panel": panel if panel in _UI_PANELS else "none",
         "density": density if density in _UI_DENSITIES else "comfortable",
+        "toc_width": _clamp_toc_width(_ui_get("notes.ui.toc_width", _UI_TOC_WIDTH_DEFAULT)),
         "persisted": _require_deps().settings is not None,
     }
+
+
+def _clamp_toc_width(raw: object) -> int:
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return _UI_TOC_WIDTH_DEFAULT
+    return max(_UI_TOC_WIDTH_MIN, min(_UI_TOC_WIDTH_MAX, n))
 
 
 async def _emit_notes_ui(payload: dict, actor: ActorRef) -> None:
@@ -232,8 +243,8 @@ def list_notes(source_id: str | None = None, tag: str = "",
 
 
 @capability(registry, name="get_notes_view",
-            description="读笔记页界面:字号/视图/布局/在用或归档/排序/筛选/关键词/"
-                        "关联资源/回收站面板/疏密。与全站字号无关。")
+            description="读笔记页界面:字号/视图/布局/当前或归档/排序/筛选/关键词/"
+                        "关联资源/回收站面板/疏密/目录宽度。与全站字号无关。")
 def get_notes_view() -> dict:
     return _read_notes_view()
 
@@ -245,6 +256,7 @@ def get_notes_view() -> dict:
                         "sort=updated|created|title;filter=all|pinned|untitled|unlinked|today;"
                         "query 关键词;source_id 关联资源(空串=全部);"
                         "panel=none|trash;density=comfortable|compact;"
+                        "toc_width 目录宽度(像素,148–480);"
                         "assist=true 打开笔记页悬浮对话;quote 把选区交给侦察人格快速解读(不落库);"
                         "note_id 打开一篇(含 new);index=true 回列表。",
             cost=1)
@@ -260,6 +272,7 @@ async def set_notes_view(font_size: int | None = None,
                          source_id: str | None = None,
                          panel: str | None = None,
                          density: str | None = None,
+                         toc_width: int | None = None,
                          assist: bool = False,
                          quote: str | None = None,
                          note_id: str | None = None,
@@ -270,14 +283,14 @@ async def set_notes_view(font_size: int | None = None,
         quote_text = " ".join(str(quote).split())[:_UI_QUOTE_MAX] or None
     touched = any(v is not None for v in (
         font_size, font_delta, mode, layout, sync_scroll, list_state, note_id,
-        sort, filter, query, source_id, panel, density,
+        sort, filter, query, source_id, panel, density, toc_width,
     )) or index or assist or quote_text is not None
     if not touched:
         raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
                            "至少提供一个界面参数",
                            hint="font_size / font_delta / mode / layout / "
                                 "sync_scroll / list_state / sort / filter / "
-                                "query / source_id / panel / density / "
+                                "query / source_id / panel / density / toc_width / "
                                 "assist / quote / note_id / index")
     if mode is not None and mode not in _UI_MODES:
         raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
@@ -339,6 +352,8 @@ async def set_notes_view(font_size: int | None = None,
         patch["source_id"] = source_id
     if density is not None:
         patch["density"] = density
+    if toc_width is not None:
+        patch["toc_width"] = _clamp_toc_width(toc_width)
     if panel is not None:
         patch["panel"] = panel
     elif note_id:
@@ -592,7 +607,8 @@ async def edit_note_range(note_id: str, start: int, end: int, new_text: str) -> 
 
 @capability(registry, name="mark_note_span",
             description="给正文中围栏外首次出现的可见片段加上或去掉底纹。"
-                        "tone=warm|cool|rose|lime 着色,clear 去掉。"
+                        "tone=warm|cool|rose|lime|violet|sand 着色;"
+                        "亦可 rgbRRGGBB / #RRGGBB / RRGGBB 自定义色,clear 去掉。"
                         "语法 ==tone:文本==(仍是 Markdown)。代码围栏与行内代码内不着色;"
                         "ASCII 框线/表格行整行不包。已有底纹被更大选区套住时先拆平再包,不嵌套。"
                         "用户工具栏与本能力同权。",
@@ -707,10 +723,7 @@ def _split_front_matter(text: str) -> tuple[str, list[str], str]:
 
 # ---------- 导出 ----------
 
-@capability(registry, name="export_note", description="导出为 Markdown 文件(front-matter+正文),返回落盘路径",
-            cost=1)
-async def export_note(note_id: str) -> dict:
-    note = _require_alive(note_id)
+def _export_markdown(note: dict) -> dict:
     deps = _require_deps()
     root = _workspace()
     export_dir_setting = ""
@@ -742,6 +755,73 @@ async def export_note(note_id: str) -> dict:
     )
     dest.write_text(body, encoding="utf-8")
     return {"note_id": note["id"], "path": str(dest), "chars": len(body)}
+
+
+@capability(registry, name="export_note", description="导出为 Markdown 文件(front-matter+正文),返回落盘路径",
+            cost=1)
+async def export_note(note_id: str) -> dict:
+    return _export_markdown(_require_alive(note_id))
+
+
+_BATCH_ACTIONS = ("archive", "unarchive", "delete", "export", "pin", "unpin")
+_BATCH_MAX = 100
+
+
+def _unique_ids(ids: object) -> list[str]:
+    if isinstance(ids, str) or not isinstance(ids, (list, tuple)):
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, "ids 须为字符串列表")
+    seen: set[str] = set()
+    out: list[str] = []
+    for raw in ids:
+        nid = str(raw or "").strip()
+        if not nid or nid in seen:
+            continue
+        seen.add(nid)
+        out.append(nid)
+    return out
+
+
+@capability(registry, name="batch_notes",
+            description="对多篇笔记做同一动作:archive|unarchive|delete|export|pin|unpin。"
+                        "ids 最多 100,单篇失败记入 failed 不中断其余。"
+                        "用户与 agent 调本能力等价。",
+            cost=2, reversible=True)
+async def batch_notes(ids: list[str], action: str) -> dict:
+    action = (action or "").strip()
+    if action not in _BATCH_ACTIONS:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           f"action 须为 {list(_BATCH_ACTIONS)}")
+    nids = _unique_ids(ids)
+    if not nids:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, "ids 不能为空")
+    if len(nids) > _BATCH_MAX:
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           f"一次最多 {_BATCH_MAX} 篇")
+    ok: list[str] = []
+    failed: list[dict] = []
+    paths: list[str] = []
+    for nid in nids:
+        try:
+            if action == "archive":
+                await update_note(nid, archived=True)
+            elif action == "unarchive":
+                await update_note(nid, archived=False)
+            elif action == "pin":
+                await update_note(nid, pinned=True)
+            elif action == "unpin":
+                await update_note(nid, pinned=False)
+            elif action == "delete":
+                await delete_note(nid)
+            else:
+                exported = _export_markdown(_require_alive(nid))
+                paths.append(exported["path"])
+            ok.append(nid)
+        except ServiceError as exc:
+            failed.append({"id": nid, "error": exc.body.message})
+    result: dict = {"ok": ok, "failed": failed, "action": action, "count": len(ok)}
+    if paths:
+        result["paths"] = paths
+    return result
 
 
 def _fmt_ts(ts: float) -> str:

@@ -13,9 +13,14 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-TONES = ("warm", "cool", "rose", "lime")
+TONES = ("warm", "cool", "rose", "lime", "violet", "sand")
 CLEAR = "clear"
 QUOTE_MAX = 500
+_TONE_KIND = r"warm|cool|rose|lime|violet|sand|rgb[0-9a-fA-F]{6}"
+_TONE_AT = re.compile(rf"^({_TONE_KIND}):", re.I)
+_TONE_OPEN = re.compile(rf"==({_TONE_KIND}):", re.I)
+_RGB = re.compile(r"^rgb[0-9a-f]{6}$")
+_HEX6 = re.compile(r"^[0-9a-f]{6}$")
 
 _FENCE_LINE = re.compile(r"^( {0,3})(`{3,}|~{3,})(.*)$")
 _BLOCK_PREFIX = re.compile(
@@ -47,6 +52,29 @@ class TextSpan:
     tone: str | None
 
 
+def normalize_tone(tone: str) -> str:
+    """warm / rgb7c3aed / #7c3aed / 7c3aed / clear;非法抛 MarkError。"""
+    raw = (tone or "").strip().lower()
+    if raw.startswith("#"):
+        raw = raw[1:]
+    if raw in TONES or raw == CLEAR:
+        return raw
+    if _RGB.fullmatch(raw):
+        return raw
+    if _HEX6.fullmatch(raw):
+        return "rgb" + raw
+    raise MarkError(
+        f"tone 须为 {list(TONES)}、rgbRRGGBB / #RRGGBB / RRGGBB,或 {CLEAR}"
+    )
+
+
+def _read_tone_at(text: str, inner_from: int) -> tuple[str, int] | None:
+    matched = _TONE_AT.match(text[inner_from:])
+    if not matched:
+        return None
+    return matched.group(1).lower(), inner_from + matched.end()
+
+
 def parse_mark(text: str) -> tuple[str, str] | None:
     """完整标记 → (tone, inner);无法识别则 None。inner 含 == 视为未闭合整段。"""
     if not text:
@@ -55,10 +83,10 @@ def parse_mark(text: str) -> tuple[str, str] | None:
         body = text[2:-2]
         if "==" in body:
             return None
-        for tone in TONES:
-            prefix = f"{tone}:"
-            if body.startswith(prefix):
-                return tone, body[len(prefix):]
+        hit = _read_tone_at(body, 0)
+        if hit:
+            tone, inner_start = hit
+            return tone, body[inner_start:]
         return "warm", body
     return None
 
@@ -88,7 +116,7 @@ def _flatten_toned(text: str) -> str:
             break
         for m in reversed(marks):
             s = s[:m.start] + s[m.inner_start:m.inner_end] + s[m.end:]
-    s = re.sub(r"==(warm|cool|rose|lime):", "", s)
+    s = _TONE_OPEN.sub("", s)
     return re.sub(r"(^|[^=])==(?!=)", r"\1", s)
 
 
@@ -170,13 +198,10 @@ def scan_marks(text: str, toned_only: bool = False) -> list[MarkSpan]:
         tone = "warm"
         inner_start = i + 2
         toned = False
-        for t in TONES:
-            prefix = f"{t}:"
-            if text.startswith(prefix, i + 2):
-                tone = t
-                inner_start = i + 2 + len(prefix)
-                toned = True
-                break
+        hit = _read_tone_at(text, i + 2)
+        if hit:
+            tone, inner_start = hit
+            toned = True
         if toned_only and not toned:
             i += 1
             continue
@@ -324,7 +349,7 @@ def _strip_all_marks(text: str) -> str:
             break
         for m in reversed(marks):
             s = s[:m.start] + s[m.inner_start:m.inner_end] + s[m.end:]
-    return re.sub(r"==(warm|cool|rose|lime):", "", s)
+    return _TONE_OPEN.sub("", s)
 
 
 def _emit_spans(
@@ -432,9 +457,7 @@ def _visible_map(content: str) -> tuple[str, list[int]]:
 
 def apply_note_mark(content: str, quote: str, tone: str) -> str:
     """给正文中围栏/行内代码外首次出现的 quote 上色或去掉底纹。已是目标色则幂等。"""
-    tone = (tone or "").strip()
-    if tone not in TONES and tone != CLEAR:
-        raise MarkError(f"tone 须为 {list(TONES)} 或 {CLEAR}")
+    tone = normalize_tone(tone)
     raw = quote or ""
     if not raw.strip():
         raise MarkError("quote 不能为空")
