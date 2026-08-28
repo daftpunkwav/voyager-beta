@@ -18,13 +18,16 @@
 from __future__ import annotations
 
 import json
-import re
 import sqlite3
 import threading
 import time
 import uuid
 from pathlib import Path
 from typing import Any
+
+from .store_links import backlinks as link_backlinks
+from .store_links import resolve_link_targets as link_resolve
+from .store_links import sync_links as link_sync
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS notes (
@@ -58,8 +61,6 @@ CREATE TABLE IF NOT EXISTS note_links (
 CREATE INDEX IF NOT EXISTS idx_links_dst ON note_links(dst);
 """
 
-# 内链目标不允许跨行(排除换行)与 | 别名、# 锚点段
-_WIKI_LINK_RE = re.compile(r"\[\[([^\[\]|#\n]+)")
 _SUMMARY_COLS = ("id", "title", "tags", "source_id", "node_id",
                  "archived", "pinned", "trashed_ts",
                  "created_ts", "updated_ts", "excerpt")
@@ -339,68 +340,14 @@ class NoteStore:
     # ---------- 双向链接 ----------
 
     def resolve_link_targets(self, content: str) -> list[dict[str, Any]]:
-        """解析 [[目标]] → 候选明细(raw/target_id/title),供渲染与建表共用。
-
-        target_id 为 None 表示悬空链接(目标不存在);title 回填候选的
-        现有笔记标题(id 形态命中时也回读),前端可直接展示与跳转。
-        """
-        raws: list[str] = []
-        seen_raw: set[str] = set()
-        for m in _WIKI_LINK_RE.finditer(content):
-            raw = m.group(1).strip()
-            if raw and raw not in seen_raw:
-                seen_raw.add(raw)
-                raws.append(raw)
-        out: list[dict[str, Any]] = []
-        by_title_cache: dict[str, str | None] = {}
-        for raw in raws:
-            dst_id: str | None = None
-            row = self._conn.execute(
-                "SELECT id, title FROM notes WHERE id = ?", (raw,)
-            ).fetchone()
-            if row is not None:
-                dst_id, title = str(row[0]), str(row[1])
-            else:
-                if raw not in by_title_cache:
-                    by_title_cache[raw] = self.exists_by_title(raw)
-                hit = by_title_cache[raw]
-                if hit:
-                    dst_id = hit
-                    row = self._conn.execute(
-                        "SELECT id, title FROM notes WHERE id = ?", (hit,)
-                    ).fetchone()
-                    title = str(row[1]) if row else raw
-                else:
-                    title = raw
-            out.append({"raw": raw, "target_id": dst_id,
-                        "title": title if dst_id else None})
-        return out
+        return link_resolve(self._conn, content, self.exists_by_title)
 
     def sync_links(self, src_id: str, content: str) -> None:
-        """"[[目标]] 解析入库:先删旧再插新;悬空目标不落表。"""
-        resolved = {
-            item["target_id"]
-            for item in self.resolve_link_targets(content)
-            if item["target_id"]
-        }
         with self._lock:
-            self._conn.execute("DELETE FROM note_links WHERE src = ?", (src_id,))
-            self._conn.executemany(
-                "INSERT OR IGNORE INTO note_links (src, dst) VALUES (?, ?)",
-                [(src_id, dst) for dst in sorted(resolved)])
-            self._conn.commit()
+            link_sync(self._conn, src_id, content, self.exists_by_title)
 
     def backlinks(self, nid: str, limit: int = 50) -> list[dict[str, Any]]:
-        rows = self._conn.execute(
-            "SELECT s.id, s.title, substr(s.content, 1, ?), s.updated_ts"
-            " FROM note_links l JOIN notes s ON s.id = l.src"
-            " WHERE l.dst = ? AND s.trashed_ts IS NULL"
-            " ORDER BY s.updated_ts DESC LIMIT ?", (_EXCERPT_LEN, nid, limit),
-        )
-        return [
-            {"id": r[0], "title": r[1], "excerpt": r[2], "updated_ts": r[3]}
-            for r in rows
-        ]
+        return link_backlinks(self._conn, nid, limit)
 
     # ---------- 生命周期 ----------
 
@@ -416,32 +363,6 @@ class NoteStore:
 
 def _like_escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
-def extract_toc(content: str) -> list[dict[str, Any]]:
-    """提取 Markdown 标题大纲(1-6 级 ATX):level/text/line(1 基,LF 文本)。
-
-    供前端大纲面板与滚动定位;代码块内的 `#` 注释不是标题——跳过围栏段。
-    """
-    toc: list[dict[str, Any]] = []
-    in_fence = False
-    fence_marker = ""
-    for line_no, line in enumerate(content.split("\n"), start=1):
-        stripped = line.lstrip()
-        if stripped[:3] in ("```", "~~~"):
-            marker = stripped[:3]
-            if not in_fence:
-                in_fence, fence_marker = True, marker
-            elif marker == fence_marker:
-                in_fence = False
-            continue
-        if in_fence or not stripped.startswith("#"):
-            continue
-        m = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", stripped)
-        if m:
-            toc.append({"level": len(m.group(1)), "text": m.group(2).strip(),
-                        "line": line_no})
-    return toc
 
 
 def _summary_row(r: tuple) -> dict[str, Any]:
