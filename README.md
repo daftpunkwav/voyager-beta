@@ -1,8 +1,10 @@
 # Voyager
 
-AI 驱动的开源项目学习平台：导入/收藏 GitHub 项目，7 个 Agent（Hub 统筹 + Scout/Mentor/Navigator/Curator/Scribe/Atlas）辅助学习，知识图谱串联项目关联。
+本地优先的 agent 共生工作台：导入仓库/文档/网页，笔记与知识图谱，人和 agent 走同一套 capability。
 
-**技术栈：** FastAPI + SQLAlchemy + SQLite / React 19 + TypeScript + Vite 7。后端与 Agent 默认同进程（两进程），可拆分为独立进程（四进程）。
+人格：常驻 orchestrator（显示名 Lucien）+ 4 个预设（侦察 / 讲解 / 整理 / 图谱向导）。品牌字符串只在仓库根 `brand.json`。
+
+**技术栈：** FastAPI + sqlite3 / React + TypeScript + Vite。默认单体装配（`deploy/`）一进程跑 gateway + 领域服务 + agent；图谱 C 引擎可作为 sidecar。
 
 ## 快速开始
 
@@ -11,41 +13,34 @@ uv sync        # Python 依赖（uv workspace）
 npm install    # Node 依赖（npm workspaces）
 ```
 
-配置 `SECRET_KEY`（≥32 字节，见 `.env.example`）后启动；在设置页填入 LLM API Key（BYOK）启用完整 Agent 能力，无 Key 时自动降级为规则/图谱模式。
+配置 `SECRETS_ENCRYPTION_KEY` 或 `SECRET_KEY`（随机长串，不要用 `.env.example` 里的示例值）后启动；在设置页填入 LLM API Key（BYOK）。无 Key 时对话降级，资料库/笔记/图谱仍可用。
 
-### 一键开发（Windows）
+### 开发启动
 
-```powershell
-.\scripts\dev.ps1       # 两进程：API + Web
-.\scripts\dev.ps1 -All  # 四进程：+ 独立 Agent（:19877）+ 图谱 sidecar（:9750）
+```bash
+python deploy/dev.py    # gateway :8000 + Vite :5173
 ```
-
-图谱 sidecar 优先使用 C 引擎（`graph-engine`），未构建时回退 Python `graph_fallback`（装即用）。
 
 ## 端口
 
 | 服务 | 默认端口 | 覆盖变量 |
 |------|----------|----------|
 | Web（Vite dev） | 5173 | `VITE_PORT` |
-| API（uvicorn） | 19878 | `API_PORT` |
-| Agent Runtime | 19877 | `AGENT_PORT` |
-| 图谱引擎 sidecar | 9750 | `GRAPH_ENGINE_PORT` |
+| gateway（uvicorn） | 8000 | — |
+| 图谱 C 引擎 sidecar | 8123 / 9750 | 见服务设置 |
 
-完整环境变量清单见 `.env.example`。
+完整环境变量清单见 `.env.example`。架构见 `docs/architecture.md`。
 
 ## 目录结构
 
 ```
-voyager/
-├── apps/web/          # React 前端
-├── services/
-│   ├── api/           # FastAPI 后端
-│   ├── agent/         # Agent（agent_core + agent_runtime）
-│   ├── graph_engine/  # 图谱（C 引擎 + Python 回退）
-│   └── mcp/           # MCP Server（规划中）
-├── packages/          # 共享库
-├── scripts/           # 开发/构建脚本
-└── tests/
+├── apps/web/          # React 前端（只经 gateway）
+├── agent/             # Agent runtime（独立包）
+├── services/          # 领域服务：gateway / sources / notes / graph / llm / settings …
+├── platform/          # 横切机制（contracts / capability / eventbus / …）
+├── deploy/            # 单体装配与开发入口
+├── brand.json         # 品牌字符串唯一来源
+└── docs/architecture.md
 ```
 
-工程规范与开发约定见 `AGENTS.md` / `CLAUDE.md`。
+工程规范见 `AGENTS.md`。
