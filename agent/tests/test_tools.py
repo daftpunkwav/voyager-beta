@@ -1,5 +1,6 @@
 """工具带与工作目录测试:fs jail、能力面裁剪、L1/L2 确认通道(§9.4/§9.9/§9.10)。"""
 
+import sys
 
 import pytest
 
@@ -104,12 +105,18 @@ class TestShellGuard:
         """整机级破坏命令在执行前被硬拦截(即使 L2 确认通道缺失)。"""
         run_shell = shell_tools()["run_shell"].handler
         for cmd in ("mkfs.ext4 /dev/sda1", "dd if=a of=/dev/sda",
-                    "shutdown now", "rm -rf /", "format C: /q"):
+                    "shutdown now", "rm -rf /", "rm -rf ~", "format C: /q"):
             out = await run_shell(cmd, timeout=2)
             assert "[已拒绝]" in out, cmd
 
     async def test_normal_command_not_blocked(self) -> None:
         run_shell = shell_tools()["run_shell"].handler
-        out = await run_shell("echo rm -rf data/ && echo ok", timeout=5)
-        # rm -rf data/(非根路径)不命中黑名单;echo 正常执行
-        assert "已拒绝" not in out and "ok" in out
+        # 不经 shell:解释器 -c 避免 Windows 内建 echo;无嵌套引号以免 shlex 在 nt 模式拆错
+        out = await run_shell(f"{sys.executable} -c print(42)", timeout=5)
+        assert "已拒绝" not in out and "42" in out
+
+    async def test_missing_executable_does_not_fall_back_to_shell(self) -> None:
+        run_shell = shell_tools()["run_shell"].handler
+        # 不用 echo:Unix 上 /bin/echo 真实存在,测不到「不回退 shell」
+        out = await run_shell("__voyager_no_such_cmd_xyz__", timeout=5)
+        assert "[失败]" in out and "找不到可执行文件" in out
