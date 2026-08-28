@@ -1,4 +1,7 @@
+/** 通用确认框:挂到 document.body,避免被页面层/悬浮钮盖住。 */
+
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -32,7 +35,7 @@ export function ConfirmDialog({
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="modal-overlay" role="presentation" onClick={onCancel}>
       <div
         className="modal glass-card glass-card--dialog"
@@ -58,6 +61,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
