@@ -1,6 +1,6 @@
-"""sources 服务内共享工具:避免同服务 store 模块重复实现。
+"""sources 服务内文本约定:LIKE 转义与标签字符约束。
 
-跨服务仍保持就近实现;本模块只收敛 sources 内部重复。
+跨服务仍保持就近实现;本模块只收敛 sources 内部重复,不是万金油工具堆。
 """
 
 from __future__ import annotations

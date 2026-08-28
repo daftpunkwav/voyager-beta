@@ -7,8 +7,10 @@ secret 边界(场景 G):`add_provider` 不接受 api_key 字段;key 只能经
 
 from __future__ import annotations
 
+import ipaddress
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 from platform_capability import Registry, capability
 from platform_contracts import ActorKind, ActorRef, ErrorSuffix, ServiceError
@@ -58,6 +60,37 @@ def _require_provider(pid: str) -> dict[str, Any]:
     return p
 
 
+def _host_is_nonglobal(host: str) -> bool:
+    """环回/内网/链路本地/本机名。hostname 走字面判断,不在这里做 DNS(避免写入时阻塞)。"""
+    h = (host or "").lower().rstrip(".")
+    if h in {"localhost", "metadata.google.internal"} or h.endswith(".localhost"):
+        return True
+    try:
+        addr = ipaddress.ip_address(h)
+        mapped = getattr(addr, "ipv4_mapped", None)
+        return not (mapped or addr).is_global
+    except ValueError:
+        return False
+
+
+def _validate_base_url(base_url: str, actor: ActorRef | None) -> str:
+    """仅 http(s)。内网/环回仅 USER 可写(本地 Ollama);agent 不能把密钥打到内网。"""
+    parsed = urlparse(base_url.strip())
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise ServiceError(
+            _DOMAIN, ErrorSuffix.INVALID_INPUT,
+            "base_url 须为 http(s) 且含主机名",
+        )
+    if _host_is_nonglobal(parsed.hostname):
+        if actor is None or actor.kind is not ActorKind.USER:
+            raise ServiceError(
+                _DOMAIN, ErrorSuffix.FORBIDDEN,
+                "内网/环回 base_url 仅用户本人可配置",
+                hint="本地 Ollama 等请在设置页填写;agent 不得把密钥打到内网",
+            )
+    return base_url.strip()
+
+
 @capability(registry, name="list_builtin_providers", description="内置提供商目录(名称/base_url/格式/模型)")
 def list_builtin_providers() -> list[dict]:
     return [dict(p) for p in BUILTIN_PROVIDERS]
@@ -85,12 +118,14 @@ def add_provider(
     models: list[str] | None = None,
     default_model: str = "",
     preset_id: str = "",
+    _actor: ActorRef = None,
 ) -> dict:
     if not valid_format(api_format):
         raise ServiceError(
             _DOMAIN, ErrorSuffix.INVALID_INPUT,
             f"api_format 仅支持 chat / anthropic: {api_format}",
         )
+    base_url = _validate_base_url(base_url, _actor)
     deps = _require_deps()
     pid = deps.store.upsert({
         "display_name": display_name,
@@ -112,9 +147,12 @@ def update_provider(
     models: list[str] | None = None,
     default_model: str | None = None,
     enabled: bool | None = None,
+    _actor: ActorRef = None,
 ) -> dict:
     deps = _require_deps()
     current = _require_provider(provider_id)
+    if base_url is not None:
+        base_url = _validate_base_url(base_url, _actor)
     merged = {
         **current,
         **{k: v for k, v in {

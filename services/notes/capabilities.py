@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import time
@@ -37,6 +38,8 @@ _UNSAFE_FILENAME_RE = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 
 _MAX_TITLE = 200
 _MAX_CONTENT = 200_000
+# 导入按字节硬顶,避免先把超大文件读进内存再截断
+_MAX_IMPORT_BYTES = _MAX_CONTENT * 4
 # 标签名进入 JSON 文本做整词替换,这些字符会破坏数组结构或转义语义
 _TAG_FORBIDDEN = '"\\,[]'
 
@@ -73,6 +76,7 @@ class Deps:
     bus: EventBus | None
     settings: SettingsStore | None = None
     purge_assets: Callable[[str], list[str]] | None = None  # purge 时连带清附件
+    workspace: Path | None = None  # import/export 的 jail 根;wire() 必填
 
 
 _deps: Deps | None = None
@@ -367,15 +371,49 @@ async def edit_note_range(note_id: str, start: int, end: int, new_text: str) -> 
     return deps.store.get(note_id)
 
 
+def _within(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(Path(root).resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def _workspace() -> Path:
+    """jail 根。未注入则失败关闭,避免测试夹具漏配时放行任意路径。"""
+    root = _require_deps().workspace
+    if root is None:
+        raise ServiceError(
+            _DOMAIN, ErrorSuffix.UNAVAILABLE,
+            "服务未配置 workspace,拒绝按路径读写",
+            hint="独立运行与聚合运行均须经 wiring.wire(workspace=...) 注入",
+        )
+    return Path(root)
+
+
 @capability(registry, name="import_note",
             description="导入外部 .md 文件(YAML front-matter 的 title/tags 可选生效)", cost=2)
 async def import_note(file_path: str, title: str = "", tags: list[str] | None = None) -> dict:
     deps = _require_deps()
+    root = _workspace()
     src = Path(file_path)
+    # 先 jail 再存在性:避免用 NOT_FOUND 泄露 jail 外路径是否存在
+    if not _within(src, root):
+        raise ServiceError(
+            _DOMAIN, ErrorSuffix.FORBIDDEN,
+            "文件须位于 workspace/ 内",
+            hint="先把 .md 放到 workspace/ 再导入,禁止读取 jail 外路径",
+        )
     if not src.is_file():
         raise ServiceError(_DOMAIN, ErrorSuffix.NOT_FOUND, f"文件不存在: {file_path}")
-    raw = src.read_text(encoding="utf-8", errors="replace")
+    if src.stat().st_size > _MAX_IMPORT_BYTES:
+        raise ServiceError(
+            _DOMAIN, ErrorSuffix.INVALID_INPUT,
+            f"文件超过导入上限 {_MAX_IMPORT_BYTES} 字节",
+        )
+    raw = await asyncio.to_thread(src.read_text, encoding="utf-8", errors="replace")
     meta_title, meta_tags, body = _split_front_matter(raw)
+    _validate_content(body)
     clean_tags = [_validate_tag(t) for t in (tags or [])] or \
         [_validate_tag(t) for t in meta_tags]
     final_title = _validate_title(title or meta_title or src.stem)
@@ -432,10 +470,21 @@ def _split_front_matter(text: str) -> tuple[str, list[str], str]:
 async def export_note(note_id: str) -> dict:
     note = _require_alive(note_id)
     deps = _require_deps()
+    root = _workspace()
     export_dir_setting = ""
     if deps.settings is not None:
         export_dir_setting = str(deps.settings.get("notes.export.dir") or "")
-    export_dir = Path(export_dir_setting or "workspace/notes-export")
+    raw = export_dir_setting or "workspace/notes-export"
+    export_dir = Path(raw)
+    if not export_dir.is_absolute():
+        export_dir = root / export_dir
+    export_dir = export_dir.resolve()
+    if not _within(export_dir, root):
+        raise ServiceError(
+            _DOMAIN, ErrorSuffix.FORBIDDEN,
+            "导出目录必须位于 workspace 内",
+            hint="notes.export.dir 不得指向 jail 外路径",
+        )
     export_dir.mkdir(parents=True, exist_ok=True)
     safe_title = _UNSAFE_FILENAME_RE.sub("_", note["title"]).strip(" .")[:80] or "untitled"
     dest = export_dir / f"{safe_title}_{note['id']}.md"

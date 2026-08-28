@@ -5,6 +5,7 @@ scheduler 默认由本服务自建;测试或装配根需要替换调度策略时
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from platform_capability import Wiring
@@ -30,8 +31,10 @@ def wire(
     scheduler: IndexScheduler | None = None,
     settings_store: SettingsStore | None = None,
     resource_provider: l0_relate.ResourceProvider | None = None,
+    workspace: str | Path | None = None,
 ) -> Wiring:
     data_dir = Path(data_dir)
+    workspace_root = Path(workspace) if workspace else Path(__file__).resolve().parents[2] / "workspace"
     if settings_store is not None:
         settings_store.register_fresh(DEFS)
     store = GraphStore(data_dir / "graph.db")
@@ -40,13 +43,15 @@ def wire(
                             python_data_root=data_dir / "engine-python",
                             bus=bus, mode=engine_mode)
     init_deps(Deps(store=store, queue=queue, adapter=adapter, bus=bus,
-                   resource_provider=resource_provider))
+                   resource_provider=resource_provider, workspace=workspace_root))
 
     async def _run_job(job: dict) -> None:
         # 任务分派按 level(§8.4 分层):l1=单资源深度(code 引擎);
         # l0=跨资源关联(元数据兜底;AI 语义关联由 agent 经写入原语叠加)
         if job.get("level") == "l0":
-            l0_relate.run_l0(store, resource_provider, kinds=job.get("kinds") or [])
+            kinds = job.get("kinds") or []
+            await asyncio.to_thread(
+                l0_relate.run_l0, store, resource_provider, kinds=kinds)
             return
         await analyze_repo(adapter, store, project=job["project"],
                            repo_path=job["repo_path"])

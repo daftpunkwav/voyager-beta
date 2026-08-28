@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import re
-import shutil
 from datetime import UTC
 from pathlib import Path
 
@@ -49,6 +48,9 @@ def build_upload_router(workspace: Path) -> APIRouter:
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest = dest_dir / f"{uuid.uuid4().hex[:12]}__{safe_name}"
 
+        class _TooLarge(Exception):
+            pass
+
         # 分块读/写,避免并发上传把整个文件都读进内存
         total = 0
         try:
@@ -59,14 +61,15 @@ def build_upload_router(workspace: Path) -> APIRouter:
                         break
                     total += len(chunk)
                     if total > _MAX_BYTES:
-                        f.close()
-                        shutil.rmtree(str(dest), ignore_errors=True)
-                        return JSONResponse(status_code=413, content={
-                            "error": {"code": "GATEWAY.PAYLOAD_TOO_LARGE",
-                                      "message": "文件超过 1GB 运输上限"}})
+                        raise _TooLarge
                     f.write(chunk)
+        except _TooLarge:
+            dest.unlink(missing_ok=True)
+            return JSONResponse(status_code=413, content={
+                "error": {"code": "GATEWAY.PAYLOAD_TOO_LARGE",
+                          "message": "文件超过 1GB 运输上限"}})
         except Exception as exc:  # noqa: BLE001
-            shutil.rmtree(str(dest), ignore_errors=True)
+            dest.unlink(missing_ok=True)
             return JSONResponse(status_code=400, content={
                 "error": {"code": "GATEWAY.INVALID_INPUT",
                           "message": f"读取上传流失败: {exc}"}})

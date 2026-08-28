@@ -90,7 +90,7 @@ def wire(
     assets.register(registry)
     purge_assets = assets.purge_of_note
     init_deps(Deps(store=store, bus=bus, settings=settings_store,
-                   purge_assets=purge_assets))
+                   purge_assets=purge_assets, workspace=workspace))
     pruner = TrashPruner(store, settings_store, purge_assets=purge_assets)
 
     def close() -> None:

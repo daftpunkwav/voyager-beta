@@ -25,7 +25,7 @@ from platform_contracts import (
 from platform_eventbus import EventBus
 from platform_settings import SettingsStore
 
-from .._shared.utils import valid_tag
+from .._shared.text import valid_tag
 from .store import DocStore
 
 _DOMAIN = "sources"
@@ -117,17 +117,18 @@ def _validate_input(file_path: str, title: str, tags: list[str],
 async def add_document(file_path: str, title: str = "", tags: list[str] | None = None,
                        category: str = "", _actor: ActorRef = None) -> JobRef:
     deps = require_deps()
-    src, ext, clean_title = _validate_input(
-        file_path, title, list(tags or []), deps.max_file_mb())
-    if not _within(src, deps.workspace):
+    # 先 jail 再 stat:避免用「文件不存在」泄露 jail 外路径
+    if not _within(Path(file_path), deps.workspace):
         raise ServiceError(_DOMAIN, ErrorSuffix.FORBIDDEN,
                            "文件须位于 workspace/ 内(经 /api/uploads 上传)",
                            hint="agent 可先把文件下载/复制到 workspace/ 再导入")
+    src, ext, clean_title = _validate_input(
+        file_path, title, list(tags or []), deps.max_file_mb())
     dest_dir = Path(deps.workspace) / "doc"
     dest_dir.mkdir(parents=True, exist_ok=True)
     uid = uuid.uuid4().hex[:8]
     dest = dest_dir / f"{_safe_filename(clean_title)}_{uid}{ext}"
-    shutil.copy2(src, dest)
+    await asyncio.to_thread(shutil.copy2, src, dest)
     status = "parsing" if ext in PARSEABLE_EXTS else "stored"
     did = deps.store.add({"title": clean_title, "filename": src.name, "ext": ext,
                           "local_path": str(dest), "category": category,

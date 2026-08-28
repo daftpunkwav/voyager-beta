@@ -20,7 +20,7 @@ AGENT_CTX = ActorContext(actor=ActorRef(kind=ActorKind.AGENT, id="agent.main", s
 def deps(tmp_path):
     log = EventLog(tmp_path / "events.db")
     store = NoteStore(tmp_path / "notes.db", history_keep=5)
-    init_deps(Deps(store=store, bus=EventBus(log)))
+    init_deps(Deps(store=store, bus=EventBus(log), workspace=tmp_path))
     yield store, log
     store.close()
     log.close()
@@ -205,8 +205,7 @@ class TestBacklinks:
 
 
 class TestExportAndLinkFields:
-    async def test_export_note_writes_markdown(self, deps, tmp_path, monkeypatch) -> None:
-        monkeypatch.chdir(tmp_path)  # 导出相对路径落 tmp
+    async def test_export_note_writes_markdown(self, deps, tmp_path) -> None:
         note = await execute(registry, "create_note", USER_CTX,
                              {"title": '导出"测"/试', "content": "# 正文\n内容",
                               "tags": ["t1"]})
@@ -342,6 +341,23 @@ class TestRenderAndEditSupport:
         retitled = await execute(registry, "import_note", USER_CTX,
                                  {"file_path": str(f), "title": "覆盖题"})
         assert retitled["title"] == "覆盖题"
+
+    async def test_import_note_rejects_outside_workspace(self, deps, tmp_path) -> None:
+        outsider = tmp_path.parent / f"{tmp_path.name}-outside.md"
+        outsider.write_text("# secret\n", encoding="utf-8")
+        with pytest.raises(ServiceError) as exc:
+            await execute(registry, "import_note", USER_CTX,
+                          {"file_path": str(outsider)})
+        assert exc.value.body.code == "NOTES.FORBIDDEN"
+
+    async def test_import_note_outside_missing_is_forbidden(self, deps, tmp_path) -> None:
+        """jail 外缺失文件也走 FORBIDDEN,不透露路径是否存在。"""
+        ghost = tmp_path.parent / f"{tmp_path.name}-ghost.md"
+        assert not ghost.exists()
+        with pytest.raises(ServiceError) as exc:
+            await execute(registry, "import_note", USER_CTX,
+                          {"file_path": str(ghost)})
+        assert exc.value.body.code == "NOTES.FORBIDDEN"
 
     async def test_crlf_normalized_on_write(self, deps) -> None:
         note = await execute(registry, "create_note", USER_CTX,

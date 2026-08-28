@@ -92,6 +92,40 @@ class TestQueue:
         await execute(registry, "cancel_index", USER_CTX, {"job_id": j1.job_id})
         assert d.queue.get(j1.job_id)["status"] == "cancelled"
 
+    async def test_enqueue_rejects_path_outside_workspace(self, tmp_path) -> None:
+        from platform_eventbus import EventBus, EventLog
+
+        from services.graph.capabilities import Deps, init_deps
+        from services.graph.engines.adapter import EngineAdapter
+        from services.graph.index_queue import IndexQueue
+        from services.graph.store import GraphStore
+
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        log = EventLog(tmp_path / "e.db")
+        store = GraphStore(tmp_path / "g.db")
+        queue = IndexQueue(tmp_path / "i.db")
+        init_deps(Deps(
+            store=store, queue=queue,
+            adapter=EngineAdapter(c_base_url="", python_data_root=tmp_path / "py"),
+            bus=EventBus(log), workspace=ws,
+        ))
+        try:
+            with pytest.raises(ServiceError) as exc:
+                await execute(registry, "enqueue_index", USER_CTX,
+                              {"project": "x", "repo_path": str(tmp_path / "outside")})
+            assert exc.value.body.code == "GRAPH.FORBIDDEN"
+            inside = ws / "repo"
+            inside.mkdir()
+            ref = await execute(registry, "enqueue_index", USER_CTX,
+                                {"project": "ok", "repo_path": str(inside)})
+            assert ref.job_id
+        finally:
+            store.close()
+            queue.close()
+            log.close()
+
+
     async def test_cancel_running_conflict(self, deps) -> None:
         d, _ = deps
         jid = d.queue.enqueue("p", "/x")

@@ -89,6 +89,10 @@ class TestAddDocument:
     async def test_missing_file_and_outside_workspace(self, deps, tmp_path) -> None:
         with pytest.raises(ServiceError, match="文件不存在"):
             await execute(registry, "add_document", USER_CTX,
+                          {"file_path": str(tmp_path / "ws" / "nope.pdf")})
+        # jail 外无论是否存在都不透露
+        with pytest.raises(ServiceError, match="workspace"):
+            await execute(registry, "add_document", USER_CTX,
                           {"file_path": str(tmp_path / "nope.pdf")})
         outside = tmp_path / "outside"
         outside.mkdir()

@@ -14,7 +14,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from .._shared.utils import escape_like, valid_tag
+from .._shared.text import escape_like, valid_tag
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS documents (

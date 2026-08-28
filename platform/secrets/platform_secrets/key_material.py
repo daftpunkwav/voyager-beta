@@ -16,6 +16,10 @@ ENV_PRIMARY = "SECRETS_ENCRYPTION_KEY"
 ENV_FALLBACK = "SECRET_KEY"
 
 _MIN_MATERIAL_LEN = 16
+# 文档示例值:长度够但人人知道,视为未配置以免原样复制后仓可被解密
+_EXAMPLE_MATERIALS = frozenset({
+    "change-me-to-a-long-random-secret-key",
+})
 
 log = logging.getLogger("platform.secrets")
 
@@ -35,6 +39,9 @@ def load_key_material(env_file: str | Path | None = None) -> str:
     if not material:
         path = Path(env_file) if env_file else _repo_env()
         material = _read_from_env_file(path)
+    if material in _EXAMPLE_MATERIALS:
+        log.warning("拒绝使用文档示例密钥材料,请设置随机的 %s", ENV_PRIMARY)
+        return ""
     if material and len(material) < _MIN_MATERIAL_LEN:
         log.warning(
             "密钥材料仅 %d 字符(建议 ≥%d):Fernet 派生强度不足,请设置更长的"

@@ -45,12 +45,37 @@ async def _default_resolver(host: str, port: int) -> list[str]:
     return seen
 
 
+def _as_ip(value: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
+    """解析 IP;IPv4-mapped IPv6(::ffff:127.0.0.1)还原为 v4 再判断。"""
+    addr = ipaddress.ip_address(value)
+    mapped = getattr(addr, "ipv4_mapped", None)
+    return mapped if mapped is not None else addr
+
+
+def _is_global_ip(value: str) -> bool:
+    try:
+        return _as_ip(value).is_global
+    except ValueError:
+        return False
+
+
 def _literal_ips(host: str) -> list[str] | None:
     """host 本身是 IP 字面量时直接返回(不经过解析器;钉住即它自身)。"""
     try:
         return [str(ipaddress.ip_address(host))]
     except ValueError:
         return None
+
+
+def _reject_nonglobal(host: str, ips: list[str]) -> None:
+    """任一候选非公网即拒绝(双栈里混入环回/链路本地视为 DNS rebinding)。"""
+    for ip in ips:
+        if not _is_global_ip(ip):
+            raise ServiceError(
+                _DOMAIN, ErrorSuffix.FORBIDDEN,
+                f"目标不在公网范围: {host}({ip})",
+                hint="内网/回环/链路本地地址被 SSRF 防护拒绝",
+            )
 
 
 def _assert_pinnable(url: str) -> tuple[urlparse.ParseResult, list[str]]:
@@ -71,13 +96,7 @@ def _assert_pinnable(url: str) -> tuple[urlparse.ParseResult, list[str]]:
         # 非字面量主机名在 save_url 内经 resolver 解析;此函数只做语法与字面量判断,
         # 以便单测在不触网的情况下复用语法检查
         return parsed, []
-    for ip in ips:
-        if not ipaddress.ip_address(ip).is_global:
-            raise ServiceError(
-                _DOMAIN, ErrorSuffix.FORBIDDEN,
-                f"目标不在公网范围: {host}({ip})",
-                hint="内网/回环/链路本地地址被 SSRF 防护拒绝",
-            )
+    _reject_nonglobal(host, ips)
     return parsed, ips
 
 
@@ -85,7 +104,7 @@ def _assert_pinnable(url: str) -> tuple[urlparse.ParseResult, list[str]]:
 class WebDeps:
     store: WebStore
     bus: EventBus | None
-    resolve: ResolverFn = field(default=_default_resolver)
+    resolve: ResolverFn = field(default_factory=lambda: _default_resolver)
 
 
 _deps: WebDeps | None = None
@@ -116,6 +135,7 @@ async def _fetch_pinned(client: httpx.AsyncClient, url: str) -> httpx.Response:
     if not ips:
         raise ServiceError(_DOMAIN, ErrorSuffix.UNAVAILABLE,
                            f"域名解析不到任何地址: {host}")
+    _reject_nonglobal(host, ips)
     chosen = ips[0]
     request = client.build_request("GET", httpx.URL(url).copy_with(host=chosen))
     request.headers["host"] = parsed.netloc  # 域名(含非默认端口)原样透传

@@ -49,6 +49,12 @@ class TestKeyMaterial:
         monkeypatch.setenv("SECRET_KEY", "plain")
         assert load_key_material(env_file="不存在.env") == "enc"
 
+    def test_example_material_rejected(self, monkeypatch) -> None:
+        monkeypatch.setenv(
+            "SECRETS_ENCRYPTION_KEY", "change-me-to-a-long-random-secret-key")
+        monkeypatch.delenv("SECRET_KEY", raising=False)
+        assert load_key_material(env_file="不存在.env") == ""
+
     def test_env_file_fallback(self, tmp_path, monkeypatch) -> None:
         monkeypatch.delenv("SECRETS_ENCRYPTION_KEY", raising=False)
         monkeypatch.delenv("SECRET_KEY", raising=False)

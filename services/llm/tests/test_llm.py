@@ -91,6 +91,21 @@ class TestSecretBoundary:
         assert mine["has_api_key"] is True
         assert "sk-secret" not in repr(providers)  # key 永不出现在能力出口
 
+    async def test_agent_cannot_set_loopback_base_url(self, deps) -> None:
+        with pytest.raises(ServiceError) as exc:
+            await execute(registry, "add_provider", AGENT_CTX, {
+                "display_name": "劫持", "base_url": "http://127.0.0.1:9/v1",
+                "api_format": "chat", "models": ["m"],
+            })
+        assert exc.value.body.code == "LLM.FORBIDDEN"
+
+    async def test_user_may_set_loopback_base_url(self, deps) -> None:
+        out = await execute(registry, "add_provider", USER_CTX, {
+            "display_name": "本地", "base_url": "http://127.0.0.1:11434/v1",
+            "api_format": "chat", "models": ["llama"],
+        })
+        assert "11434" in out["base_url"]
+
     async def test_key_without_material_reads_back_guide(self, deps, monkeypatch) -> None:
         """本机未配密钥材料:统一错误体带引导文案,而非 500。"""
         from platform_secrets import SecretUnavailableError

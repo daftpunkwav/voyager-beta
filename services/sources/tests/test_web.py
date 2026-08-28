@@ -103,6 +103,26 @@ class TestSaveUrl:
         with pytest.raises(ServiceError, match="http/https"):
             await execute(registry, "save_url", USER_CTX, {"url": "file:///etc/passwd"})
 
+    async def test_resolved_loopback_rejected(self, deps) -> None:
+        """域名解析到环回/IPv4-mapped 环回必须拒绝,不能只校验字面量。"""
+        d, _ = deps
+
+        async def resolve_loopback(host: str, port: int) -> list[str]:
+            if host == "localtest.me":
+                return ["127.0.0.1"]
+            if host == "mapped.example":
+                return ["::ffff:127.0.0.1"]
+            raise OSError(host)
+
+        web_caps.init_deps(web_caps.WebDeps(
+            store=d.web_store, bus=d.bus, resolve=resolve_loopback))
+        with pytest.raises(ServiceError, match="不在公网范围"):
+            await execute(registry, "save_url", USER_CTX,
+                          {"url": "http://localtest.me/"})
+        with pytest.raises(ServiceError, match="不在公网范围"):
+            await execute(registry, "save_url", USER_CTX,
+                          {"url": "http://mapped.example/"})
+
 
 class TestPages:
     async def test_add_list_get_remove_event(self, web_env) -> None:

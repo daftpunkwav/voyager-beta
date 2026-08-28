@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from platform_capability import Registry, capability
 from platform_contracts import ActorRef, ErrorSuffix, JobRef, ServiceError
@@ -32,6 +33,8 @@ class Deps:
     bus: EventBus | None
     #: L0 资源清单回调(kinds -> 资源摘要);聚合形态由装配根注入
     resource_provider: l0_relate.ResourceProvider | None = None
+    #: 索引路径 jail;wire() 注入 workspace,未注入时入队不校验(单测队列用)
+    workspace: Path | None = None
 
 
 _deps: Deps | None = None
@@ -59,6 +62,14 @@ def _ensure_node_id(store: GraphStore, project: str, qn: str, *,
     return node["id"]
 
 
+def _within(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(Path(root).resolve())
+        return True
+    except ValueError:
+        return False
+
+
 # ---------- 队列类 ----------
 
 @capability(registry, name="enqueue_index",
@@ -66,6 +77,12 @@ def _ensure_node_id(store: GraphStore, project: str, qn: str, *,
             long_running=True, cost=5)
 def enqueue_index(project: str, repo_path: str, priority: int = 100) -> JobRef:
     deps = _require_deps()
+    if deps.workspace is not None and not _within(Path(repo_path), deps.workspace):
+        raise ServiceError(
+            _DOMAIN, ErrorSuffix.FORBIDDEN,
+            "索引路径须位于 workspace/ 内",
+            hint="先把仓库放到 workspace/repo 再入队,禁止扫 jail 外目录",
+        )
     jid = deps.queue.enqueue(project, repo_path, priority, level="l1")
     return JobRef(job_id=jid)
 
