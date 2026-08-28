@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import asyncio
+from functools import partial
 from typing import Any, Protocol
 
 from platform_contracts import ActorKind, ActorRef, Event
@@ -36,12 +38,14 @@ class _PythonEngineAdapter:
         return bool(self._engine.health())
 
     async def call(self, name: str, args: dict[str, Any]) -> Any:
-        return self._engine.call(name, args)
+        # 搜索/导出含磁盘与 CPU,不得占事件循环
+        return await asyncio.to_thread(self._engine.call, name, args)
 
     async def index_repository(self, repo_path: str, **kw: Any) -> dict[str, Any]:
-        return self._engine.index_repository(
+        return await asyncio.to_thread(partial(
+            self._engine.index_repository,
             repo_path, mode=kw.get("mode", "moderate"), name=kw.get("name"),
-        )
+        ))
 
 
 class EngineAdapter:

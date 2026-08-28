@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import sqlite3
 import threading
@@ -86,14 +87,18 @@ class SettingsStore:
                 hint="请在设置页手动填写",
             )
         value = validate(d, value)
-        with self._lock:
-            self._conn.execute(
-                "INSERT INTO setting_values (key, value, updated_by, ts) VALUES (?, ?, ?, ?)"
-                " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
-                " updated_by = excluded.updated_by, ts = excluded.ts",
-                (key, json.dumps(value, ensure_ascii=False), actor.id, time.time()),
-            )
-            self._conn.commit()
+
+        def _write() -> None:
+            with self._lock:
+                self._conn.execute(
+                    "INSERT INTO setting_values (key, value, updated_by, ts) VALUES (?, ?, ?, ?)"
+                    " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
+                    " updated_by = excluded.updated_by, ts = excluded.ts",
+                    (key, json.dumps(value, ensure_ascii=False), actor.id, time.time()),
+                )
+                self._conn.commit()
+
+        await asyncio.to_thread(_write)
         if self._bus is not None:
             payload: dict[str, Any] = {"key": key, "module": d.module, "secret": d.secret}
             if not d.secret:

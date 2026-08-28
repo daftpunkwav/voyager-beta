@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import time
 from collections.abc import Callable
@@ -159,12 +160,12 @@ async def execute(
         _run_guards(req, auth=auth, quota=quota)
         result = await _invoke(registry, cap, actor, args, name=name)
     except ServiceError as exc:
-        _record(sinks, entry(False, exc.body.code))
+        await asyncio.to_thread(_record, sinks, entry(False, exc.body.code))
         raise
     except Exception:  # 非预期异常也落审计(INTERNAL),再原样上抛
-        _record(sinks, entry(False, "CAPABILITY.INTERNAL"))
+        await asyncio.to_thread(_record, sinks, entry(False, "CAPABILITY.INTERNAL"))
         raise
-    _record(sinks, entry(True, ""))
+    await asyncio.to_thread(_record, sinks, entry(True, ""))
     return result
 
 
@@ -198,13 +199,19 @@ async def _invoke(
     # 操作需要知道"是谁在调",§8.8;handler 不声明则不可见)
     params = inspect.signature(cap.handler).parameters
     inject = {"_actor": actor.actor} if (actor is not None and "_actor" in params) else {}
-    result = (
-        cap.handler(input_obj, **inject)
-        if cap.input_model is not None
-        else cap.handler(**args, **inject)
-    )
-    if inspect.isawaitable(result):
-        result = await result
+
+    def _call() -> Any:
+        if cap.input_model is not None:
+            return cap.handler(input_obj, **inject)
+        return cap.handler(**args, **inject)
+
+    # 同步 handler(典型:sqlite 短查询)离环执行;async handler(含 await LLM)留在事件循环
+    if inspect.iscoroutinefunction(cap.handler):
+        result = _call()
+        if inspect.isawaitable(result):
+            result = await result
+    else:
+        result = await asyncio.to_thread(_call)
     if cap.long_running and not isinstance(result, JobRef):
         raise ServiceError(
             registry.domain,

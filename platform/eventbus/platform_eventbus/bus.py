@@ -54,7 +54,7 @@ class EventBus:
 
     async def publish(self, event: Event) -> int:
         """先落日志(事实来源),再直推进程内订阅者。返回 seq。"""
-        seq = self._log.append(event)
+        seq = await asyncio.to_thread(self._log.append, event)
         for sub in self._subs:
             if not sub.matches(event.type):
                 continue

@@ -13,9 +13,13 @@ async def test_question_event_and_answer(tmp_path) -> None:
     asker = AskUser(bus)
     q = Question(prompt="选哪个?", kind="choice", options=("A", "B"))
     task = asyncio.create_task(asker.ask(q))
-    await asyncio.sleep(0.01)  # 等事件落库
+    events: list = []
+    for _ in range(50):  # publish 经 to_thread 落库,轮询避免固定短 sleep 竞态
+        events = log.read_after(types=[AGENT_ASK])
+        if events:
+            break
+        await asyncio.sleep(0.01)
     assert asker.pending_count == 1
-    events = log.read_after(types=[AGENT_ASK])
     assert len(events) == 1
     payload = events[0][1].payload
     assert payload["prompt"] == "选哪个?" and payload["options"] == ["A", "B"]
