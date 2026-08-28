@@ -105,13 +105,13 @@ export function useTrendingSpotlight(period: TrendingPeriod) {
             const delta = asSSETextDelta(event.data);
             setContent((prev) => prev + delta.content);
           } else if (event.event === 'error') {
-            setContent('Scout 暂时无法生成介绍，请稍后再试。');
+            setContent('Iris 暂时无法生成介绍，请稍后再试。');
             break;
           }
         }
       } catch {
         if (streamGenRef.current === gen && activeRepoKeyRef.current === key) {
-          setContent((prev) => prev || 'Scout 暂时无法生成介绍，请稍后再试。');
+          setContent((prev) => prev || 'Iris 暂时无法生成介绍，请稍后再试。');
         }
       } finally {
         if (streamGenRef.current === gen && activeRepoKeyRef.current === key) {

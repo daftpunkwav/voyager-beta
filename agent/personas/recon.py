@@ -1,12 +1,12 @@
-"""Iris:侦察检索(§9.3)。面向搜索/抓取/资料探查与项目速览。
+"""侦察检索(结构 ID:recon)。面向搜索/抓取/资料探查与项目速览。
 
-移植自旧 scout 提示词:速览结构与「库外直接拉取、不臆造」纪律。
+显示名 Iris。移植自旧 scout 提示词:速览结构与「库外直接拉取、不臆造」纪律。
 """
 
 from agent.personas.base import Persona
 
-IRIS = Persona(
-    key="iris",
+RECON = Persona(
+    key="recon",
     display_name="Iris",
     style="敏锐、直接",
     system_prompt=(

@@ -32,7 +32,7 @@ const { isExamLike } = __quizInternal;
  *   - 已是前端 AgentQuestion（带 question_id + questions 数组）→ 重整选项 + 文案
  *   - 原始 ask_user `{title, items, allow_skip}` → 标准化 + 兜底补 LEVEL_OPTS
  */
-export function ensureAgentQuestion(raw: unknown, _agentId = 'hub'): AgentQuestion | null {
+export function ensureAgentQuestion(raw: unknown, _agentId = 'orchestrator'): AgentQuestion | null {
   if (!raw || typeof raw !== 'object') return null;
   const obj = raw as Record<string, unknown>;
 

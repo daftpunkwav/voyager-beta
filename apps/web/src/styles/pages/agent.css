@@ -1,7 +1,7 @@
 /* Extracted from archive/agent.html */
 /* ==========================================================================
      AgentPage 页面样式
-     基于 Apple 设计库 · Voyager v1
+     基于 Apple 设计库 · v1
      ========================================================================== */
 
   /* 对话区单列全宽;会话列表 / 上下文面板改为浮层抽屉(overlay),打开时悬浮在对话区之上 */
@@ -345,12 +345,11 @@
     font-weight: 700;
     letter-spacing: .02em;
   }
-  .agent-tag-hub       { background: #e8e8ff; color: #4a3aff; }
-  .agent-tag-mentor    { background: #f3e8ff; color: #5e2ca5; }
-  .agent-tag-scout     { background: #fff4e5; color: #b8651b; }
-  .agent-tag-navigator { background: #e0f7fa; color: #1f6f7a; }
-  .agent-tag-curator   { background: #e9f9ee; color: #1e7e34; }
-  .agent-tag-scribe    { background: #ffe5ec; color: #b0004d; }
+  .agent-tag-orchestrator, .agent-tag-hub { background: #e8e8ff; color: #4a3aff; }
+  .agent-tag-explainer, .agent-tag-mentor { background: #f3e8ff; color: #5e2ca5; }
+  .agent-tag-recon, .agent-tag-scout, .agent-tag-navigator { background: #fff4e5; color: #b8651b; }
+  .agent-tag-organizer, .agent-tag-curator, .agent-tag-scribe { background: #e9f9ee; color: #1e7e34; }
+  .agent-tag-graph-guide { background: #e0f7fa; color: #1f6f7a; }
   .session-unread {
     width: 8px; height: 8px; border-radius: var(--radius-pill);
     background: var(--brand-500);
@@ -536,13 +535,11 @@
   .agent-avatar.active {
     box-shadow: 0 0 0 2px var(--bg-50), 0 0 0 4px var(--brand-500);
   }
-  .agent-hub       { background: linear-gradient(135deg, #4a3aff, #9d4edd); }
-  .agent-scout     { background: linear-gradient(135deg, #ff9f0a, #ff6f00); }
-  .agent-mentor    { background: linear-gradient(135deg, #9d4edd, #c879ff); }
-  .agent-navigator { background: linear-gradient(135deg, #00b8d4, #00d4aa); }
-  .agent-curator   { background: linear-gradient(135deg, #34c759, #30d158); }
-  .agent-scribe    { background: linear-gradient(135deg, #ff375f, #ff6b8a); }
-  .agent-atlas     { background: linear-gradient(135deg, #5ac8fa, #007aff); }
+  .agent-orchestrator, .agent-hub, .agent-lucien { background: linear-gradient(135deg, #4a3aff, #9d4edd); }
+  .agent-recon, .agent-scout, .agent-navigator, .agent-iris { background: linear-gradient(135deg, #ff9f0a, #ff6f00); }
+  .agent-explainer, .agent-mentor, .agent-elio { background: linear-gradient(135deg, #9d4edd, #c879ff); }
+  .agent-organizer, .agent-curator, .agent-scribe, .agent-miyai { background: linear-gradient(135deg, #34c759, #30d158); }
+  .agent-graph_guide, .agent-atlas { background: linear-gradient(135deg, #5ac8fa, #007aff); }
 
   /* ============ 消息流 · 液态玻璃透镜气泡 ============ */
   .chat-messages {

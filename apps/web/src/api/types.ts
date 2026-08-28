@@ -1,4 +1,4 @@
-/** Voyager 领域类型兼容入口(沿用旧 IApiClient 形态,内部按 capability 域归类)。
+/** 领域类型兼容入口(沿用旧 IApiClient 形态,内部按 capability 域归类)。
  *
  * 旧 page / hook / component 大量 import 自 'types' 包与本文件的前端专属类型。
  * 后端 capability 返回结构略有不同(Repo → repo / project_id → source_id 等),
@@ -426,15 +426,63 @@ export interface LlmUsageSummary {
   total_output_tokens: number;
   total_cost: number;
   totals?: {
+    total_tokens: number;
+    input_tokens: number;
+    output_tokens: number;
+    prompt_cached_tokens: number;
+    prompt_uncached_tokens: number;
+    completion_tokens: number;
+    calls: number;
+    cost: number;
+  };
+  top?: {
+    model: string;
+    provider?: string;
+    label?: string;
+    total_tokens: number;
+  };
+  by_model: Array<{
+    model: string;
+    label?: string;
+    provider?: string;
     input: number;
     output: number;
-    cost: number;
+    total_tokens: number;
     calls: number;
-  };
-  by_model: Record<string, { input: number; output: number; cost: number; calls: number }>;
-  by_provider?: Record<string, { input: number; output: number; cost: number; calls: number }>;
-  by_day: Array<{ date: string; input: number; output: number; cost: number; calls: number }>;
-  heatmap?: Array<{ date: string; hour: number; tokens: number; cost: number }>;
+    cost: number;
+  }>;
+  by_provider?: Array<{
+    provider: string;
+    input: number;
+    output: number;
+    total_tokens: number;
+    calls: number;
+    cost: number;
+  }>;
+  by_day: Array<{
+    date: string;
+    input: number;
+    output: number;
+    total_tokens: number;
+    prompt_cached_tokens: number;
+    prompt_uncached_tokens: number;
+    completion_tokens: number;
+    calls: number;
+    cost: number;
+    by_model?: Array<{ model: string; input: number; output: number; total_tokens: number; calls: number }>;
+  }>;
+  heatmap?: Array<{ date: string; calls: number; intensity: number }>;
+  recent?: Array<{
+    id: string;
+    created_at: string;
+    label?: string;
+    provider?: string;
+    model: string;
+    agent_id?: string;
+    prompt_cached_tokens: number;
+    prompt_uncached_tokens: number;
+    completion_tokens: number;
+  }>;
 }
 
 // ---------- Activity / Trending ----------
@@ -483,6 +531,11 @@ export interface OverviewRecentNote {
 // ---------- Agent / Memory ----------
 
 export type AgentId =
+  | 'orchestrator'
+  | 'recon'
+  | 'explainer'
+  | 'organizer'
+  | 'graph_guide'
   | 'hub'
   | 'scout'
   | 'mentor'

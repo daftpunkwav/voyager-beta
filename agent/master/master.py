@@ -19,7 +19,7 @@ from agent.llm import LLMClient
 from agent.master.arbiter import Arbiter, ArbiterMode
 from agent.master.digest import DigestStore
 from agent.master.settings_store_protocol import SettingsReader
-from agent.personas import PERSONAS
+from agent.personas import PERSONAS, resolve_persona
 from agent.runtime.events import AGENT_MAIN
 from agent.runtime.state import RunStatus
 from agent.subagent import Mode, ModeLimits, Spawner, SubagentInstance, TaskBook
@@ -96,7 +96,7 @@ class Master:
         if self._settings.get("agent.direct_chat"):  # 直聊:不派 subagent(默认关)
             reply = await self._llm.complete(
                 [
-                    {"role": "system", "content": PERSONAS["lucien"].system_prompt},
+                    {"role": "system", "content": PERSONAS["orchestrator"].system_prompt},
                     {"role": "user", "content": text},
                 ]
             )
@@ -105,7 +105,7 @@ class Master:
         if self._chat is None or not self._chat.status.alive:
             self._chat = self._spawner.spawn(
                 TaskBook(goal=CHAT_GOAL, mode=Mode.REACT, conversational=True),
-                persona="lucien",
+                persona="orchestrator",
                 name="chat",
                 reply_sink=self._reply,
             )
@@ -127,7 +127,7 @@ class Master:
         persona 先查内置预设;查不到再查自建 subagent 注册表(§9.4.4,
         对 master 与预设同构:套用其 mode 与 allowed_tools 白名单)。
         """
-        preset = PERSONAS.get(persona) if persona else None
+        preset = resolve_persona(persona) if persona else None
         custom = self._load_custom(persona) if persona and preset is None else None
         if custom is not None:
             if mode is None:
@@ -135,8 +135,8 @@ class Master:
             if allowed_tools is None:
                 allowed_tools = custom.allowed_tools
             constraints = f"{constraints}\n{custom.description}".strip()
-        elif preset is not None and preset.key == "lucien":
-            mode = Mode.REACT.value  # Lucien 强制 ReAct(决策 §15)
+        elif preset is not None and preset.key == "orchestrator":
+            mode = Mode.REACT.value  # 统筹者强制 ReAct(决策 §15)
         if allowed_tools is None and preset is not None:
             allowed_tools = preset.tool_allow
         limits = ModeLimits(
@@ -150,7 +150,8 @@ class Master:
             allowed_tools=allowed_tools,
             limits=limits,
         )
-        inst = self._spawner.spawn(task, persona=persona, name=name or goal[:16])
+        spawn_key = preset.key if preset is not None else persona
+        inst = self._spawner.spawn(task, persona=spawn_key, name=name or goal[:16])
         self._digests.upsert(inst)
         if self._hooks is not None:
             await self._hooks.fire("on_subagent_start", subagent=inst.id, goal=goal)
@@ -190,7 +191,7 @@ class Master:
         if self._memory is not None:
             self._memory.episodic.log("consider", suggestion, {"source": source_event})
         if self._settings.get("agent.observe.auto_index") and "索引" in suggestion:
-            await self.dispatch_task(suggestion, persona="atlas", name="auto-index")
+            await self.dispatch_task(suggestion, persona="graph_guide", name="auto-index")
 
     async def _reply(self, text: str, *, trace_id: str = "") -> None:
         if self._bus is not None:

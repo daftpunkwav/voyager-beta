@@ -51,7 +51,7 @@ export function GraphGuidePanel({ selectedNodeId }: GraphGuidePanelProps) {
               title="Atlas"
               subtitle=""
               agentInitial="A"
-              agentClassName="agent-navigator"
+              agentClassName="agent-graph_guide"
               graphNodeId={selectedNodeId}
               placeholder="问我图谱结构、相似度含义…"
             />

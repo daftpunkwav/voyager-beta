@@ -1,5 +1,5 @@
 /**
- * Agent 目录 — 单一数据源，新增 Agent 只需在此追加一条记录。
+ * Agent 目录 — 单一数据源。id 为职责结构 ID;name 为显示名。
  */
 export interface AgentDefinition {
   id: string;
@@ -22,49 +22,35 @@ export const AGENT_CAROUSEL_TRANSITION_MS = 900;
 
 export const AGENT_CATALOG: AgentDefinition[] = [
   {
-    id: 'hub',
-    name: 'Hub',
-    tagline: '对话管家',
+    id: 'orchestrator',
+    name: 'Lucien',
+    tagline: '统筹者',
     intro: '统筹多 Agent 协作，管理上下文与任务分发，是你的总入口。',
     color: 'linear-gradient(135deg,#4a3aff,#9d4edd)',
   },
   {
-    id: 'scout',
-    name: 'Scout',
-    tagline: '快速分析',
+    id: 'recon',
+    name: 'Iris',
+    tagline: '侦察检索',
     intro: '快速扫描仓库结构，给出项目全貌与上手建议。',
     color: 'linear-gradient(135deg,#ff9f0a,#ff6f00)',
   },
   {
-    id: 'mentor',
-    name: 'Mentor',
-    tagline: '深度讲解',
+    id: 'explainer',
+    name: 'Elio',
+    tagline: '讲解导师',
     intro: '深入讲解源码与设计，按掌握程度定制讲解深度。',
     color: 'linear-gradient(135deg,#9d4edd,#c879ff)',
   },
   {
-    id: 'navigator',
-    name: 'Navigator',
-    tagline: '学习规划',
-    intro: '拆解学习目标，推荐下一步该看的项目与笔记。',
-    color: 'linear-gradient(135deg,#00b8d4,#00d4aa)',
-  },
-  {
-    id: 'curator',
-    name: 'Curator',
-    tagline: '分类管家',
-    intro: '自动分类打标签，整理混乱的 Star 与导入列表。',
+    id: 'organizer',
+    name: 'Miyai',
+    tagline: '策展整理',
+    intro: '分类打标签、写笔记、整理入库，保持知识库整洁。',
     color: 'linear-gradient(135deg,#34c759,#30d158)',
   },
   {
-    id: 'scribe',
-    name: 'Scribe',
-    tagline: '笔记助手',
-    intro: '生成结构化笔记，自动关联到项目与技术栈。',
-    color: 'linear-gradient(135deg,#ff375f,#ff6b8a)',
-  },
-  {
-    id: 'atlas',
+    id: 'graph_guide',
     name: 'Atlas',
     tagline: '图谱向导',
     intro: '解读知识图谱中的项目关联，建议探索与迁移学习路径。',

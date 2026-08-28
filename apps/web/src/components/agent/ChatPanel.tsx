@@ -13,7 +13,9 @@ import { StreamRenderer } from './StreamRenderer';
 import { LiveQuestionModal } from './QuestionHistoryCard';
 import { RunTracePanel } from './RunTracePanel';
 import { AGENT_INITIALS, AGENT_ROLE_LABELS } from '@/utils/labels';
+import { canonicalPersonaId, isOrchestrator, personaCssClass } from '@/constants/personas';
 import { snapshotSubagents, snapshotToolCalls } from '@/utils/runTrace';
+import { PRODUCT_NAME } from '@/brand';
 
 export interface ChatPanelProps {
   /** 左侧对话历史抽屉是否打开(浮层,不挤占对话区) */
@@ -115,7 +117,7 @@ export function ChatPanel({
     const a = document.createElement('a');
     a.href = url;
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
-    a.download = `voyager-chat-${currentSession?.id ?? 'untitled'}-${ts}.md`;
+    a.download = `${PRODUCT_NAME}-chat-${currentSession?.id ?? 'untitled'}-${ts}.md`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -183,7 +185,9 @@ export function ChatPanel({
     return sessionDetail.project_id ? 1 : 0;
   }, [sessionDetail]);
 
-  const profile = profiles.find((p) => p.id === activeAgent);
+  const profile = profiles.find(
+    (p) => canonicalPersonaId(p.id || p.key) === canonicalPersonaId(activeAgent),
+  );
   const currentSession = sessions.find((s) => s.id === currentSessionId);
   const llmOk = settings?.llm_configured !== false;
   const modelName = settings?.llm_model ?? 'gpt-4o';
@@ -229,7 +233,7 @@ export function ChatPanel({
             {boundCount > 0 ? `${boundCount} 个项目上下文` : '未绑定项目'} ·{' '}
             {user?.username ?? 'guest'} · {modelName}
             <span className="dot" />
-            <span style={{ color: 'var(--brand-500)' }}>Hub 智能调度 · 7 Agent 在线</span>
+            <span style={{ color: 'var(--brand-500)' }}>Lucien 智能调度 · 5 人格在线</span>
           </div>
         </div>
         <div className="chat-actions">
@@ -329,16 +333,21 @@ export function ChatPanel({
             )}
           </div>
         )}
-        {messages.map((m) => (
+        {messages.map((m) => {
+          const persona = profiles.find(
+            (p) => canonicalPersonaId(p.id || p.key) === canonicalPersonaId(m.agent),
+          );
+          return (
           <MessageBubble
             key={m.id}
             message={m}
-            agentName={profiles.find((p) => p.id === m.agent)?.name}
+            agentName={persona?.name ?? persona?.display_name}
           />
-        ))}
+          );
+        })}
         {streaming && !pendingQuestion && (
           <div className="msg">
-            <div className={`msg-avatar agent-${activeAgent}`}>
+            <div className={`msg-avatar ${personaCssClass(activeAgent)}`}>
               {AGENT_INITIALS[activeAgent] ?? 'A'}
             </div>
             <div className="msg-body">
@@ -347,7 +356,7 @@ export function ChatPanel({
                 <span className="msg-role">{AGENT_ROLE_LABELS[activeAgent]}</span>
                 <span className="streaming-indicator">
                   <span className="streaming-dot" />
-                  {activeAgent === 'hub' &&
+                  {isOrchestrator(activeAgent) &&
                   (/汇总|合并|评估/.test(thinkingBuffer || '') ||
                     subagents.some((s) => s.status === 'running'))
                     ? /汇总|合并/.test(thinkingBuffer || '')
@@ -395,7 +404,7 @@ export function ChatPanel({
             className="chat-textarea"
             data-testid="chat-input"
             rows={2}
-            placeholder="问 Voyager 任何关于开源项目的问题..."
+            placeholder={`问 ${PRODUCT_NAME} 任何关于开源项目的问题...`}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}

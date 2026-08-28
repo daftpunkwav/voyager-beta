@@ -42,8 +42,9 @@ def _wait_job_done(client, job_id: str, timeout: float = 15.0) -> dict:
 class TestIndexPipeline:
     def test_full_chain_python_engine(self, tmp_path) -> None:
         """enqueue 202 -> scheduler -> fallback 事件 -> 图有节点与调用边。"""
-        repo_path = _make_toy_repo(tmp_path)
-        app = build(tmp_path / "data", tmp_path / "ws")
+        ws = tmp_path / "ws"
+        repo_path = _make_toy_repo(ws)
+        app = build(tmp_path / "data", ws)
         backend = app.state.backend
         with TestClient(app) as client:
             resp = client.post("/api/graph/capabilities/enqueue_index", json={
@@ -91,8 +92,9 @@ class TestIndexPipeline:
 
     def test_queue_cancel_and_manual_project(self, tmp_path) -> None:
         """排队中可取消;手建项目名建图(不依赖资源库)。"""
-        repo_path = _make_toy_repo(tmp_path / "another" / "toy")
-        app = build(tmp_path / "data2", tmp_path / "ws2")
+        ws = tmp_path / "ws2"
+        repo_path = _make_toy_repo(ws / "another")
+        app = build(tmp_path / "data2", ws)
         with TestClient(app) as client:
             # 先占住调度器(concurrency=1):长任务在跑,第二个排队可取消
             busy = client.post("/api/graph/capabilities/enqueue_index", json={
@@ -121,6 +123,6 @@ class TestIndexPipeline:
             assert expect in names
         # Atlas 能力面裁剪后仍保留图谱工具(未索引先入队的纪律)
         from agent.personas import PERSONAS
-        allow = PERSONAS["atlas"].tool_allow or ()
+        allow = PERSONAS["graph_guide"].tool_allow or ()
         assert "graph__enqueue_index" in allow
         assert "graph__graph_guide" in allow

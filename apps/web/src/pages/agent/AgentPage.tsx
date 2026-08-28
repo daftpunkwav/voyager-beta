@@ -6,24 +6,18 @@ import { AgentContextSidebar } from '@/components/agent/AgentContextSidebar';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { formatRelativeTime } from '@/utils/date';
 import { AGENT_TAG_CLASS } from '@/utils/labels';
+import { personaDisplayName } from '@/constants/personas';
 import type { AgentSession } from '@/api/types';
+import { STORAGE, migrateKey, readKey, writeKey } from '@/brand';
 
-const AGENT_DISPLAY: Record<string, string> = {
-  hub: 'Hub',
-  scout: 'Scout',
-  mentor: 'Mentor',
-  navigator: 'Navigator',
-  curator: 'Curator',
-  scribe: 'Scribe',
-  atlas: 'Atlas',
-};
+migrateKey(STORAGE.sessionDrawer, STORAGE.legacy.sessionDrawer);
+migrateKey(STORAGE.contextDrawer, STORAGE.legacy.contextDrawer);
 
 /** 详情页快速分析会话（折叠显示） */
 function isAnalyzeSession(s: AgentSession): boolean {
   if (s.source === 'analyze') return true;
   const t = (s.title || '').trim();
-  // scout · owner/repo
-  if (/^(scout|mentor|navigator|curator|scribe|atlas)\s·\s/i.test(t)) return true;
+  if (/^(scout|mentor|navigator|curator|scribe|atlas|recon|explainer|organizer|graph_guide)\s·\s/i.test(t)) return true;
   // 分析 owner/repo
   if (/^分析\s+\S+/.test(t)) return true;
   return false;
@@ -64,14 +58,14 @@ export function AgentPage() {
   // 状态持久化到 localStorage;默认均关闭,保持对话区全宽。
   const [sessionListOpen, setSessionListOpen] = useState(() => {
     try {
-      return localStorage.getItem('voyager_agent_session_drawer') === '1';
+      return readKey(STORAGE.sessionDrawer, STORAGE.legacy.sessionDrawer) === '1';
     } catch {
       return false;
     }
   });
   const [contextPanelOpen, setContextPanelOpen] = useState(() => {
     try {
-      return localStorage.getItem('voyager_agent_context_drawer') === '1';
+      return readKey(STORAGE.contextDrawer, STORAGE.legacy.contextDrawer) === '1';
     } catch {
       return false;
     }
@@ -81,8 +75,8 @@ export function AgentPage() {
   // 不再查询已废弃的 .agent-shell,避免 AppShell 重构后 DOM 操作失效。
   useEffect(() => {
     try {
-      localStorage.setItem('voyager_agent_session_drawer', sessionListOpen ? '1' : '0');
-      localStorage.setItem('voyager_agent_context_drawer', contextPanelOpen ? '1' : '0');
+      writeKey(STORAGE.sessionDrawer, sessionListOpen ? '1' : '0');
+      writeKey(STORAGE.contextDrawer, contextPanelOpen ? '1' : '0');
     } catch {
       /* 隐私模式等场景下忽略 */
     }
@@ -215,8 +209,8 @@ export function AgentPage() {
           {s.unread && <span className="session-unread" title="未读" />}
         </div>
         <div className="session-meta">
-          <span className={`agent-tag ${AGENT_TAG_CLASS[s.agent] ?? 'agent-tag-hub'}`}>
-            {AGENT_DISPLAY[s.agent] ?? s.agent}
+          <span className={`agent-tag ${AGENT_TAG_CLASS[s.agent] ?? 'agent-tag-orchestrator'}`}>
+            {personaDisplayName(s.agent)}
           </span>
           <span>{formatRelativeTime(s.updated_at)}</span>
           {!manageMode && (

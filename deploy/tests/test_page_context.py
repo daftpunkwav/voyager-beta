@@ -30,7 +30,7 @@ def test_page_context_reaches_agent(tmp_path) -> None:
         assert "当前选中: langgraph 笔记" in rendered
 
         # 上下文装配(§9.12):builder 输出含"用户当前页面"层
-        system = agent_app.master._spawner._build_system(None, "lucien")  # 装配产物句柄
+        system = agent_app.master._spawner._build_system(None, "orchestrator")  # 装配产物句柄
         assert "用户当前页面" in system and "36 篇笔记" in system
 
 

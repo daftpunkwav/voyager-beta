@@ -248,12 +248,12 @@ export function OverviewPage() {
           <div className="progress-panel-body">
             <section
               className={`agent-summary progress-panel-summary ${GLASS_INNER}`}
-              aria-label="Mentor 学习周报"
+              aria-label="Elio 学习周报"
             >
               <div className="summary-head">
                 <div className={`summary-avatar ${GLASS_CHIP}`}>M</div>
                 <div className="summary-meta">
-                  <div className="summary-agent">Mentor · 本周学习总结</div>
+                  <div className="summary-agent">Elio · 本周学习总结</div>
                   <div className="summary-time">由 AI 自动生成</div>
                 </div>
                 <span className={`summary-badge ${GLASS_CHIP}`}>AI</span>

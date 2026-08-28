@@ -94,10 +94,10 @@ class TestTeamSurface:
     async def test_list_personas_builtin_five(self, app) -> None:
         personas = await execute(app.registry, "list_personas", USER_CTX, {})
         keys = {p["key"] for p in personas}
-        assert keys == {"lucien", "iris", "elio", "miyai", "atlas"}
-        lucien = next(p for p in personas if p["key"] == "lucien")
-        assert lucien["tool_allow"] is None  # 统筹者不裁剪
-        atlas = next(p for p in personas if p["key"] == "atlas")
+        assert keys == {"orchestrator", "recon", "explainer", "organizer", "graph_guide"}
+        master = next(p for p in personas if p["key"] == "orchestrator")
+        assert master["tool_allow"] is None  # 统筹者不裁剪
+        atlas = next(p for p in personas if p["key"] == "graph_guide")
         assert "graph__query_graph" in atlas["tool_allow"]
         assert all(p["system_prompt"] for p in personas)
 

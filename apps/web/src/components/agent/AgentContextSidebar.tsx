@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getApi } from '@/api/client';
 import type { Goal, MemoryItem, Project, UserProfile } from '@/api/types';
@@ -68,15 +68,20 @@ export function AgentContextSidebar({
     queryFn: async () => (await getApi().getUserProfile()).data,
   });
 
-  // 写操作成功后刷新会话绑定项目与项目库
+  // 将多来源刷新需求聚合为单一信号，避免 contextRevision / toolCalls / storeProjectIds 重复触发
+  const refreshTick = useMemo(() => {
+    const session = useAgentStore.getState().sessions.find((s) => s.id === sessionId);
+    return `${contextRevision}-${(session?.project_ids ?? []).join(',')}`;
+  }, [contextRevision, sessionId]);
+
   useEffect(() => {
-    if (contextRevision <= 0) return;
+    if (!sessionId) return;
     void qc.invalidateQueries({ queryKey: ['agentSession', sessionId] });
     void qc.invalidateQueries({ queryKey: ['sessionBoundProjects'] });
     void qc.invalidateQueries({ queryKey: ['projects'] });
     void qc.invalidateQueries({ queryKey: ['userProfile'] });
     void qc.invalidateQueries({ queryKey: ['notes'] });
-  }, [contextRevision, qc, sessionId]);
+  }, [refreshTick, qc, sessionId]);
 
   // 随活跃会话拉取真实绑定项目
   const { data: sessionDetail } = useQuery({
@@ -129,30 +134,38 @@ export function AgentContextSidebar({
   });
 
   // 工具 manage_session_projects / propose_memory 完成后刷新
+  // 仅当发现新的已完成 tool call 时才触发，避免每次 render 遍历 Map
+  const lastToolCallKeyRef = useRef<string>('');
   useEffect(() => {
-    for (const tc of toolCalls.values()) {
+    if (!sessionId) return;
+    const keys: string[] = [];
+    let shouldRefreshSession = false;
+    let shouldRefreshProfile = false;
+    for (const [id, tc] of toolCalls.entries()) {
+      keys.push(`${id}:${tc.name}:${tc.result !== undefined ? 'done' : 'running'}`);
+      if (tc.result === undefined) continue;
       const r = tc.result as Record<string, unknown> | undefined;
-      if (r && r.__session_projects__ && sessionId) {
-        void qc.invalidateQueries({ queryKey: ['agentSession', sessionId] });
-        void qc.invalidateQueries({ queryKey: ['sessionBoundProjects'] });
-        void qc.invalidateQueries({ queryKey: ['userProfile'] });
+      if (r && r.__session_projects__) {
+        shouldRefreshSession = true;
+        shouldRefreshProfile = true;
       }
-      if (tc.name === 'propose_memory' && tc.result !== undefined) {
-        void qc.invalidateQueries({ queryKey: ['userProfile'] });
+      if (tc.name === 'propose_memory') {
+        shouldRefreshProfile = true;
       }
+    }
+    const key = keys.sort().join('|');
+    if (key === lastToolCallKeyRef.current) return;
+    lastToolCallKeyRef.current = key;
+    if (shouldRefreshSession) {
+      void qc.invalidateQueries({ queryKey: ['agentSession', sessionId] });
+      void qc.invalidateQueries({ queryKey: ['sessionBoundProjects'] });
+    }
+    if (shouldRefreshProfile) {
+      void qc.invalidateQueries({ queryKey: ['userProfile'] });
     }
   }, [toolCalls, sessionId, qc]);
 
-  // 会话列表中的 project_ids 变化时（SSE session_projects）同步刷新详情
-  const storeProjectIds = useAgentStore((s) => {
-    const cur = s.sessions.find((x) => x.id === sessionId);
-    return (cur?.project_ids ?? []).join(',');
-  });
-  useEffect(() => {
-    if (!sessionId) return;
-    void qc.invalidateQueries({ queryKey: ['agentSession', sessionId] });
-    void qc.invalidateQueries({ queryKey: ['sessionBoundProjects'] });
-  }, [storeProjectIds, sessionId, qc]);
+  // 会话列表中的 project_ids 变化已聚合到 refreshTick，避免在此处重复 invalidate
 
   const updateProfile = useMutation({
     mutationFn: async (data: Partial<UserProfile>) =>
@@ -300,7 +313,7 @@ export function AgentContextSidebar({
 
         {sessionId && boundProjects.length === 0 && !pickerOpen && (
           <p className="ctx-proj-empty muted">
-            尚未绑定项目。与 Hub 对话提到仓库时会自动加入，或点 + 手动添加。
+            尚未绑定项目。与 Lucien 对话提到仓库时会自动加入，或点 + 手动添加。
           </p>
         )}
 

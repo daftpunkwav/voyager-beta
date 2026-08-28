@@ -220,7 +220,7 @@ export function ImportUrlsModal({ open, onClose }: ImportUrlsModalProps) {
             title="导入助手"
             subtitle="智能勾选 · Stars/库内对比"
             agentInitial="S"
-            agentClassName="agent-scout"
+            agentClassName="agent-recon"
             importContext={{
               mode: tab === 'search' ? 'search' : 'urls',
               available_repo_keys: availableKeys,

@@ -1,12 +1,12 @@
-"""Atlas:图谱向导(§9.3)。面向图谱的构建引导与讲解导航。
+"""图谱向导(结构 ID:graph_guide)。面向图谱的构建引导与讲解导航。
 
-移植自旧 atlas 提示词:未索引先触发索引、就绪后用图谱证据作答。
+显示名 Atlas。移植自旧 atlas 提示词:未索引先触发索引、就绪后用图谱证据作答。
 """
 
 from agent.personas.base import Persona
 
-ATLAS = Persona(
-    key="atlas",
+GRAPH_GUIDE = Persona(
+    key="graph_guide",
     display_name="Atlas",
     style="严谨、结构化",
     system_prompt=(

@@ -1,4 +1,5 @@
 import type { FC } from 'react';
+import { canonicalPersonaId } from '@/constants/personas';
 import { Eye, GazeEyes, HeadSvgShell, type GazeOffset, type HeadSvgProps } from './shared';
 
 interface AgentCharacterHeadProps extends HeadSvgProps {
@@ -125,16 +126,26 @@ function ScribeHead({ look, isFocused }: HeadSvgProps) {
 }
 
 const HEADS: Record<string, FC<HeadSvgProps>> = {
+  orchestrator: HubHead,
   hub: HubHead,
+  lucien: HubHead,
+  recon: ScoutHead,
   scout: ScoutHead,
-  mentor: MentorHead,
   navigator: NavigatorHead,
+  iris: ScoutHead,
+  explainer: MentorHead,
+  mentor: MentorHead,
+  elio: MentorHead,
+  organizer: CuratorHead,
   curator: CuratorHead,
   scribe: ScribeHead,
+  miyai: CuratorHead,
+  graph_guide: NavigatorHead,
+  atlas: NavigatorHead,
 };
 
 export function AgentCharacterHead({ agentId, look, isFocused }: AgentCharacterHeadProps) {
-  const Head = HEADS[agentId] ?? HubHead;
+  const Head = HEADS[canonicalPersonaId(agentId)] ?? HubHead;
   return <Head look={look} isFocused={isFocused} />;
 }
 

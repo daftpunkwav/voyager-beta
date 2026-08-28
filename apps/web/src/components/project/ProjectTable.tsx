@@ -187,7 +187,7 @@ export function ProjectTable({
                       className="btn-scout"
                       onClick={() => navigate(`/projects/${p.id}`)}
                     >
-                      Scout
+                      查看
                     </button>
                   </div>
                 </td>

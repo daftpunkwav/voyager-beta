@@ -29,6 +29,7 @@ import { isStreamSessionActive } from '@/utils/streamSessionGuard';
 import { displaySwitchReason } from '@/utils/agentSwitchDisplay';
 import { snapshotSubagents, snapshotToolCalls } from '@/utils/runTrace';
 import { parseActionResult } from '@/utils/actionResult';
+import { canonicalPersonaId } from '@/constants/personas';
 import { HANDLERS, type SseHandlerCtx } from './agentStore/sseHandlers';
 
 interface ToolCallEntry {
@@ -89,7 +90,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   sessions: [],
   currentSessionId: null,
   messages: [],
-  activeAgent: 'hub',
+  activeAgent: 'orchestrator',
   streaming: false,
   streamingContent: '',
   thinkingBuffer: '',
@@ -155,7 +156,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       sessions: [newSession, ...state.sessions],
       currentSessionId: newSession.id,
       messages: [],
-      activeAgent: 'hub',
+      activeAgent: 'orchestrator',
       pendingQuestion: null,
       streaming: false,
       streamingContent: '',
@@ -263,7 +264,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const userMsg: AgentMessage = {
       id: `msg_ans_${Date.now()}`,
       session_id: currentSessionId,
-      agent: 'hub',
+      agent: 'orchestrator',
       role: 'user',
       content: isSkip ? '[跳过反问]' : `[反问回答] ${formatted.summary}`,
       question_answer: {
@@ -546,12 +547,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             if (!stillOnOrigin()) break;
             const switchData = asSSEAgentSwitch(event.data);
             const raw = event.data as Record<string, unknown>;
-            const next = (switchData.to ||
-              (typeof raw.agent_id === 'string' ? raw.agent_id : null) ||
-              get().activeAgent) as AgentId;
-            const from = (switchData.from ||
-              (typeof raw.from === 'string' ? raw.from : get().activeAgent) ||
-              'hub') as AgentId;
+            const next = canonicalPersonaId(
+              switchData.to ||
+                (typeof raw.agent_id === 'string' ? raw.agent_id : null) ||
+                get().activeAgent,
+            ) as AgentId;
+            const from = canonicalPersonaId(
+              switchData.from ||
+                (typeof raw.from === 'string' ? raw.from : get().activeAgent) ||
+                'orchestrator',
+            ) as AgentId;
             const reason =
               switchData.reason ||
               (typeof raw.reason === 'string' ? raw.reason : undefined);
@@ -614,8 +619,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             if (!stillOnOrigin()) break;
             const data = asSSESubagentStart(event.data);
             const raw = event.data as Record<string, unknown>;
-            const agentId = (data.agent_id ||
-              (typeof raw.agent_id === 'string' ? raw.agent_id : 'scout')) as AgentId;
+            const agentId = canonicalPersonaId(
+              data.agent_id ||
+                (typeof raw.agent_id === 'string' ? raw.agent_id : 'recon'),
+            ) as AgentId;
             set((state) => {
               const rest = state.subagents.filter((s) => s.agentId !== agentId);
               return {

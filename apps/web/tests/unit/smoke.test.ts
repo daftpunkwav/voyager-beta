@@ -13,6 +13,7 @@ import {
 } from '@/bridge/legacyApi';
 import type { IApiClient } from '@/api/types';
 import type { AgentSession, Note, Project, User } from '@/api/types';
+import { canonicalPersonaId } from '@/constants/personas';
 
 describe('uiStore(主题/侧栏/字体/toast)', () => {
   beforeEach(() => {
@@ -158,12 +159,22 @@ describe('api/types 领域类型(编译期校验)', () => {
     expect(n.tags).toEqual(['a']);
   });
 
-  it('AgentSession agent 字段接受 11 个 persona 之一', () => {
+  it('AgentSession agent 字段接受职责 ID 与历史别名', () => {
     const agents: AgentSession['agent'][] = [
+      'orchestrator', 'recon', 'explainer', 'organizer', 'graph_guide',
       'lucien', 'iris', 'elio', 'miyai', 'hub', 'scout', 'mentor',
       'navigator', 'curator', 'scribe', 'atlas',
     ];
-    expect(agents.length).toBe(11);
+    expect(agents.length).toBe(16);
+  });
+});
+
+describe('人格结构 ID', () => {
+  it('别名收到职责 ID,自建名原样保留', () => {
+    expect(canonicalPersonaId('lucien')).toBe('orchestrator');
+    expect(canonicalPersonaId('scout')).toBe('recon');
+    expect(canonicalPersonaId(null)).toBe('orchestrator');
+    expect(canonicalPersonaId('custom-hunter')).toBe('custom-hunter');
   });
 });
 

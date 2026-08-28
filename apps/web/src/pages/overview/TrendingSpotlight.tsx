@@ -33,17 +33,17 @@ export function TrendingSpotlight({
       className={`trending-scout-spot trending-scout-spot--${phase}`}
       style={bubbleStyle}
       aria-live="polite"
-      aria-label={`Scout 正在介绍 ${name}`}
+      aria-label={`Iris 正在介绍 ${name}`}
     >
       <div className={`trending-scout-bubble overview-control-surface ${GLASS_CHIP}`}>
-        <span className="trending-scout-bubble-label">Scout</span>
+        <span className="trending-scout-bubble-label">Iris</span>
         <p className="trending-scout-bubble-text">
           {content}
           {isStreaming ? <span className="trending-scout-stream-cursor" aria-hidden /> : null}
         </p>
       </div>
       <AgentAvatar
-        agentId="scout"
+        agentId="recon"
         lookTarget={lookTarget}
         isFocused={false}
         blink

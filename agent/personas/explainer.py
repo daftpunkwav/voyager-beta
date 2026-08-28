@@ -1,12 +1,12 @@
-"""Elio:讲解导师(§9.3)。面向项目/书籍/概念的讲解与陪读。
+"""讲解导师(结构 ID:explainer)。面向项目/书籍/概念的讲解与陪读。
 
-移植自旧 mentor 提示词:摸底反问纪律与出题规范。
+显示名 Elio。移植自旧 mentor 提示词:摸底反问纪律与出题规范。
 """
 
 from agent.personas.base import Persona
 
-ELIO = Persona(
-    key="elio",
+EXPLAINER = Persona(
+    key="explainer",
     display_name="Elio",
     style="耐心、善用类比",
     system_prompt=(

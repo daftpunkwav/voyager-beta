@@ -20,7 +20,7 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
   const qc = useQueryClient();
   const [clearOpen, setClearOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
-  const [activeAgentId, setActiveAgentId] = useState(AGENT_CATALOG[0]?.id ?? 'hub');
+  const [activeAgentId, setActiveAgentId] = useState(AGENT_CATALOG[0]?.id ?? 'orchestrator');
   const [conductDraft, setConductDraft] = useState(settings.agent_code_of_conduct ?? '');
   const [guidelineDrafts, setGuidelineDrafts] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};

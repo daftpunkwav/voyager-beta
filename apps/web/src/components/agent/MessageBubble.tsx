@@ -7,6 +7,7 @@ import {
 } from '@/components/agent/StreamRenderer';
 import { formatMessageTime } from '@/utils/date';
 import { AGENT_INITIALS, AGENT_ROLE_LABELS } from '@/utils/labels';
+import { personaDisplayName } from '@/constants/personas';
 import {
   ensureAgentQuestion,
   recoverQuestionFromText,
@@ -51,16 +52,7 @@ export function MessageBubble({ message, agentName }: MessageBubbleProps) {
   }
 
   if (message.agent_switch) {
-    const pretty = (id: string) =>
-      ({
-        hub: 'Hub',
-        scout: 'Scout',
-        mentor: 'Mentor',
-        navigator: 'Navigator',
-        curator: 'Curator',
-        scribe: 'Scribe',
-        atlas: 'Atlas',
-      }[id] ?? id);
+    const pretty = (id: string) => personaDisplayName(id);
     const fromId = message.agent_switch.from;
     const toId = message.agent_switch.to;
     const from = pretty(fromId);

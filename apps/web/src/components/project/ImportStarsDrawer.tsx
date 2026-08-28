@@ -14,6 +14,9 @@ import { ImportAgentModal } from './ImportAgentModal';
 import { ImportRepoFilterBar } from './ImportRepoFilterBar';
 import { EmbedAgentChat } from '@/components/agent/EmbedAgentChat';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import { STORAGE, migrateKey } from '@/brand';
+
+migrateKey(STORAGE.githubUsername, STORAGE.legacy.githubUsername);
 
 interface ImportStarsDrawerProps {
   open: boolean;
@@ -24,11 +27,9 @@ function repoKey(s: Pick<StarRepo, 'owner' | 'repo'>): string {
   return `${s.owner}/${s.repo}`;
 }
 
-const GH_USER_KEY = 'voyager-github-username';
-
 export function ImportStarsDrawer({ open, onClose }: ImportStarsDrawerProps) {
   const qc = useQueryClient();
-  const [ghUser, setGhUser] = useState(() => localStorage.getItem(GH_USER_KEY) ?? '');
+  const [ghUser, setGhUser] = useState(() => localStorage.getItem(STORAGE.githubUsername) ?? '');
   const { data: starsResult, isLoading, isFetching } = useGithubStars({
     username: ghUser,
     enabled: open && Boolean(ghUser),
@@ -213,7 +214,7 @@ export function ImportStarsDrawer({ open, onClose }: ImportStarsDrawerProps) {
             title="导入助手"
             subtitle="智能勾选 · 说明清单"
             agentInitial="C"
-            agentClassName="agent-curator"
+            agentClassName="agent-organizer"
             importContext={{
               mode: 'stars',
               available_repo_keys: repoKeys,
@@ -241,7 +242,7 @@ export function ImportStarsDrawer({ open, onClose }: ImportStarsDrawerProps) {
               onChange={(e) => setGhUser(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && ghUser.trim()) {
-                  localStorage.setItem(GH_USER_KEY, ghUser.trim());
+                  localStorage.setItem(STORAGE.githubUsername, ghUser.trim());
                   setGhUser(ghUser.trim());
                 }
               }}
@@ -250,7 +251,7 @@ export function ImportStarsDrawer({ open, onClose }: ImportStarsDrawerProps) {
               type="button"
               className="btn btn-primary"
               disabled={!ghUser.trim()}
-              onClick={() => localStorage.setItem(GH_USER_KEY, ghUser.trim())}
+              onClick={() => localStorage.setItem(STORAGE.githubUsername, ghUser.trim())}
             >
               同步
             </button>

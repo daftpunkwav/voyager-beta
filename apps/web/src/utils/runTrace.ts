@@ -1,4 +1,5 @@
 import type { AgentId, ToolCallData } from '@/api/types';
+import { personaDisplayName } from '@/constants/personas';
 
 export interface SubagentTrace {
   agentId: AgentId;
@@ -11,18 +12,8 @@ export interface SubagentTrace {
   output?: string;
 }
 
-const AGENT_TITLE: Record<string, string> = {
-  hub: 'Hub',
-  scout: 'Scout',
-  mentor: 'Mentor',
-  navigator: 'Navigator',
-  curator: 'Curator',
-  scribe: 'Scribe',
-  atlas: 'Atlas',
-};
-
 export function agentDisplayName(agentId: string): string {
-  return AGENT_TITLE[agentId] ?? agentId.charAt(0).toUpperCase() + agentId.slice(1);
+  return personaDisplayName(agentId);
 }
 
 /** 从合流 thinking 中拆出 【Scout】… 片段 */

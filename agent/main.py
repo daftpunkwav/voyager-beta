@@ -22,7 +22,7 @@ from agent.llm import FakeLLM, LLMClient
 from agent.master import Arbiter, DigestStore, Master, ProactiveBudget, ProactiveEngine
 from agent.memory import Memory
 from agent.observe import Observer
-from agent.personas import PERSONAS
+from agent.personas import resolve_persona
 from agent.policy import FsPolicy, NetworkPolicy, PolicyEngine
 from agent.runtime import EventLoop, Meter, RuntimeEvents, Scheduler
 from agent.runtime.state import CheckpointStore
@@ -167,7 +167,7 @@ def build_agent(
     )
 
     def _build_system(task, persona_key: str) -> str:
-        persona = PERSONAS.get(persona_key) if persona_key else None
+        persona = resolve_persona(persona_key) if persona_key else None
         return builder.system(persona=persona, task=task, style=settings.get("agent.style"))
 
     spawner = Spawner(

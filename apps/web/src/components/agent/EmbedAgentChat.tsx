@@ -43,7 +43,7 @@ export function EmbedAgentChat({
   title,
   subtitle,
   agentInitial = 'A',
-  agentClassName = 'agent-hub',
+  agentClassName = 'agent-orchestrator',
   importContext,
   graphNodeId,
   placeholder = '向助手描述你的需求…',
