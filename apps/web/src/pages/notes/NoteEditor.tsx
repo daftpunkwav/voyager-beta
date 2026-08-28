@@ -9,11 +9,12 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { EditorState } from '@codemirror/state';
 import { EditorView, highlightActiveLine, keymap, lineNumbers } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap, indentWithTab, redo, undo } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { languages } from '@codemirror/language-data';
 import { useNoteStore } from '@/stores/noteStore';
 import { useUIStore } from '@/stores/uiStore';
+import { applyNoteHighlight, expandHighlightRange, NOTE_HL_LABEL, NOTE_HL_TONES, type NoteHlAction } from './noteMarks';
 import { applyLinePrefix } from './noteUtils';
 
 export interface NoteEditorHandle {
@@ -27,6 +28,8 @@ interface NoteEditorProps {
   onReady?: (api: NoteEditorHandle | null) => void;
   /** 格式栏挂到分栏上方,左右正文从同一高度开始 */
   formatBarHost?: HTMLElement | null;
+  /** 预览态用 CSS 隐藏时仍保活;显示后 requestMeasure 避免 CodeMirror 高度为 0 */
+  visible?: boolean;
 }
 
 /** 编辑器主题:字号走 CSS 变量,亮暗切换零重载。 */
@@ -58,6 +61,22 @@ const markdownTheme = EditorView.theme({
     border: 'none',
   },
 }, { dark: false });
+
+function wrapHighlightSelection(view: EditorView | null, action: NoteHlAction) {
+  if (!view) return;
+  const { from, to } = view.state.selection.main;
+  if (from === to) return;
+  const doc = view.state.doc.toString();
+  const range = expandHighlightRange(doc, from, to);
+  const selected = doc.slice(range.from, range.to);
+  const next = applyNoteHighlight(selected, action);
+  if (next === selected) return;
+  view.dispatch({
+    changes: { from: range.from, to: range.to, insert: next },
+    selection: { anchor: range.from, head: range.from + next.length },
+  });
+  view.focus();
+}
 
 function wrapSelection(view: EditorView | null, before: string, after = before) {
   if (!view) return;
@@ -101,7 +120,7 @@ function Ico({ d }: { d: string }) {
   );
 }
 
-export function NoteEditor({ onSave, saving, onReady, formatBarHost }: NoteEditorProps) {
+export function NoteEditor({ onSave, saving, onReady, formatBarHost, visible = true }: NoteEditorProps) {
   const title = useNoteStore((s) => s.editorTitle);
   const content = useNoteStore((s) => s.editorContent);
   const setTitle = useNoteStore((s) => s.setEditorTitle);
@@ -228,6 +247,11 @@ export function NoteEditor({ onSave, saving, onReady, formatBarHost }: NoteEdito
   }, []);
 
   useEffect(() => {
+    if (!visible) return;
+    viewRef.current?.requestMeasure();
+  }, [visible]);
+
+  useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
     const current = view.state.doc.toString();
@@ -241,8 +265,10 @@ export function NoteEditor({ onSave, saving, onReady, formatBarHost }: NoteEdito
     onClick: () => void,
     child: ReactNode,
     extra = '',
+    btnKey?: string,
   ) => (
     <button
+      key={btnKey}
       type="button"
       className={`edit-toolbar-btn${extra ? ` ${extra}` : ''}`}
       aria-label={label}
@@ -256,8 +282,25 @@ export function NoteEditor({ onSave, saving, onReady, formatBarHost }: NoteEdito
 
   const toolbar = (
     <div className="edit-toolbar">
+      {btn('撤销', () => {
+        const v = viewRef.current;
+        if (v) undo(v);
+      }, <Ico d="M9 14l-4-4 4-4M5 10h11a4 4 0 010 8h-1" />)}
+      {btn('重做', () => {
+        const v = viewRef.current;
+        if (v) redo(v);
+      }, <Ico d="M15 14l4-4-4-4M19 10H8a4 4 0 000 8h1" />)}
+      <div className="edit-toolbar-divider" />
       {btn('加粗', () => wrapSelection(viewRef.current, '**'), <strong>B</strong>, 'bold')}
       {btn('斜体', () => wrapSelection(viewRef.current, '*'), <em>I</em>)}
+      {NOTE_HL_TONES.map((tone) => (
+        btn(NOTE_HL_LABEL[tone], () => wrapHighlightSelection(viewRef.current, tone), (
+          <span className={`edit-toolbar-hl edit-toolbar-hl--${tone}`} />
+        ), `hl hl-${tone}`, tone)
+      ))}
+      {btn('去掉底纹', () => wrapHighlightSelection(viewRef.current, 'clear'), (
+        <span className="edit-toolbar-hl edit-toolbar-hl--clear" />
+      ), 'hl')}
       {btn('行内代码', () => wrapSelection(viewRef.current, '`'), <Ico d="M16 18l6-6-6-6M8 6l-6 6 6 6" />, 'code')}
       {btn('链接', () => wrapSelection(viewRef.current, '[', '](https://)'), (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
@@ -287,6 +330,9 @@ export function NoteEditor({ onSave, saving, onReady, formatBarHost }: NoteEdito
           <path d="M3 9h18M3 15h18M9 3v18" />
         </svg>
       ))}
+      {btn('删除线', () => wrapSelection(viewRef.current, '~~'), <s>S</s>)}
+      {btn('分隔线', () => wrapSelection(viewRef.current, '\n---\n', ''), <Ico d="M4 12h16" />)}
+      <div className="edit-toolbar-divider" />
       {btn(uploading ? '上传中…' : '插入图片', () => {
         const input = document.createElement('input');
         input.type = 'file';

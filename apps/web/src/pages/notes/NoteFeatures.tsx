@@ -3,6 +3,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import GithubSlugger from 'github-slugger';
 import {
@@ -33,9 +34,9 @@ export function VersionDrawer({ noteId, open, onClose }: { noteId: string; open:
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
   if (!open) return null;
-  return (
-    <div className="drawer-overlay" onClick={onClose}>
-      <aside className="drawer version-drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="版本历史">
+  return createPortal(
+    <div className="drawer-overlay notes-drawer-overlay" onClick={onClose}>
+      <aside className="drawer version-drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="版本历史">
         <header className="version-drawer__head">
           <h3>版本历史</h3>
           <button type="button" className="icon-btn" aria-label="关闭" onClick={onClose}>✕</button>
@@ -86,7 +87,8 @@ export function VersionDrawer({ noteId, open, onClose }: { noteId: string; open:
           </footer>
         )}
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -106,12 +108,12 @@ export function TrashPanel({ open, onClose, onOpenNote }: { open: boolean; onClo
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
   if (!open) return null;
-  return (
-    <div className="drawer-overlay" onClick={onClose}>
-      <aside className="drawer trash-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="回收站">
+  return createPortal(
+    <div className="drawer-overlay notes-drawer-overlay" onClick={onClose}>
+      <aside className="drawer trash-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="回收站">
         <header className="version-drawer__head">
           <h3>回收站({notes.length})</h3>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <div className="trash-panel__head-actions">
             <button
               type="button"
               className="btn btn-sm"
@@ -128,7 +130,7 @@ export function TrashPanel({ open, onClose, onOpenNote }: { open: boolean; onClo
           </div>
         </header>
         {notes.length === 0 ? (
-          <p className="muted">回收站是空的。</p>
+          <p className="trash-panel__empty">回收站是空的</p>
         ) : (
           <ul className="version-drawer__list">
             {notes.map((n) => (
@@ -168,7 +170,8 @@ export function TrashPanel({ open, onClose, onOpenNote }: { open: boolean; onClo
           </ul>
         )}
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

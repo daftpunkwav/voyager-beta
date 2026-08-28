@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { GlassSelect } from '@/components/common/GlassSelect';
+import { personaDisplayName } from '@/constants/personas';
 import { NOTES_FONT_MAX, NOTES_FONT_MIN, type NotesMode } from './noteUtils';
 
 interface NotesWorkspaceBarProps {
@@ -13,7 +14,6 @@ interface NotesWorkspaceBarProps {
   archived: boolean;
   projectId: string;
   projectOptions: { value: string; label: string }[];
-  scribeStreaming: boolean;
   syncScroll: boolean;
   onBack: () => void;
   onNew: () => void;
@@ -23,7 +23,7 @@ interface NotesWorkspaceBarProps {
   onTogglePin: () => void;
   onToggleArchive: () => void;
   onToggleSync: () => void;
-  onScribe: () => void;
+  onAssist: () => void;
   onVersions: () => void;
   onExport: () => void;
   onDelete: () => void;
@@ -39,7 +39,6 @@ export function NotesWorkspaceBar({
   archived,
   projectId,
   projectOptions,
-  scribeStreaming,
   syncScroll,
   onBack,
   onNew,
@@ -49,7 +48,7 @@ export function NotesWorkspaceBar({
   onTogglePin,
   onToggleArchive,
   onToggleSync,
-  onScribe,
+  onAssist,
   onVersions,
   onExport,
   onDelete,
@@ -83,6 +82,9 @@ export function NotesWorkspaceBar({
       </button>
       <button type="button" className="btn btn-primary btn-sm" onClick={onNew}>
         新建
+      </button>
+      <button type="button" className="btn btn-sm notes-assist-btn" onClick={onAssist}>
+        {personaDisplayName('organizer')}
       </button>
       <div className="view-toggle" role="group" aria-label="展现形式">
         {(['edit', 'preview', 'split'] as const).map((m) => (
@@ -175,13 +177,12 @@ export function NotesWorkspaceBar({
             <button
               type="button"
               role="menuitem"
-              disabled={scribeStreaming}
               onClick={() => {
                 setMoreOpen(false);
-                onScribe();
+                onAssist();
               }}
             >
-              {scribeStreaming ? 'Miyai 生成中…' : 'Miyai 辅助'}
+              {personaDisplayName('organizer')}
             </button>
             {persisted && (
               <>

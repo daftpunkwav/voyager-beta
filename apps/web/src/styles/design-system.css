@@ -682,7 +682,12 @@ img, svg { display: block; max-width: 100%; }
 }
 [data-theme="dark"] .topbar-search { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.1); }
 [data-theme="dark"] .topbar-search:focus-within { background: rgba(255, 255, 255, 0.12); }
-.topbar-search input { flex: 1; border: 0; background: transparent; outline: 0; font: inherit; color: var(--text-800); appearance: none; -webkit-appearance: none; }
+.topbar-search input { flex: 1; border: 0; background: transparent; outline: 0; box-shadow: none; font: inherit; color: var(--text-800); appearance: none; -webkit-appearance: none; }
+.topbar-search input:focus,
+.topbar-search input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
 .topbar-search input[type="search"]::-webkit-search-decoration,
 .topbar-search input[type="search"]::-webkit-search-cancel-button,
 .topbar-search input[type="search"]::-webkit-search-results-button,

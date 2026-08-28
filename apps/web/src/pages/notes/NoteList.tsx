@@ -1,6 +1,6 @@
 import type { KeyboardEvent } from 'react';
 import type { Note } from '@/api/types';
-import { noteSnippet, noteSourceId, noteUpdatedLabel } from './noteUtils';
+import { noteSnippet, noteSourceId, noteUpdatedLabel, type NotesDensity } from './noteUtils';
 
 interface NoteListProps {
   notes: Note[];
@@ -10,6 +10,7 @@ interface NoteListProps {
   onPin?: (note: Note, pinned: boolean) => void;
   emptyLabel?: string;
   variant?: 'list' | 'card';
+  density?: NotesDensity;
 }
 
 function PinButton({
@@ -45,7 +46,9 @@ export function NoteList({
   onPin,
   emptyLabel = '暂无笔记',
   variant = 'list',
+  density = 'comfortable',
 }: NoteListProps) {
+  const snip = density === 'compact' ? 72 : variant === 'card' ? 160 : 120;
   if (notes.length === 0) {
     return <p className="muted notes-list-empty">{emptyLabel}</p>;
   }
@@ -79,7 +82,7 @@ export function NoteList({
               {onPin ? <PinButton pinned={pinned} onClick={() => onPin(n, !pinned)} /> : null}
               {projectLabel ? <span className="project-tag">{projectLabel}</span> : null}
               <h4>{n.title || '无标题'}</h4>
-              {snippet ? <p className="snippet">{snippet.slice(0, 160)}</p> : <p className="snippet muted">无摘要</p>}
+              {snippet ? <p className="snippet">{snippet.slice(0, snip)}</p> : <p className="snippet muted">无摘要</p>}
               <div className="meta">
                 <span>{time || '刚刚'}</span>
               </div>
@@ -98,7 +101,7 @@ export function NoteList({
           >
             {onPin ? <PinButton pinned={pinned} onClick={() => onPin(n, !pinned)} /> : <span className="note-pin-slot" />}
             <div className="note-row-title">{n.title || '无标题'}</div>
-            <div className="note-row-snippet">{snippet ? snippet.slice(0, 120) : '无摘要'}</div>
+            <div className="note-row-snippet">{snippet ? snippet.slice(0, snip) : '无摘要'}</div>
             <div className="note-row-project">{projectLabel || '—'}</div>
             <div className="note-row-time">{time || '—'}</div>
           </div>

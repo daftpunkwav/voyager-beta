@@ -5,9 +5,9 @@
  * (highlight className、attachment: 与 /api/ 相对图源、a 的 target/rel)。
  */
 
-import { Children, isValidElement, useState, type ReactNode } from 'react';
+import { Children, isValidElement, memo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { type Options as MarkdownOptions } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
@@ -27,6 +27,8 @@ interface MarkdownRendererProps {
   disableTableRescue?: boolean;
   /** 内链 [[目标]] 点击回调;缺省按标题导航 /notes?note=<id> 语义交由上层(灰显) */
   onWikiLink?: (target: string) => void;
+  /** 页面私有语法(如笔记底纹)经此注入;聊天等默认渲染不带 */
+  remarkPlugins?: MarkdownOptions['remarkPlugins'];
 }
 
 /** 允许 highlight.js 注入的 class,避免 sanitize 洗掉着色;
@@ -34,6 +36,7 @@ interface MarkdownRendererProps {
  *  a 放行 target/rel(外链新标签)。 */
 const sanitizeSchema: SanitizeOptions = {
   ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames ?? []), 'mark'],
   protocols: {
     ...defaultSchema.protocols,
     src: [...(defaultSchema.protocols?.src ?? []), 'attachment'],
@@ -43,6 +46,7 @@ const sanitizeSchema: SanitizeOptions = {
     code: [...(defaultSchema.attributes?.code ?? []), ['className']],
     span: [...(defaultSchema.attributes?.span ?? []), ['className']],
     pre: [...(defaultSchema.attributes?.pre ?? []), ['className']],
+    mark: [...(defaultSchema.attributes?.mark ?? []), ['className']],
     a: [...(defaultSchema.attributes?.a ?? []), 'target', 'rel'],
     h1: [...(defaultSchema.attributes?.h1 ?? []), 'id'],
     h2: [...(defaultSchema.attributes?.h2 ?? []), 'id'],
@@ -53,6 +57,12 @@ const sanitizeSchema: SanitizeOptions = {
     img: [...(defaultSchema.attributes?.img ?? []), ['className', 'loading']],
   },
 };
+
+function markClassName(raw: unknown): string {
+  const text = Array.isArray(raw) ? raw.join(' ') : String(raw ?? '');
+  const m = /\bnotes-hl-(warm|cool|rose|lime)\b/.exec(text);
+  return `notes-hl-${m?.[1] ?? 'warm'}`;
+}
 
 function nodeText(node: ReactNode): string {
   if (node == null || typeof node === 'boolean') return '';
@@ -141,11 +151,12 @@ function ArchStack({
   );
 }
 
-export function MarkdownRenderer({
+function MarkdownRendererInner({
   content,
   className,
   disableTableRescue = false,
   onWikiLink,
+  remarkPlugins,
 }: MarkdownRendererProps) {
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
   const navigate = useNavigate();
@@ -155,12 +166,15 @@ export function MarkdownRenderer({
   return (
     <div className={cn('markdown markdown-body', className)}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, ...(Array.isArray(remarkPlugins) ? remarkPlugins : [])]}
         rehypePlugins={[
           [rehypeHighlight, { detect: true, ignoreMissing: true }],
           [rehypeSanitize, sanitizeSchema],
         ]}
         components={{
+          mark: ({ className: markCls, children, ...props }) => (
+            <mark {...props} className={markClassName(markCls)}>{children}</mark>
+          ),
           h1: ({ children, ...props }) => {
             const id = slugs.slug(nodeText(children));
             return <h1 {...props} id={id}>{children}</h1>;
@@ -294,3 +308,5 @@ export function MarkdownRenderer({
     </div>
   );
 }
+
+export const MarkdownRenderer = memo(MarkdownRendererInner);

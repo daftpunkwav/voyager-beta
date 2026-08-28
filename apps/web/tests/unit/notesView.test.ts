@@ -8,6 +8,12 @@ afterEach(() => {
     mode: 'edit',
     layout: 'list',
     listState: 'active',
+    sort: 'updated',
+    filter: 'all',
+    query: '',
+    sourceId: '',
+    panel: 'none',
+    density: 'comfortable',
     syncScroll: true,
   });
 });
@@ -27,6 +33,22 @@ describe('applyNotesViewSnapshot', () => {
     expect(s.layout).toBe('card');
     expect(s.syncScroll).toBe(false);
     expect(s.listState).toBe('archived');
+  });
+
+  it('写入筛选与排序', () => {
+    applyNotesViewSnapshot({
+      sort: 'created',
+      filter: 'untitled',
+      query: '架构',
+      panel: 'trash',
+      density: 'compact',
+    });
+    const s = useNotesUiStore.getState();
+    expect(s.sort).toBe('created');
+    expect(s.filter).toBe('untitled');
+    expect(s.query).toBe('架构');
+    expect(s.panel).toBe('trash');
+    expect(s.density).toBe('compact');
   });
 
   it('settings.changed 单键写入,不碰全站字号键', () => {

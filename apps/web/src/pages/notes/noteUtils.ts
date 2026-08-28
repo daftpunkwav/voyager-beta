@@ -8,14 +8,43 @@ export const NOTES_SPLIT_KEY = 'notes-split';
 export const NOTES_FONT_KEY = 'notes-font';
 export const NOTES_SYNC_KEY = 'notes-sync-scroll';
 export const NOTES_LIST_KEY = 'notes-list-state';
+export const NOTES_SORT_KEY = 'notes-sort';
+export const NOTES_FILTER_KEY = 'notes-filter';
+export const NOTES_QUERY_KEY = 'notes-query';
+export const NOTES_SOURCE_KEY = 'notes-source';
+export const NOTES_PANEL_KEY = 'notes-panel';
+export const NOTES_DENSITY_KEY = 'notes-density';
 
-export const NOTES_FONT_MIN = 13;
-export const NOTES_FONT_MAX = 20;
+export const NOTES_FONT_MIN = 12;
+export const NOTES_FONT_MAX = 24;
 export const NOTES_FONT_DEFAULT = 15;
 
 export type NotesMode = 'edit' | 'preview' | 'split';
 export type NotesLayout = 'list' | 'card';
 export type NotesListState = 'active' | 'archived';
+export type NotesSort = 'updated' | 'created' | 'title';
+export type NotesFilter = 'all' | 'pinned' | 'untitled' | 'unlinked' | 'today';
+export type NotesPanel = 'none' | 'trash';
+export type NotesDensity = 'comfortable' | 'compact';
+
+export const NOTES_SORT_OPTIONS: { value: NotesSort; label: string }[] = [
+  { value: 'updated', label: '最近改' },
+  { value: 'created', label: '最近建' },
+  { value: 'title', label: '标题' },
+];
+
+export const NOTES_FILTER_OPTIONS: { value: NotesFilter; label: string }[] = [
+  { value: 'all', label: '全部' },
+  { value: 'pinned', label: '置顶' },
+  { value: 'untitled', label: '草稿标题' },
+  { value: 'unlinked', label: '未关联' },
+  { value: 'today', label: '今日' },
+];
+
+const PLACEHOLDER_TITLE = /^(新笔记|无标题|untitled|草稿)(\s|$)/i;
+const QUERY_MAX = 80;
+const SOURCE_MAX = 80;
+export const NOTES_QUOTE_MAX = 500;
 
 /** 新建草稿 id 为 'new';其余(UUID / mock n_*)均视为已有笔记 */
 export function isPersistedNoteId(id: string | null | undefined): id is string {
@@ -53,6 +82,82 @@ export function parseSyncScroll(raw: string | null | undefined): boolean {
   return true;
 }
 
+export function parseNotesSort(raw: string | null | undefined): NotesSort {
+  if (raw === 'created' || raw === 'title' || raw === 'updated') return raw;
+  return 'updated';
+}
+
+export function parseNotesFilter(raw: string | null | undefined): NotesFilter {
+  if (raw === 'pinned' || raw === 'untitled' || raw === 'unlinked' || raw === 'today') return raw;
+  return 'all';
+}
+
+export function parseNotesPanel(raw: string | null | undefined): NotesPanel {
+  return raw === 'trash' ? 'trash' : 'none';
+}
+
+export function parseNotesDensity(raw: string | null | undefined): NotesDensity {
+  return raw === 'compact' ? 'compact' : 'comfortable';
+}
+
+export function parseNotesQuery(raw: string | null | undefined): string {
+  return String(raw ?? '').slice(0, QUERY_MAX);
+}
+
+export function parseNotesSourceId(raw: string | null | undefined): string {
+  const id = String(raw ?? '').trim();
+  if (!id || id.includes('/') || id.includes('\\') || id.includes('..')) return '';
+  return id.slice(0, SOURCE_MAX);
+}
+
+/** 预览里拖选的词/句:压空白、截断。空串表示没有有效选区。 */
+export function parseNotesQuote(raw: string | null | undefined): string {
+  return String(raw ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, NOTES_QUOTE_MAX);
+}
+
+let lastExplainQuote = '';
+
+export function rememberNotesQuote(quote: string): void {
+  lastExplainQuote = parseNotesQuote(quote);
+}
+
+export function lastNotesExplainQuote(): string {
+  return lastExplainQuote;
+}
+
+/** 讲解请求的用户可见正文。agentName 由调用方传入显示名,本文件不绑具体人格。 */
+export function buildNoteExplainMessage(opts: {
+  quote: string;
+  agentName: string;
+  title?: string;
+}): string {
+  const quote = parseNotesQuote(opts.quote);
+  const who = (opts.agentName || '').trim() || '助手';
+  const title = (opts.title || '').trim().slice(0, 80);
+  const where = title ? `《${title}》` : '这篇笔记';
+  return (
+    `${who}，请结合当前笔记${where}讲解我标出的内容：\n\n` +
+    `「${quote}」\n\n` +
+    `说明它在这篇里是什么意思、为什么出现、和前后文的关系。不要重写整篇。`
+  );
+}
+
+/** 缺省标题,agent 连发新建时用来筛出未起名的篇。 */
+export function isPlaceholderTitle(title: string | undefined): boolean {
+  const t = (title || '').trim();
+  if (!t) return true;
+  return PLACEHOLDER_TITLE.test(t);
+}
+
+export function startOfLocalDayMs(now = Date.now()): number {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
 /** 按滚动比例把 from 同步到 to;可滚动距离为 0 时跳过。 */
 export function syncScrollRatio(from: HTMLElement, to: HTMLElement): void {
   const fromMax = from.scrollHeight - from.clientHeight;
@@ -71,15 +176,37 @@ export function noteSnippet(n: { excerpt?: string; content?: string }): string {
   return (n.excerpt || n.content || '').replace(/[#*`]/g, '').replace(/\s+/g, ' ').trim();
 }
 
-/** 统一成毫秒。后端 updated_ts 多为秒;updated_at 为 ISO。 */
-export function noteUpdatedMs(n: { updated_at?: string; updated_ts?: number }): number {
-  if (typeof n.updated_ts === 'number' && n.updated_ts > 0) {
-    return n.updated_ts < 1e12 ? n.updated_ts * 1000 : n.updated_ts;
+function epochToMs(ts?: number, fallback?: string | number): number {
+  if (typeof ts === 'number' && ts > 0) {
+    return ts < 1e12 ? ts * 1000 : ts;
   }
-  return Date.parse(String(n.updated_at ?? '')) || 0;
+  if (typeof fallback === 'number' && fallback > 0) {
+    return fallback < 1e12 ? fallback * 1000 : fallback;
+  }
+  if (typeof fallback === 'string' && fallback) {
+    return Date.parse(fallback) || 0;
+  }
+  return 0;
 }
 
-export function noteUpdatedLabel(n: { updated_at?: string; updated_ts?: number }): string {
+type NoteTimestamps = {
+  updated_at?: string;
+  updated_ts?: number;
+  created_at?: string | number;
+  created_ts?: number;
+};
+
+/** 统一成毫秒。后端 updated_ts 多为秒;updated_at 为 ISO。 */
+export function noteUpdatedMs(n: NoteTimestamps): number {
+  return epochToMs(n.updated_ts, n.updated_at);
+}
+
+export function noteCreatedMs(n: NoteTimestamps): number {
+  const ms = epochToMs(n.created_ts, n.created_at);
+  return ms > 0 ? ms : noteUpdatedMs(n);
+}
+
+export function noteUpdatedLabel(n: NoteTimestamps): string {
   if (n.updated_at) return formatRelativeTime(n.updated_at);
   const ms = noteUpdatedMs(n);
   if (ms > 0) return formatRelativeTime(new Date(ms).toISOString());
@@ -99,21 +226,104 @@ export function applyLinePrefix(text: string, prefix: string): string {
   return prefix + stripped;
 }
 
-export type NotesSort = 'updated' | 'title';
+export interface NotesListingOpts<T = NoteListItem> {
+  query?: string;
+  filter?: NotesFilter;
+  sort?: NotesSort;
+  sourceId?: string;
+  extraText?: (n: T) => string;
+}
 
-/** 置顶始终在前;其余按最近更新或标题。 */
-export function sortNotes<T extends {
+type NoteListItem = {
   title?: string;
   pinned?: boolean;
   updated_ts?: number;
   updated_at?: string;
-}>(notes: T[], sort: NotesSort): T[] {
+  created_ts?: number;
+  created_at?: string | number;
+  project_id?: string;
+  source_id?: string;
+  excerpt?: string;
+  content?: string;
+};
+
+/** 置顶始终在前;其余按最近改 / 最近建 / 标题。 */
+export function sortNotes<T extends NoteListItem>(notes: T[], sort: NotesSort): T[] {
   return [...notes].sort((a, b) => {
     const pin = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned));
     if (pin !== 0) return pin;
     if (sort === 'title') {
       return (a.title || '').localeCompare(b.title || '', 'zh');
     }
+    if (sort === 'created') {
+      return noteCreatedMs(b) - noteCreatedMs(a);
+    }
     return noteUpdatedMs(b) - noteUpdatedMs(a);
   });
+}
+
+export function filterNotes<T extends NoteListItem>(notes: T[], filter: NotesFilter, now = Date.now()): T[] {
+  if (filter === 'all') return notes;
+  if (filter === 'pinned') return notes.filter((n) => Boolean(n.pinned));
+  if (filter === 'untitled') return notes.filter((n) => isPlaceholderTitle(n.title));
+  if (filter === 'unlinked') return notes.filter((n) => !noteSourceId(n));
+  const start = startOfLocalDayMs(now);
+  return notes.filter((n) => noteCreatedMs(n) >= start);
+}
+
+/** 首页清单:关联 → 关键词 → 筛选 → 排序。纯函数,页面与 agent 快照共用。 */
+export function applyNotesListing<T extends NoteListItem>(notes: T[], opts: NotesListingOpts<T>, now = Date.now()): T[] {
+  const sourceId = opts.sourceId || '';
+  const q = (opts.query || '').trim().toLowerCase();
+  let out = notes;
+  if (sourceId) out = out.filter((n) => noteSourceId(n) === sourceId);
+  if (q) {
+    out = out.filter((n) => {
+      const title = (n.title || '').toLowerCase();
+      const snippet = noteSnippet(n).toLowerCase();
+      const extra = (opts.extraText?.(n) ?? '').toLowerCase();
+      return title.includes(q) || snippet.includes(q) || extra.includes(q);
+    });
+  }
+  out = filterNotes(out, opts.filter ?? 'all', now);
+  return sortNotes(out, opts.sort ?? 'updated');
+}
+
+export interface NotesBucket<T> {
+  id: string;
+  label: string;
+  items: T[];
+}
+
+/** 列表按日分段,agent 短时间连建时便于扫。标题排序不分段。 */
+export function groupNotesByRecency<T extends NoteListItem>(
+  notes: T[],
+  by: 'updated' | 'created',
+  now = Date.now(),
+): NotesBucket<T>[] {
+  const start = startOfLocalDayMs(now);
+  const yesterday = start - 86_400_000;
+  const week = start - 6 * 86_400_000;
+  const buckets: Record<string, T[]> = {
+    today: [],
+    yesterday: [],
+    week: [],
+    older: [],
+  };
+  for (const n of notes) {
+    const ms = by === 'created' ? noteCreatedMs(n) : noteUpdatedMs(n);
+    if (ms >= start) buckets.today.push(n);
+    else if (ms >= yesterday) buckets.yesterday.push(n);
+    else if (ms >= week) buckets.week.push(n);
+    else buckets.older.push(n);
+  }
+  const labels: Record<string, string> = {
+    today: '今日',
+    yesterday: '昨日',
+    week: '近 7 天',
+    older: '更早',
+  };
+  return (['today', 'yesterday', 'week', 'older'] as const)
+    .filter((id) => buckets[id].length > 0)
+    .map((id) => ({ id, label: labels[id], items: buckets[id] }));
 }

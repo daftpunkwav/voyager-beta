@@ -14,9 +14,10 @@ import { useNoteStore } from '@/stores/noteStore';
 import { useNotesUiStore } from '@/stores/notesUiStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getApi } from '@/api/client';
-import { consumeAgentSSEStream } from '@/utils/agentSSEStream';
 import { routes } from '@/utils/routes';
+import { useFloatingStore } from '@/widgets/FloatingChat';
 import type { Note } from '@/api/types';
+import { subscribe } from '@/bridge/stream';
 import { NoteEditor, type NoteEditorHandle } from './NoteEditor';
 import { NoteIndex } from './NoteIndex';
 import { NotePreview } from './NotePreview';
@@ -26,14 +27,20 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { TrashPanel, VersionDrawer } from './NoteFeatures';
 import {
   bumpNotesFont,
+  commitNotesDensity,
+  commitNotesFilter,
   commitNotesLayout,
   commitNotesListState,
   commitNotesMode,
+  commitNotesPanel,
+  commitNotesQuery,
+  commitNotesSort,
+  commitNotesSourceId,
   commitNotesSyncScroll,
+  openNotesAssist,
 } from './notesView';
 import {
   isPersistedNoteId,
-  noteSnippet,
   noteSourceId,
   parseSplitRatio,
   syncScrollRatio,
@@ -55,15 +62,17 @@ export function NotesPage() {
   const syncScroll = useNotesUiStore((s) => s.syncScroll);
   const splitRatio = useNotesUiStore((s) => s.splitRatio);
   const setSplitRatio = useNotesUiStore((s) => s.setSplitRatio);
+  const query = useNotesUiStore((s) => s.query);
+  const sort = useNotesUiStore((s) => s.sort);
+  const filter = useNotesUiStore((s) => s.filter);
+  const sourceId = useNotesUiStore((s) => s.sourceId);
+  const panel = useNotesUiStore((s) => s.panel);
+  const density = useNotesUiStore((s) => s.density);
   const { data: notes = [], isLoading } = useAllNotes(listState);
   const { data: projectsData } = useProjects();
-  const searchQuery = useNoteStore((s) => s.searchQuery);
-  const setSearchQuery = useNoteStore((s) => s.setSearchQuery);
   const editorContent = useNoteStore((s) => s.editorContent);
   const editorTitle = useNoteStore((s) => s.editorTitle);
   const startEditing = useNoteStore((s) => s.startEditing);
-  const setEditorContent = useNoteStore((s) => s.setEditorContent);
-  const setEditorTitle = useNoteStore((s) => s.setEditorTitle);
   const editingNoteId = useNoteStore((s) => s.editingNoteId);
   const createNote = useCreateNote();
   const updateNote = useUpdateNote();
@@ -73,8 +82,6 @@ export function NotesPage() {
   const addToast = useUIStore((s) => s.addToast);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [newProjectId, setNewProjectId] = useState(() => searchParams.get('project') ?? '');
-  const [projectFilter, setProjectFilter] = useState(() => searchParams.get('project') ?? '');
-  const [trashOpen, setTrashOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [saveState, setSaveState] = useState<'saved' | 'unsaved' | 'saving'>('saved');
   const dirtyRef = useRef(false);
@@ -82,12 +89,22 @@ export function NotesPage() {
   const lastPersistedRef = useRef<{ id: string; title: string; content: string } | null>(null);
   const [editorApi, setEditorApi] = useState<NoteEditorHandle | null>(null);
   const [previewEl, setPreviewEl] = useState<HTMLDivElement | null>(null);
-  const [scribeStreaming, setScribeStreaming] = useState(false);
   const [opening, setOpening] = useState(false);
   const [meta, setMeta] = useState<{ pinned: boolean; archived: boolean }>({ pinned: false, archived: false });
   const [formatBarHost, setFormatBarHost] = useState<HTMLDivElement | null>(null);
+  const [editMounted, setEditMounted] = useState(false);
+  const [previewMounted, setPreviewMounted] = useState(false);
+  const [previewBody, setPreviewBody] = useState('');
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const noteSeqRef = useRef(0);
+
+  useEffect(() => {
+    if (noteQueryId(searchParams)) return;
+    const fromUrl = searchParams.get('project');
+    if (fromUrl) commitNotesSourceId(fromUrl);
+    // 仅落地时吃 URL,之后以 notes.ui.source_id 为准
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const flush = useCallback(async () => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -253,6 +270,25 @@ export function NotesPage() {
     };
   }, [searchParams, startEditing, addToast, navigate]);
 
+  useEffect(() => {
+    return subscribe(['note.edited'], (event) => {
+      const nid = event.payload.note_id;
+      if (typeof nid !== 'string' || nid !== useNoteStore.getState().editingNoteId) return;
+      if (dirtyRef.current) return;
+      void fetchNoteFull(nid).then((full) => {
+        const s = useNoteStore.getState();
+        if (dirtyRef.current || s.editingNoteId !== nid) return;
+        if (s.editorTitle === full.title && s.editorContent === full.content) return;
+        startEditing(full.id, full.title, full.content);
+        lastPersistedRef.current = { id: full.id, title: full.title, content: full.content };
+        setNewProjectId(noteSourceId(full));
+        setMeta({ pinned: Boolean(full.pinned), archived: Boolean(full.archived) });
+      }).catch(() => {
+        /* 远端已改但本机拉取失败:列表失效后下次打开仍能对齐 */
+      });
+    });
+  }, [startEditing]);
+
   const projectNames = useMemo(() => {
     const m = new Map<string, string>();
     for (const p of projectsData?.items ?? []) {
@@ -265,20 +301,6 @@ export function NotesPage() {
     () => (projectsData?.items ?? []).map((p) => ({ value: p.id, label: p.name })),
     [projectsData],
   );
-
-  const filtered = useMemo(() => {
-    const q = searchQuery.toLowerCase();
-    return notes.filter((n) => {
-      const src = noteSourceId(n);
-      if (projectFilter && src !== projectFilter) return false;
-      if (!q) return true;
-      return (
-        n.title.toLowerCase().includes(q) ||
-        noteSnippet(n).toLowerCase().includes(q) ||
-        (projectNames.get(src) ?? '').toLowerCase().includes(q)
-      );
-    });
-  }, [notes, searchQuery, projectNames, projectFilter]);
 
   const goIndex = useCallback(async () => {
     await flush();
@@ -295,7 +317,7 @@ export function NotesPage() {
 
   const handleNew = async () => {
     await flush();
-    const project = searchParams.get('project') || projectFilter || '';
+    const project = searchParams.get('project') || sourceId || '';
     if (noteQueryId(searchParams) === 'new') {
       startEditing('new', '新笔记', '');
       setNewProjectId(project);
@@ -347,49 +369,9 @@ export function NotesPage() {
     }
   };
 
-  const runScribe = async () => {
-    const projectId =
-      newProjectId ||
-      noteSourceId(notes.find((n) => n.id === editingNoteId) ?? {}) ||
-      searchParams.get('project') ||
-      projectsData?.items[0]?.id;
-    if (!projectId) {
-      addToast({ type: 'warning', message: '请先选择关联项目' });
-      return;
-    }
-    if (!editingNoteId) {
-      startEditing('new', 'Miyai 笔记草稿', '');
-      setNewProjectId(projectId);
-    }
-    setScribeStreaming(true);
-    let buf = '';
-    try {
-      const stream = getApi().generateNote(projectId, {
-        mode: 'project',
-        topic: editorTitle || undefined,
-      });
-      await consumeAgentSSEStream(stream, {
-        onTextDelta: (_piece, fullText) => {
-          buf = fullText;
-          setEditorContent(fullText);
-          if (fullText.startsWith('# ')) {
-            const firstLine = fullText.split('\n')[0]?.replace(/^#\s*/, '').trim();
-            if (firstLine) setEditorTitle(firstLine.slice(0, 80));
-          }
-        },
-        onError: (msg) => {
-          addToast({ type: 'error', message: msg });
-        },
-      });
-      if (buf.trim()) {
-        addToast({ type: 'success', message: 'Miyai 已生成笔记草稿' });
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : '笔记生成失败';
-      addToast({ type: 'error', message });
-    } finally {
-      setScribeStreaming(false);
-    }
+  const openAssist = () => {
+    useFloatingStore.getState().setOpen(true);
+    openNotesAssist();
   };
 
   const handleSave = async () => {
@@ -431,14 +413,14 @@ export function NotesPage() {
         return;
       }
       if (e.key !== 'Escape') return;
-      if (deleteOpen || versionsOpen || trashOpen) return;
+      if (deleteOpen || versionsOpen || panel === 'trash') return;
       if (document.querySelector('.glass-select.is-open')) return;
       e.preventDefault();
       void goIndex();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isWorkspace, deleteOpen, versionsOpen, trashOpen, goIndex]);
+  }, [isWorkspace, deleteOpen, versionsOpen, panel, goIndex]);
 
   useEffect(() => {
     if (mode !== 'split' || !syncScroll) return;
@@ -464,8 +446,29 @@ export function NotesPage() {
     };
   }, [mode, syncScroll, editorApi, previewEl]);
 
+  useEffect(() => {
+    if (!isWorkspace) {
+      setEditMounted(false);
+      setPreviewMounted(false);
+      return;
+    }
+    const ready = noteParam === 'new' || editingNoteId === noteParam;
+    if (opening && !ready) return;
+    if (mode !== 'preview') setEditMounted(true);
+    if (mode !== 'edit') setPreviewMounted(true);
+  }, [isWorkspace, noteParam, editingNoteId, opening, mode]);
+
+  useEffect(() => {
+    if (mode === 'edit') return;
+    if (mode === 'preview') {
+      setPreviewBody(editorContent);
+      return;
+    }
+    const timer = window.setTimeout(() => setPreviewBody(editorContent), 280);
+    return () => window.clearTimeout(timer);
+  }, [editorContent, mode]);
+
   const showEdit = mode === 'edit' || mode === 'split';
-  const showPreview = mode === 'preview' || mode === 'split';
   const persisted = isPersistedNoteId(editingNoteId);
 
   if (!isWorkspace && isLoading && notes.length === 0) return <LoadingSpinner fullScreen />;
@@ -478,10 +481,10 @@ export function NotesPage() {
         onClose={() => setVersionsOpen(false)}
       />
       <TrashPanel
-        open={trashOpen}
-        onClose={() => setTrashOpen(false)}
+        open={panel === 'trash'}
+        onClose={() => commitNotesPanel('none')}
         onOpenNote={async (id) => {
-          setTrashOpen(false);
+          commitNotesPanel('none');
           await flush();
           navigate(routes.note(id));
         }}
@@ -513,21 +516,28 @@ export function NotesPage() {
     return (
       <>
         <NoteIndex
-          notes={filtered}
+          notes={notes}
           empty={notes.length === 0}
           layout={layout}
           listState={listState}
           onLayoutChange={commitNotesLayout}
           onListStateChange={commitNotesListState}
-          searchQuery={searchQuery}
-          onSearch={setSearchQuery}
-          projectFilter={projectFilter}
-          onProjectFilter={setProjectFilter}
+          query={query}
+          onQuery={commitNotesQuery}
+          sort={sort}
+          onSort={commitNotesSort}
+          filter={filter}
+          onFilter={commitNotesFilter}
+          sourceId={sourceId}
+          onSourceId={commitNotesSourceId}
+          density={density}
+          onDensity={commitNotesDensity}
           projectOptions={projectOptions}
           projectNames={projectNames}
           onOpen={(n) => void openNote(n)}
           onNew={() => void handleNew()}
-          onTrash={() => setTrashOpen(true)}
+          onTrash={() => commitNotesPanel('trash')}
+          onAssist={openAssist}
           onPin={(n, pinned) => void handlePin(n, pinned)}
         />
         {drawers}
@@ -551,7 +561,6 @@ export function NotesPage() {
         archived={meta.archived}
         projectId={newProjectId}
         projectOptions={projectOptions}
-        scribeStreaming={scribeStreaming}
         syncScroll={syncScroll}
         onBack={() => void goIndex()}
         onNew={() => void handleNew()}
@@ -561,7 +570,7 @@ export function NotesPage() {
         onTogglePin={togglePinCurrent}
         onToggleArchive={() => void toggleArchiveCurrent()}
         onToggleSync={() => commitNotesSyncScroll(!syncScroll)}
-        onScribe={() => void runScribe()}
+        onAssist={openAssist}
         onVersions={() => setVersionsOpen(true)}
         onExport={() => {
           if (!persisted) return;
@@ -575,7 +584,7 @@ export function NotesPage() {
             });
         }}
         onDelete={() => setDeleteOpen(true)}
-        onTrash={() => setTrashOpen(true)}
+        onTrash={() => commitNotesPanel('trash')}
       />
 
       {showEdit && !(opening && !workspaceReady) ? (
@@ -591,7 +600,7 @@ export function NotesPage() {
           <LoadingSpinner label="打开笔记…" />
         ) : (
           <>
-            {showEdit && (
+            {editMounted && (
               <section className="edit-pane">
                 <div className="note-editor-wrap">
                   <NoteEditor
@@ -599,6 +608,7 @@ export function NotesPage() {
                     saving={updateNote.isPending || createNote.isPending}
                     onReady={setEditorApi}
                     formatBarHost={formatBarHost}
+                    visible={showEdit}
                   />
                 </div>
               </section>
@@ -611,15 +621,14 @@ export function NotesPage() {
                 onPointerDown={onSplitPointerDown}
               />
             )}
-            {showPreview && (
+            {previewMounted && (
               <section className="preview-pane">
                 <NotePreview
                   title={editorTitle}
-                  content={editorContent}
+                  content={previewBody}
                   noteId={persisted ? editingNoteId : null}
                   inspectable={mode === 'preview'}
                   onScrollEl={setPreviewEl}
-                  onJumpToLine={mode === 'split' ? (line) => editorApi?.goToLine(line) : undefined}
                 />
               </section>
             )}

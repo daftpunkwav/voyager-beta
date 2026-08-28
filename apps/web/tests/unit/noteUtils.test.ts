@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyLinePrefix,
+  applyNotesListing,
+  buildNoteExplainMessage,
+  groupNotesByRecency,
   isPersistedNoteId,
   noteSnippet,
   noteSourceId,
@@ -8,9 +11,11 @@ import {
   parseNotesLayout,
   parseNotesListState,
   parseNotesMode,
+  parseNotesQuote,
   parseSplitRatio,
   parseSyncScroll,
   sortNotes,
+  startOfLocalDayMs,
   syncScrollRatio,
 } from '@/pages/notes/noteUtils';
 
@@ -44,12 +49,12 @@ describe('parseNotesLayout / parseSplitRatio / parseNotesListState', () => {
     expect(parseSplitRatio('nope')).toBe(0.55);
   });
 
-  it('字号夹在 13–20,缺省 15', () => {
+  it('字号夹在 12–24,缺省 15', () => {
     expect(parseNotesFontSize(null)).toBe(15);
     expect(parseNotesFontSize('')).toBe(15);
     expect(parseNotesFontSize('18')).toBe(18);
-    expect(parseNotesFontSize('8')).toBe(13);
-    expect(parseNotesFontSize('40')).toBe(20);
+    expect(parseNotesFontSize('8')).toBe(12);
+    expect(parseNotesFontSize('40')).toBe(24);
   });
 
   it('同步滚动缺省开启,仅 0 关闭', () => {
@@ -130,5 +135,57 @@ describe('sortNotes', () => {
     const older = { title: 'old', updated_ts: 1_700_000_000 };
     const newer = { title: 'new', updated_at: '2026-08-28T00:00:00.000Z' };
     expect(sortNotes([older, newer], 'updated').map((n) => n.title)).toEqual(['new', 'old']);
+  });
+
+  it('按创建时间排,置顶仍在前', () => {
+    const a = { title: 'a', created_ts: 30, pinned: false };
+    const b = { title: 'b', created_ts: 10, pinned: true };
+    const c = { title: 'c', created_ts: 20, pinned: false };
+    expect(sortNotes([a, c, b], 'created').map((n) => n.title)).toEqual(['b', 'a', 'c']);
+  });
+});
+
+describe('applyNotesListing / filterNotes', () => {
+  const now = Date.parse('2026-08-29T12:00:00+08:00');
+  const todaySec = Math.floor((startOfLocalDayMs(now) + 8 * 3_600_000) / 1000);
+  const notes = [
+    { title: '新笔记', pinned: false, source_id: '', created_ts: todaySec, updated_ts: todaySec, excerpt: 'x' },
+    { title: '架构', pinned: true, source_id: 'p1', created_ts: todaySec - 3_600, updated_ts: todaySec, excerpt: '设计' },
+    { title: '旧文', pinned: false, source_id: 'p1', created_ts: todaySec - 800_000, updated_ts: todaySec - 800_000, excerpt: '历史' },
+  ];
+
+  it('草稿标题筛出占位名', () => {
+    expect(applyNotesListing(notes, { filter: 'untitled' }).map((n) => n.title)).toEqual(['新笔记']);
+  });
+
+  it('未关联 / 置顶 / 今日', () => {
+    expect(applyNotesListing(notes, { filter: 'unlinked' }).map((n) => n.title)).toEqual(['新笔记']);
+    expect(applyNotesListing(notes, { filter: 'pinned' }).map((n) => n.title)).toEqual(['架构']);
+    expect(applyNotesListing(notes, { filter: 'today' }, now).map((n) => n.title)).toEqual(['架构', '新笔记']);
+  });
+
+  it('关键词命中标题或摘要', () => {
+    expect(applyNotesListing(notes, { query: '设计' }).map((n) => n.title)).toEqual(['架构']);
+  });
+
+  it('列表按日分段,空桶不出现', () => {
+    const buckets = groupNotesByRecency(notes, 'created', now);
+    expect(buckets.map((b) => b.id)).toEqual(['today', 'older']);
+    expect(buckets[0].items.map((n) => n.title)).toEqual(['新笔记', '架构']);
+  });
+});
+
+describe('parseNotesQuote / buildNoteExplainMessage', () => {
+  it('压空白并截断', () => {
+    expect(parseNotesQuote('  a \n b  ')).toBe('a b');
+    expect(parseNotesQuote('x'.repeat(600)).length).toBe(500);
+    expect(parseNotesQuote('   ')).toBe('');
+  });
+
+  it('讲解正文带标题与人名', () => {
+    const msg = buildNoteExplainMessage({ quote: 'ReAct', agentName: 'Elio', title: '架构' });
+    expect(msg).toContain('Elio');
+    expect(msg).toContain('《架构》');
+    expect(msg).toContain('ReAct');
   });
 });

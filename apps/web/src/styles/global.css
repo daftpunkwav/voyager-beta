@@ -249,6 +249,13 @@ a {
   border-radius: var(--radius-sm, 8px);
 }
 
+/* 嵌在已有容器里的搜索框:焦点环画在外壳上,不要再套一层 */
+:where(.topbar-search, .notes-rail-search, .notes-search) input:focus-visible {
+  box-shadow: none;
+  outline: none;
+  border-radius: 0;
+}
+
 /* 全局精致滚动条 · 亮色 */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }

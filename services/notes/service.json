@@ -27,7 +27,8 @@
     "export_note",
     "add_asset",
     "get_notes_view",
-    "set_notes_view"
+    "set_notes_view",
+    "mark_note_span"
   ],
   "subscribes": [],
   "publishes": [

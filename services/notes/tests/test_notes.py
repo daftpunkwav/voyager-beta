@@ -245,6 +245,12 @@ class TestNotesView:
         assert view["layout"] == "list"
         assert view["sync_scroll"] is True
         assert view["list_state"] == "active"
+        assert view["sort"] == "updated"
+        assert view["filter"] == "all"
+        assert view["query"] == ""
+        assert view["source_id"] == ""
+        assert view["panel"] == "none"
+        assert view["density"] == "comfortable"
         assert view["persisted"] is True
 
     async def test_user_and_agent_same_write(self, deps) -> None:
@@ -284,10 +290,48 @@ class TestNotesView:
         assert exc.value.body.code == "NOTES.INVALID_INPUT"
 
     async def test_font_delta_clamps(self, deps) -> None:
-        await execute(registry, "set_notes_view", USER_CTX, {"font_size": 20})
+        await execute(registry, "set_notes_view", USER_CTX, {"font_size": 24})
         out = await execute(registry, "set_notes_view", AGENT_CTX,
                             {"font_delta": 5})
-        assert out["font_size"] == 20
+        assert out["font_size"] == 24
+
+    async def test_sort_filter_panel_same_write(self, deps) -> None:
+        user = await execute(registry, "set_notes_view", USER_CTX,
+                             {"sort": "created", "filter": "untitled",
+                              "density": "compact", "panel": "trash"})
+        assert user["sort"] == "created"
+        assert user["filter"] == "untitled"
+        assert user["density"] == "compact"
+        assert user["panel"] == "trash"
+        agent = await execute(registry, "set_notes_view", AGENT_CTX,
+                              {"filter": "today", "query": "架构", "panel": "none"})
+        assert agent["filter"] == "today" and agent["query"] == "架构"
+        assert agent["panel"] == "none"
+        stored = await execute(registry, "get_notes_view", USER_CTX, {})
+        assert stored["sort"] == "created" and stored["filter"] == "today"
+        assert stored["query"] == "架构" and stored["density"] == "compact"
+
+    async def test_assist_not_persisted(self, deps) -> None:
+        _, log = deps
+        out = await execute(registry, "set_notes_view", AGENT_CTX, {"assist": True})
+        assert out["assist"] is True
+        events = [e for _, e in log.read_after() if e.type == "notes.ui.changed"]
+        assert events[-1].payload.get("assist") is True
+        stored = await execute(registry, "get_notes_view", USER_CTX, {})
+        assert "assist" not in stored or stored.get("assist") is not True
+
+    async def test_quote_not_persisted(self, deps) -> None:
+        _, log = deps
+        out = await execute(registry, "set_notes_view", AGENT_CTX,
+                            {"quote": "  中间件\n层  "})
+        assert out["quote"] == "中间件 层" and out["assist"] is True
+        events = [e for _, e in log.read_after() if e.type == "notes.ui.changed"]
+        assert events[-1].payload.get("quote") == "中间件 层"
+        stored = await execute(registry, "get_notes_view", USER_CTX, {})
+        assert "quote" not in stored
+        desc = registry.get("set_notes_view").description
+        assert "Miyai" not in desc
+        assert "讲解人格" in desc
 
 
 class TestMigration:
@@ -385,6 +429,38 @@ class TestRenderAndEditSupport:
             await execute(registry, "edit_note_range", USER_CTX,
                           {"note_id": note["id"], "start": 0, "end": 99,
                            "new_text": "x"})
+        assert exc.value.body.code == "NOTES.INVALID_INPUT"
+
+    async def test_mark_note_span_user_and_agent_same_write(self, deps) -> None:
+        note = await execute(registry, "create_note", USER_CTX, {
+            "title": "底纹", "content": "先看中间件再看编排"})
+        user = await execute(registry, "mark_note_span", USER_CTX, {
+            "note_id": note["id"], "quote": "中间件", "tone": "cool"})
+        assert user["content"] == "先看==cool:中间件==再看编排"
+        agent = await execute(registry, "mark_note_span", AGENT_CTX, {
+            "note_id": note["id"], "quote": "中间件", "tone": "rose"})
+        assert agent["content"] == "先看==rose:中间件==再看编排"
+        again = await execute(registry, "mark_note_span", AGENT_CTX, {
+            "note_id": note["id"], "quote": "中间件", "tone": "rose"})
+        assert again["content"] == agent["content"]
+        cleared = await execute(registry, "mark_note_span", USER_CTX, {
+            "note_id": note["id"], "quote": "中间件", "tone": "clear"})
+        assert cleared["content"] == "先看中间件再看编排"
+
+    async def test_mark_note_span_skips_fenced_code(self, deps) -> None:
+        note = await execute(registry, "create_note", USER_CTX, {
+            "title": "围栏", "content": "```\nhello\n```\n\nhello 正文"})
+        out = await execute(registry, "mark_note_span", USER_CTX, {
+            "note_id": note["id"], "quote": "hello", "tone": "warm"})
+        assert out["content"].startswith("```\nhello\n```")
+        assert "==warm:hello== 正文" in out["content"]
+
+    async def test_mark_note_span_missing_quote(self, deps) -> None:
+        note = await execute(registry, "create_note", USER_CTX, {
+            "title": "无", "content": "只有这些字"})
+        with pytest.raises(ServiceError) as exc:
+            await execute(registry, "mark_note_span", USER_CTX, {
+                "note_id": note["id"], "quote": "不存在", "tone": "warm"})
         assert exc.value.body.code == "NOTES.INVALID_INPUT"
 
     async def test_import_note_front_matter(self, deps, tmp_path) -> None:

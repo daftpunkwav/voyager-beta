@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { create } from 'zustand';
+import { postChatMessage } from '@/bridge/chatSend';
 import { subscribe } from '@/bridge/stream';
 import { useChatStore } from '@/stores/chatStore';
 import { MessageList, TaskCards } from '@/widgets/chat/MessageList';
@@ -88,29 +89,14 @@ export function FloatingChat() {
     setSending(true);
     setDraft('');
     try {
-      // §4.2.16 流式通道:chat send 当前走直接 fetch(后端 chat 入队端点),
-      // 原因:callCapability 是 RPC 形态,而 chat 是流式双向协议
-      // (POST 入队 + EventSource 推回)。后续 bridge/stream 抽象支持 streaming
-      // 后,改为 callCapability('chat', 'send_message', { content }) 形式。
-      const resp = await fetch('/api/chat/messages', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
-      });
-      const body = await resp.json().catch(() => null);
-      if (resp.ok && body?.seq) {
-        useChatStore.getState().appendLocal({ seq: body.seq, role: 'user', content });
-      } else {
-        setDraft(content);
-        useChatStore.getState().appendLocal({
-          seq: -Date.now(), role: 'system', content: `发送失败(${resp.status})`,
-        });
-      }
-    } catch {
+      const seq = await postChatMessage(content);
+      useChatStore.getState().appendLocal({ seq, role: 'user', content });
+    } catch (err) {
       setDraft(content);
       useChatStore.getState().appendLocal({
-        seq: -Date.now(), role: 'system', content: '发送失败:后端不可达',
+        seq: -Date.now(),
+        role: 'system',
+        content: err instanceof Error ? err.message : '发送失败:后端不可达',
       });
     } finally {
       setSending(false);
