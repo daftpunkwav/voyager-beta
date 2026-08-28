@@ -60,7 +60,7 @@ function QuestionModalShell({
       data-testid={testId}
     >
       <div
-        className={['question-modal', modalClassName].filter(Boolean).join(' ')}
+        className={['question-modal', 'glass-card', 'glass-card--dialog', modalClassName].filter(Boolean).join(' ')}
         role="dialog"
         aria-modal
         onClick={(e) => e.stopPropagation()}

@@ -40,6 +40,18 @@
   --lg-panel-edge-left-top: rgba(255, 255, 255, 0.8);
   --lg-panel-edge-left-mid: rgba(255, 255, 255, 0.3);
 
+  /* --- 弹层 · 近实色玻璃（不靠整页压暗）--- */
+  --lg-dialog-tint: rgba(252, 252, 253, 0.96);
+  --lg-dialog-blur: 20px;
+  --lg-dialog-border: rgba(255, 255, 255, 0.7);
+  --lg-dialog-shadow-outer: 0 18px 50px rgba(15, 23, 42, 0.14), 0 2px 10px rgba(15, 23, 42, 0.06);
+  --lg-dialog-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  --lg-dialog-inset-bottom: inset 0 -1px 0 rgba(255, 255, 255, 0.22);
+  --lg-dialog-inset-glow: inset 0 0 22px 8px rgba(255, 255, 255, 0.22);
+  --lg-dialog-edge-top: rgba(255, 255, 255, 0.95);
+  --lg-dialog-edge-left-top: rgba(255, 255, 255, 0.82);
+  --lg-dialog-edge-left-mid: rgba(255, 255, 255, 0.2);
+
   /* --- 上层控件（按钮）--- */
   --lg-control-tint: rgba(255, 255, 255, 0.12);
   --lg-control-blur: 15px;
@@ -74,6 +86,17 @@
   --lg-panel-edge-left-mid: rgba(255, 255, 255, 0.14);
   --lg-control-tint: rgba(255, 255, 255, 0.1);
   --lg-control-blur: 15px;
+  --lg-control-inset-glow: inset 0 0 4px 2px rgba(255, 255, 255, 0.08);
+
+  --lg-dialog-tint: rgba(68, 68, 74, 0.94);
+  --lg-dialog-border: rgba(255, 255, 255, 0.24);
+  --lg-dialog-shadow-outer: 0 12px 36px rgba(0, 0, 0, 0.32), 0 1px 0 rgba(255, 255, 255, 0.06);
+  --lg-dialog-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  --lg-dialog-inset-bottom: inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+  --lg-dialog-inset-glow: inset 0 0 32px 12px rgba(255, 255, 255, 0.07);
+  --lg-dialog-edge-top: rgba(255, 255, 255, 0.48);
+  --lg-dialog-edge-left-top: rgba(255, 255, 255, 0.36);
+  --lg-dialog-edge-left-mid: rgba(255, 255, 255, 0.12);
 }
 
 /* --------------------------------------------------------------------------
@@ -81,7 +104,12 @@
    -------------------------------------------------------------------------- */
 .glass-card,
 .liquid-glass,
-.glass {
+.glass,
+.modal,
+.ask-dialog,
+.import-agent-modal,
+.question-modal,
+.graph-index-modal {
   position: relative;
   overflow: hidden;
   background: var(--lg-tint);
@@ -98,7 +126,12 @@
 
 .glass-card::before,
 .liquid-glass::before,
-.glass::before {
+.glass::before,
+.modal::before,
+.ask-dialog::before,
+.import-agent-modal::before,
+.question-modal::before,
+.graph-index-modal::before {
   content: '';
   position: absolute;
   top: 0;
@@ -111,7 +144,12 @@
 
 .glass-card::after,
 .liquid-glass::after,
-.glass::after {
+.glass::after,
+.modal::after,
+.ask-dialog::after,
+.import-agent-modal::after,
+.question-modal::after,
+.graph-index-modal::after {
   content: '';
   position: absolute;
   top: 0;
@@ -216,6 +254,27 @@
 .liquid-glass--panel-clear.liquid-glass--interactive:hover {
   box-shadow: none;
   --lg-shadow-outer: none;
+}
+
+/* 弹层 · 近实色液态玻璃 */
+.glass-card--dialog,
+.liquid-glass--dialog,
+.modal,
+.ask-dialog,
+.import-agent-modal,
+.question-modal,
+.graph-index-modal,
+.notes-drawer-overlay .drawer {
+  --lg-tint: var(--lg-dialog-tint);
+  --lg-blur: var(--lg-dialog-blur);
+  --lg-border: var(--lg-dialog-border);
+  --lg-shadow-outer: var(--lg-dialog-shadow-outer);
+  --lg-shadow-inset-top: var(--lg-dialog-inset-top);
+  --lg-shadow-inset-bottom: var(--lg-dialog-inset-bottom);
+  --lg-shadow-inset-glow: var(--lg-dialog-inset-glow);
+  --lg-edge-top: var(--lg-dialog-edge-top);
+  --lg-edge-left-top: var(--lg-dialog-edge-left-top);
+  --lg-edge-left-mid: var(--lg-dialog-edge-left-mid);
 }
 
 /* 上层 · 控件按钮（更实、强 blur、内发光） */
@@ -490,6 +549,8 @@
 .glass.glass-overflow-visible::after,
 .glass-card.glass-overflow-visible.glass-card--overview-outer::after,
 .glass-card.glass-overflow-visible.glass-card--overview-inner::after,
-.glass-card.glass-overflow-visible.glass-card--panel::after {
+.glass-card.glass-overflow-visible.glass-card--panel::after,
+.glass-card.glass-overflow-visible.glass-card--dialog::after,
+.modal.glass-overflow-visible::after {
   content: none;
 }

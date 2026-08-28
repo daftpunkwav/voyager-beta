@@ -60,7 +60,7 @@ export function CategoryTagManager({
   return (
     <div className="modal-overlay" role="presentation" onClick={onClose}>
       <div
-        className="modal modal--wide edit-project-modal"
+        className="modal modal--wide edit-project-modal glass-card glass-card--dialog glass-overflow-visible"
         role="dialog"
         aria-labelledby="cat-tag-mgr-title"
         onClick={(e) => e.stopPropagation()}

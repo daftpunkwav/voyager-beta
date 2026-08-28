@@ -152,7 +152,7 @@ a {
 .drawer-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: transparent;
   z-index: var(--z-modal);
   display: flex;
   align-items: center;
@@ -166,7 +166,7 @@ a {
   padding: 22px 24px 20px;
   max-width: 440px;
   width: min(440px, 100%);
-  border-radius: var(--radius-lg);
+  border-radius: var(--lg-radius-card, var(--radius-lg));
   box-sizing: border-box;
 }
 .modal--wide {
@@ -193,6 +193,12 @@ a {
   align-items: center;
   gap: 10px;
   margin-top: 4px;
+}
+.modal__title,
+.modal__message,
+.modal__actions {
+  position: relative;
+  z-index: 1;
 }
 .drawer {
   width: 420px;

@@ -35,7 +35,7 @@ export function ConfirmDialog({
   return (
     <div className="modal-overlay" role="presentation" onClick={onCancel}>
       <div
-        className="modal glass"
+        className="modal glass-card glass-card--dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-title"

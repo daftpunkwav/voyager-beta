@@ -26,7 +26,7 @@ export function ImportAgentModal({
   return (
     <div className="modal-overlay import-modal-overlay" role="presentation" onClick={onClose}>
       <div
-        className={`import-agent-modal ${size === 'large' ? 'import-agent-modal--large' : ''}${!agentPanel ? ' import-agent-modal--no-agent' : ''}`}
+        className={`import-agent-modal glass-card glass-card--dialog ${size === 'large' ? 'import-agent-modal--large' : ''}${!agentPanel ? ' import-agent-modal--no-agent' : ''}`}
         role="dialog"
         aria-labelledby="import-modal-title"
         onClick={(e) => e.stopPropagation()}

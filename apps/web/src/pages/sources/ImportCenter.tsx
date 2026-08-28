@@ -33,7 +33,7 @@ export function ImportCenter({ open, initialTab = 'files', onClose }: ImportCent
   return (
     <div className="modal-overlay" onClick={onClose} hidden={!open}>
       {open && (
-        <div className="modal import-center" role="dialog" aria-modal="true" aria-label="导入资料" onClick={(e) => e.stopPropagation()}>
+        <div className="modal import-center glass-card glass-card--dialog" role="dialog" aria-modal="true" aria-label="导入资料" onClick={(e) => e.stopPropagation()}>
           <header className="import-center__head">
             <h2>导入资料</h2>
             <nav className="import-center__tabs" role="tablist">

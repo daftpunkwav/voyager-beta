@@ -9,3 +9,58 @@
 @import './project-detail.css';
 @import './usage.css';
 @import './sources-stream.css';
+
+/* 弹层统一:近实色液态玻璃,遮罩不压暗整页(局部只靠面板阴影) */
+.modal-overlay,
+.drawer-overlay,
+.ask-mask,
+.question-modal-backdrop,
+.graph-index-modal-backdrop,
+.notes-drawer-overlay,
+.chat-drawer-backdrop {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-theme='dark'] .modal-overlay,
+[data-theme='dark'] .drawer-overlay,
+[data-theme='dark'] .ask-mask,
+[data-theme='dark'] .question-modal-backdrop,
+[data-theme='dark'] .graph-index-modal-backdrop,
+[data-theme='dark'] .notes-drawer-overlay,
+[data-theme='dark'] .chat-drawer-backdrop {
+  background: transparent;
+}
+
+.modal,
+.ask-dialog,
+.import-agent-modal,
+.question-modal,
+.graph-index-modal,
+.graph-index-modal.glass-card,
+.edit-project-modal,
+.notes-drawer-overlay .drawer {
+  background: var(--lg-dialog-tint);
+  backdrop-filter: blur(var(--lg-dialog-blur));
+  -webkit-backdrop-filter: blur(var(--lg-dialog-blur));
+  border-color: var(--lg-dialog-border);
+  box-shadow:
+    var(--lg-dialog-shadow-outer),
+    var(--lg-dialog-inset-top),
+    var(--lg-dialog-inset-bottom),
+    var(--lg-dialog-inset-glow);
+}
+[data-theme='dark'] .modal,
+[data-theme='dark'] .ask-dialog,
+[data-theme='dark'] .import-agent-modal,
+[data-theme='dark'] .question-modal,
+[data-theme='dark'] .graph-index-modal,
+[data-theme='dark'] .graph-index-modal.glass-card,
+[data-theme='dark'] .edit-project-modal,
+[data-theme='dark'] .notes-drawer-overlay .drawer,
+[data-theme='dark'] .notes-drawer-overlay .drawer.version-drawer {
+  background: var(--lg-dialog-tint);
+  border-color: var(--lg-dialog-border);
+  --lg-panel-tint: var(--lg-dialog-tint);
+  --lg-tint: var(--lg-dialog-tint);
+}

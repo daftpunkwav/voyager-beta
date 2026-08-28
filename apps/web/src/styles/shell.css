@@ -448,7 +448,7 @@
 .ask-mask {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -456,10 +456,6 @@
 }
 .ask-dialog {
   width: min(480px, 92vw);
-  background: var(--bg-50);
-  border-radius: 14px;
-  border: 1px solid var(--bg-300);
-  box-shadow: var(--shadow-md);
   padding: 20px;
   display: flex;
   flex-direction: column;

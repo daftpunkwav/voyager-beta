@@ -1231,8 +1231,7 @@
   position: fixed;
   inset: 0;
   z-index: 240; /* 高于 Atlas(70) 与工具栏滤镜层，portal 到 body */
-  background: rgba(8, 10, 16, 0.52);
-  backdrop-filter: blur(6px);
+  background: transparent;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -1242,10 +1241,6 @@
   max-height: min(72vh, 640px);
   display: flex;
   flex-direction: column;
-  border-radius: 16px;
-  border: 1px solid var(--bg-300);
-  background: var(--bg-50);
-  box-shadow: var(--shadow-lg, 0 24px 64px rgba(0, 0, 0, 0.28));
   overflow: hidden;
 }
 .graph-index-modal__head {
@@ -1577,10 +1572,6 @@ body:has(.graph-page-shell),
 body:has(.code-graph-page) {
   overflow: hidden;
   height: 100%;
-}
-[data-theme='dark'] .graph-index-modal {
-  background: #1c1c1e;
-  border-color: rgba(255, 255, 255, 0.12);
 }
 [data-theme='dark'] .graph-index-modal__tab {
   background: rgba(255, 255, 255, 0.06);

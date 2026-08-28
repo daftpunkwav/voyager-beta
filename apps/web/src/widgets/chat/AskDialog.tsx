@@ -35,7 +35,7 @@ export function AskDialog() {
 
   return (
     <div className="ask-mask" role="dialog" aria-modal="true" aria-label={question.prompt}>
-      <div className="ask-dialog">
+      <div className="ask-dialog glass-card glass-card--dialog">
         <div className="ask-dialog__prompt">{question.prompt}</div>
 
         {question.kind === 'text' ? (

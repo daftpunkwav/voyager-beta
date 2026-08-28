@@ -243,7 +243,7 @@ export function GraphIndexProgressBar() {
         onClick={() => setOpen(false)}
       >
         <div
-          className="graph-index-modal glass-card glass-card--overview-inner"
+          className="graph-index-modal glass-card glass-card--dialog"
           role="dialog"
           aria-modal="true"
           aria-label="索引详细"

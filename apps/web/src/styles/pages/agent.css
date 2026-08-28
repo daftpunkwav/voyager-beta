@@ -22,7 +22,7 @@
     z-index: 18;
     border: 0;
     padding: 0;
-    background: rgba(15, 23, 42, 0.12);
+    background: transparent;
     animation: chat-backdrop-in 0.2s var(--ease) both;
   }
   @keyframes chat-backdrop-in {
@@ -71,7 +71,7 @@
     }
   }
   [data-theme='dark'] .chat-drawer-backdrop {
-    background: rgba(0, 0, 0, 0.32);
+    background: transparent;
   }
   [data-theme='dark'] .chat-layout .session-list,
   [data-theme='dark'] .chat-layout .context-panel {
@@ -1333,22 +1333,12 @@
     align-items: center;
     justify-content: center;
     padding: 24px;
-    background: rgba(18, 24, 38, 0.42);
-    backdrop-filter: blur(10px) saturate(140%);
-    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    background: transparent;
   }
   .question-modal {
     width: min(560px, 100%);
     max-height: min(78vh, 720px);
     overflow: auto;
-    border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.45);
-    background: rgba(255, 255, 255, 0.78);
-    backdrop-filter: blur(28px) saturate(170%);
-    -webkit-backdrop-filter: blur(28px) saturate(170%);
-    box-shadow:
-      0 24px 64px rgba(20, 30, 60, 0.28),
-      inset 0 1px 0 rgba(255, 255, 255, 0.7);
     padding: 18px 20px 20px;
   }
   .question-modal__head {
@@ -2132,10 +2122,6 @@
 [data-theme='dark'] .exam-option__desc {
   color: #aeaeb2;
 }
-[data-theme='dark'] .question-modal {
-  background: #1c1c1e;
-  border-color: #3a3a3c;
-}
 [data-theme='dark'] .exam-q,
 [data-theme='dark'] .qa-detail-item {
   background: #2c2c2e;
@@ -2383,14 +2369,6 @@
   width: min(560px, 100%);
   max-height: min(78vh, 720px);
   overflow: auto;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(28px) saturate(170%);
-  -webkit-backdrop-filter: blur(28px) saturate(170%);
-  box-shadow:
-    0 24px 64px rgba(20, 30, 60, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
   padding: 18px 20px 20px;
 }
 .question-modal--live { width: min(560px, 100%); }
@@ -2423,9 +2401,7 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(18, 24, 38, 0.42);
-  backdrop-filter: blur(10px) saturate(140%);
-  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  background: transparent;
 }
 
 .qa-card {
