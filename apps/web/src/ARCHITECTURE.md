@@ -44,7 +44,6 @@ apps/web/src/
 │   ├── agent/          # 单域(agent)组件(迁移期共享 — 见 §4)
 │   ├── code-graph/     # 单域组件
 │   ├── graph/          # 单域组件
-│   ├── note/           # 单域组件
 │   ├── project/        # 单域组件
 │   ├── settings/       # 单域组件(含 llm 子目录)
 │   ├── usage/          # 单域组件
@@ -62,7 +61,7 @@ apps/web/src/
 │   ├── useProjects.ts      → stores/projectStore
 │   ├── useSettings.ts      → stores/settingsStore
 │   ├── useTheme.ts         → stores/uiStore
-│   └── useTrendingScoutSpot.ts
+│   └── useTrendingSpotlight.ts
 │
 ├── pages/              # ★ 页面即模块(§10.1 铁律 1 落实)
 │   ├── activity/ActivityPage.tsx    + provider.ts
@@ -70,7 +69,7 @@ apps/web/src/
 │   ├── code-graph/CodeGraphPage.tsx
 │   ├── graph/GraphPage.tsx
 │   ├── health/HealthPage.tsx
-│   ├── notes/NotesPage.tsx
+│   ├── notes/NotesPage.tsx + NoteEditor.tsx + NoteList.tsx
 │   ├── overview/OverviewPage.tsx
 │   ├── settings/SettingsPage.tsx
 │   ├── sources/ProjectsPage.tsx     + ProjectDetailPage.tsx
@@ -138,7 +137,7 @@ apps/web/src/
   - 共享本身**不违反**铁律 1(单域内聚),但 §10.1 严格说应该是"页面私有"
 - `@ts-nocheck` 标注 33 个旧 file + 3 个上游 code-graph file(全部带说明)
 - 4 个新 page(ActivityPage / TeamPage / HealthPage / 早期 ChatPage)严格
-- 旧 `localStorage` key 改 `voyager_*` 中性化
+- persist / localStorage 走 `brand.json` 的职责名,启动时从旧 key 迁移
 
 ### 4.2 目标态(§10.1)
 
@@ -162,13 +161,13 @@ pages/<domain>/
 | Page | Domain | 跨域只读(聚合) |
 |---|---|---|
 | `agent/AgentPage` | agent | `useUIStore` |
-| `team/TeamPage` | team | `useAgentStore`(读人格) |
+| `team/TeamPage` | team | 无(list_personas / list_tools / list_subagents 走 bridge) |
 | `notes/NotesPage` | note | `useUIStore` + `useProjects`(源选择) |
 | `sources/ProjectsPage` | source | `useUIStore` + `useProjectStore` |
 | `sources/ProjectDetailPage` | source | `useUIStore` + `useNoteStore` + `useCodeGraph` + `useGraph` |
 | `graph/GraphPage` | graph | `useUIStore` + `useGraphStore` + `useGraph` |
 | `code-graph/CodeGraphPage` | code-graph | `useUIStore` + `useCodeGraphStore` |
-| `overview/OverviewPage` | overview | `useAuthStore` + `useUIStore` + `useOverview` + `useTrendingScoutSpot` |
+| `overview/OverviewPage` | overview | `useAuthStore` + `useUIStore` + `useOverview` + `useTrendingSpotlight` |
 | `activity/ActivityPage` | activity | `useUIStore` |
 | `health/HealthPage` | system.health | `useUIStore` |
 | `usage/UsagePage` | usage | `useUIStore` |
@@ -196,8 +195,6 @@ pages/<domain>/
 
 ## 7. 命名中性(§13.3)
 
-- 工作区全量 grep `'RepoPilot' | 'repo-pilot' | 'rp-ui-store' | 'rp_token' | 'rp_session' | 'rp_agent_*'` = **0 命中**
-- `localStorage` key:全部 `voyager_*` 前缀
-- `persist({ name: 'voyager-ui-store' })` 中性化
-- 路由命名:`/sources` (资源库) `/team` (团队) `/activity` (活动) `/system/health` (服务健康)
-- 旧 page 内部仍引用"project_id"等字段(由 `legacyApi` 边界归一化);目标态是 `source_id`
+- 品牌字符串只在仓库根 `brand.json`；前端经 Vite `__BRAND__` 注入
+- persist / localStorage 用职责名（`ui-store` 等），启动时从旧 key 迁移一次
+- 人格显示名（Lucien 等）属于数据层；结构 ID 与旧 7 角色目录的对齐仍是债务

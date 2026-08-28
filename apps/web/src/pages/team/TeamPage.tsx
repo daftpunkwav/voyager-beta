@@ -9,7 +9,6 @@ import { callCapability } from '@/bridge/client';
 import { GlassCard } from '@/components/common/GlassCard';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
-import { useAgentStore } from '@/stores/agentStore';
 
 interface RunningSubagent {
   id: string;
@@ -39,13 +38,15 @@ export function TeamPage() {
     (async () => {
       setLoading(true);
       try {
-        const [p, t] = await Promise.all([
-          callCapability<PersonaList>('agent', 'list_personas', {}),
-          callCapability<ToolList>('agent', 'list_tools', {}),
+        const [p, t, s] = await Promise.all([
+          callCapability<PersonaList['personas'] | PersonaList>('agent', 'list_personas', {}),
+          callCapability<ToolList['tools'] | ToolList>('agent', 'list_tools', {}),
+          callCapability<{ running?: RunningSubagent[] }>('agent', 'list_subagents', {}),
         ]);
         if (!alive) return;
-        setPersonas(p.personas ?? []);
-        setTools(t.tools ?? []);
+        setPersonas(Array.isArray(p) ? p : p.personas ?? []);
+        setTools(Array.isArray(t) ? t : t.tools ?? []);
+        setRunning(s.running ?? []);
       } catch (err) {
         if (alive) setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -55,15 +56,6 @@ export function TeamPage() {
     return () => {
       alive = false;
     };
-  }, []);
-
-  // 运行中实例从 chatStore 事件流的 subagent 字段聚合(简化版:读取当前活跃子任务)
-  useEffect(() => {
-    const unsub = useAgentStore.subscribe((_state) => {
-      // 这里简化:仅展示空数组,真实 subagent 跟踪由 agentStore 内部维护
-      setRunning([]);
-    });
-    return unsub;
   }, []);
 
   if (loading) {

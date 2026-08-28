@@ -503,6 +503,7 @@
   cursor: pointer;
   color: inherit;
   font: inherit;
+  text-decoration: none;
 }
 .pd-notes-list-item__title {
   display: block;

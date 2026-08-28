@@ -489,7 +489,7 @@
   place-items: center;
   background: rgba(0, 0, 0, 0.72);
   backdrop-filter: blur(8px);
-  animation: voyagerOverlayIn var(--dur-fast, 150ms) var(--ease-apple) both;
+  animation: overlayIn var(--dur-fast, 150ms) var(--ease-apple) both;
   cursor: zoom-out;
 }
 
@@ -498,7 +498,7 @@
   max-height: 92vh;
   border-radius: 10px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
-  animation: voyagerSheetIn var(--dur-base, 250ms) var(--ease-spring) both;
+  animation: sheetIn var(--dur-base, 250ms) var(--ease-spring) both;
 }
 
 .lightbox__close {

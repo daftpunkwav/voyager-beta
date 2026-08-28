@@ -19,20 +19,15 @@ import type { AgentId, ProjectProgress, SSEEvent } from '@/api/types';
 import { asSSETextDelta } from '@/utils/sse-helpers';
 import { consumeAgentSSEStream } from '@/utils/agentSSEStream';
 import { MarkdownRenderer } from '@/components/common/MarkdownRenderer';
-import { NoteEditor } from '@/components/note/NoteEditor';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
-import {
-  useCreateNote,
-  useUpdateNote,
-} from '@/hooks/useNotes';
-import { useNoteStore } from '@/stores/noteStore';
 import { formatNumber, REPO_AVATAR_GRADIENTS, splitRepoName } from '@/utils/format';
 import { formatDate } from '@/utils/date';
 import { categoryLabel } from '@/utils/labels';
 import { AGENT_CATALOG } from '@/constants/agentCatalog';
 import { GLASS_INNER, GLASS_OUTER } from '@/constants/glassTokens';
+import { callCapability } from '@/bridge/client';
 import {
   ProjectAiPanel,
   type ProjectAiLine,
@@ -175,8 +170,8 @@ const PD_PROGRESS: { id: ProjectProgress; label: string; className: string }[] =
   { id: 'mastered', label: '已掌握', className: 'progress-mastered' },
 ];
 
-/** 详情侧栏 6 大专家 Agent（不含 Hub 总入口） */
-const DETAIL_AGENTS = AGENT_CATALOG.filter((a) => a.id !== 'hub');
+/** 详情侧栏专家人格（不含统筹者总入口） */
+const DETAIL_AGENTS = AGENT_CATALOG.filter((a) => a.id !== 'orchestrator');
 
 function welcomeAiLine(projectName: string): ProjectAiLine {
   return {
@@ -184,7 +179,7 @@ function welcomeAiLine(projectName: string): ProjectAiLine {
     role: 'assistant',
     content:
       `我是项目分析助手。选择上方专家后点击「开始分析」，或在右侧「AI 学习助手」点「调用」，即可针对 **${projectName}** 生成分析。\n\n` +
-      'Scout 为 CoT 真流式秒级速览；思考过程默认收起，可点击展开。追问请到 Agent 对话页。',
+      'Iris 为侦察速览；思考过程默认收起，可点击展开。追问请到 Agent 对话页。',
   };
 }
 
@@ -202,15 +197,11 @@ export function ProjectDetailPage() {
   const { data: tags = [] } = useTags();
   const updateProgress = useUpdateProgress();
   const deleteProject = useDeleteProject();
-  const createNote = useCreateNote();
-  const updateNote = useUpdateNote();
-  const editingNoteId = useNoteStore((s) => s.editingNoteId);
-  const startEditing = useNoteStore((s) => s.startEditing);
 
   const [tab, setTab] = useState<DetailTab>('readme');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [activeAgent, setActiveAgent] = useState<AgentId>('scout');
+  const [activeAgent, setActiveAgent] = useState<AgentId>('recon');
   const [aiLines, setAiLines] = useState<ProjectAiLine[]>(() => [
     welcomeAiLine('当前项目'),
   ]);
@@ -296,14 +287,16 @@ export function ProjectDetailPage() {
     return m;
   }, [allProjects]);
 
-  const recommendedAgent: AgentId = project?.progress === 'mastered' ? 'mentor' : 'scout';
+  const recommendedAgent: AgentId = project?.progress === 'mastered' ? 'explainer' : 'recon';
   const { repo } = splitRepoName(project?.name ?? '');
   const scribeName = repo || project?.name || '';
 
   /** 页内调用指定专家 Agent 分析当前项目（消息流 + SSE） */
   const runAgent = async (agent: AgentId) => {
     if (!id) return;
-    const resolved = (agent === 'hub' ? 'scout' : agent) as AgentId;
+    const resolved = (agent === 'orchestrator' || agent === 'hub' || agent === 'lucien'
+      ? 'recon'
+      : agent) as AgentId;
     const meta =
       DETAIL_AGENTS.find((a) => a.id === resolved) ?? DETAIL_AGENTS[0];
     const agentName = meta?.name ?? 'Agent';
@@ -352,7 +345,7 @@ export function ProjectDetailPage() {
         ]);
       } else if (!result.sawError) {
         const hint = result.thinking?.trim()
-          ? '模型只返回了思考/工具状态，未输出正文。请重试，或换 Scout 快速分析。'
+          ? '模型只返回了思考/工具状态，未输出正文。请重试，或换 Iris 快速分析。'
           : '未生成分析内容。请确认设置页 LLM 已配置且测试通过，然后重试。';
         addToast({ type: 'warning', message: hint });
         setAiLines((prev) => [
@@ -397,29 +390,9 @@ export function ProjectDetailPage() {
     ]);
   };
 
-  const handleSaveNote = async () => {
-    const title = useNoteStore.getState().editorTitle;
-    const content = useNoteStore.getState().editorContent;
-    if (!id) return;
-    if (!title.trim()) {
-      addToast({ type: 'warning', message: '请输入标题' });
-      return;
-    }
-    try {
-      if (editingNoteId && editingNoteId.startsWith('n_')) {
-        await updateNote.mutateAsync({ id: editingNoteId, title, content });
-      } else {
-        await createNote.mutateAsync({ projectId: id, title, content });
-      }
-      addToast({ type: 'success', message: '笔记已保存' });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : '保存失败';
-      addToast({ type: 'error', message });
-    }
-  };
-
   const handleNewNote = () => {
-    startEditing('new', '新笔记', '');
+    if (!id) return;
+    navigate(`/notes?project=${id}`);
   };
 
   const readmeText =
@@ -455,17 +428,18 @@ export function ProjectDetailPage() {
         const title =
           buf.split('\n')[0]?.replace(/^#\s*/, '').trim() ||
           `${project.name} 学习笔记`;
-        startEditing('new', title.slice(0, 80), buf);
-        setTab('notes');
-        addToast({
-          type: 'success',
-          message: 'Scribe 已生成草稿，可编辑后保存',
+        const created = await callCapability<{ id: string }>('notes', 'create_note', {
+          title: title.slice(0, 80),
+          content: buf,
+          source_id: project.id,
         });
+        addToast({ type: 'success', message: '已生成笔记，正在打开编辑器' });
+        navigate(`/notes?note=${created.id}&project=${project.id}`);
       } else {
         addToast({ type: 'warning', message: '未生成内容，请检查 LLM 配置' });
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Scribe 生成失败';
+      const message = err instanceof Error ? err.message : '生成笔记失败';
       addToast({ type: 'error', message });
     } finally {
       setNoteGenerating(false);
@@ -520,7 +494,7 @@ export function ProjectDetailPage() {
                 <circle cx="11" cy="11" r="8" />
                 <path d="m21 21-4.3-4.3" />
               </svg>
-              {recommendedAgent === 'mentor' ? 'Mentor 深度分析' : 'Scout 快速分析'}
+              {recommendedAgent === 'explainer' ? 'Elio 深度分析' : 'Iris 快速分析'}
             </button>
             <a
               className={`btn ${GLASS_INNER}`}
@@ -559,7 +533,7 @@ export function ProjectDetailPage() {
               </svg>
             </div>
             <div className="pd-scribe-tip__body">
-              <strong style={{ color: 'var(--chart-4)' }}>Scribe Agent</strong>
+              <strong style={{ color: 'var(--chart-4)' }}>Miyai</strong>
               &nbsp;我可以基于 <span className="mono">{scribeName}</span> 的源码帮你生成笔记大纲，要试试吗？
             </div>
             <button
@@ -669,42 +643,32 @@ export function ProjectDetailPage() {
             <div className="pd-notes-toolbar">
               <div>
                 <h3 className="pd-notes-title">项目笔记</h3>
-                <p className="muted small">共 {notes.length} 篇 · Markdown 编辑</p>
+                <p className="muted small">共 {notes.length} 篇 · 在笔记页编辑</p>
               </div>
               <button type="button" className="btn btn-primary btn-sm" onClick={handleNewNote}>
                 新建笔记
               </button>
             </div>
 
-            {!editingNoteId ? (
-              notes.length === 0 ? (
-                <EmptyState title="暂无笔记" description="为该项目写第一篇学习笔记" />
-              ) : (
-                <ul className="pd-notes-list">
-                  {notes.map((n) => (
-                    <li key={n.id}>
-                      <button
-                        type="button"
-                        className={`pd-notes-list-item ${GLASS_INNER}`}
-                        onClick={() => startEditing(n.id, n.title, n.content)}
-                      >
-                        <span className="pd-notes-list-item__title">{n.title}</span>
-                        <span className="pd-notes-list-item__meta">{formatDate(n.updated_at)}</span>
-                        <span className="pd-notes-list-item__snippet">
-                          {n.content.replace(/[#*`]/g, '').slice(0, 100)}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )
+            {notes.length === 0 ? (
+              <EmptyState title="暂无笔记" description="为该项目写第一篇学习笔记" />
             ) : (
-              <div className={`pd-notes-editor ${GLASS_INNER}`}>
-                <NoteEditor
-                  onSave={() => void handleSaveNote()}
-                  saving={createNote.isPending || updateNote.isPending}
-                />
-              </div>
+              <ul className="pd-notes-list">
+                {notes.map((n) => (
+                  <li key={n.id}>
+                    <Link
+                      to={`/notes?note=${n.id}&project=${id ?? ''}`}
+                      className={`pd-notes-list-item ${GLASS_INNER}`}
+                    >
+                      <span className="pd-notes-list-item__title">{n.title}</span>
+                      <span className="pd-notes-list-item__meta">{formatDate(n.updated_at)}</span>
+                      <span className="pd-notes-list-item__snippet">
+                        {(n.content ?? '').replace(/[#*`]/g, '').slice(0, 100)}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         )}

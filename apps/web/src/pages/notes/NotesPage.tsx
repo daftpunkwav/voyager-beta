@@ -12,8 +12,8 @@ import { useNoteStore } from '@/stores/noteStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getApi } from '@/api/client';
 import { consumeAgentSSEStream } from '@/utils/agentSSEStream';
-import { NoteList } from '@/components/note/NoteList';
-import { NoteEditor } from '@/components/note/NoteEditor';
+import { NoteList } from './NoteList';
+import { NoteEditor } from './NoteEditor';
 import { MarkdownRenderer } from '@/components/common/MarkdownRenderer';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -207,7 +207,7 @@ export function NotesPage() {
       return;
     }
     if (!editingNoteId) {
-      startEditing('new', 'Scribe 笔记草稿', '');
+      startEditing('new', 'Miyai 笔记草稿', '');
       setNewProjectId(projectId);
     }
     setScribeStreaming(true);
@@ -231,10 +231,10 @@ export function NotesPage() {
         },
       });
       if (buf.trim()) {
-        addToast({ type: 'success', message: 'Scribe 已生成笔记草稿' });
+        addToast({ type: 'success', message: 'Miyai 已生成笔记草稿' });
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Scribe 生成失败';
+      const message = err instanceof Error ? err.message : '笔记生成失败';
       addToast({ type: 'error', message });
     } finally {
       setScribeStreaming(false);
@@ -278,9 +278,9 @@ export function NotesPage() {
           className="btn btn-sm"
           disabled={scribeStreaming}
           onClick={() => void runScribe()}
-          title="由 Scribe Agent 生成大纲与草稿"
+          title="由 Miyai 生成大纲与草稿"
         >
-          {scribeStreaming ? 'Scribe 生成中…' : 'Scribe 辅助'}
+          {scribeStreaming ? 'Miyai 生成中…' : 'Miyai 辅助'}
         </button>
         <div className="view-toggle" role="tablist">
           {(

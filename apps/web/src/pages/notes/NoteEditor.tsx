@@ -2,7 +2,7 @@
  *
  * 依赖注入而非包装库(@uiw):主题经 EditorView.theme 读 CSS 变量,
  * 亮暗切换随 data-theme 即时生效;对外 API 与旧 textarea 版一致
- * (值走 noteStore,NotesPage 与 ProjectDetailPage 两个使用点零改动)。
+ * (值走 noteStore,仅 NotesPage 使用)。
  * 粘贴/拖拽 image/* → uploadFile → notes.add_asset → 光标处插 attachment:// 引用。
  */
 
@@ -21,7 +21,7 @@ interface NoteEditorProps {
 }
 
 /** 编辑器主题:全部读 CSS 变量,亮暗切换零重载。 */
-const voyagerTheme = EditorView.theme({
+const markdownTheme = EditorView.theme({
   '&': {
     color: 'var(--text-1)',
     backgroundColor: 'transparent',
@@ -128,7 +128,7 @@ export function NoteEditor({ onSave, saving }: NoteEditorProps) {
         history(),
         keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
         markdown({ base: markdownLanguage, codeLanguages: languages }),
-        voyagerTheme,
+        markdownTheme,
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
           if (update.docChanged) setContent(update.state.doc.toString());

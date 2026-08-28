@@ -1,10 +1,9 @@
 import { Link, NavLink } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
-import { useProjectStats } from '@/hooks/useProjects';
-import { useAllNotes } from '@/hooks/useNotes';
 import { NavIcons } from '@/components/icons/NavIcons';
 import { userInitials } from '@/utils/user';
 import { useUIStore } from '@/stores/uiStore';
+import { PRODUCT_NAME } from '@/brand';
 
 /** 导航分组:Agent / 领域 / 系统(随阶段点亮,未开放的不上导航)。 */
 const NAV_ITEMS = [
@@ -12,8 +11,8 @@ const NAV_ITEMS = [
   { key: 'chat', label: '对话', path: '/', badge: 'AI' as const, group: 'agent' },
   { key: 'team', label: '团队', path: '/team', badge: null, group: 'agent' },
   // —— 领域 ——
-  { key: 'notes', label: '笔记', path: '/notes', badge: 'notes' as const, group: 'domain' },
-  { key: 'sources', label: '资源库', path: '/sources', badge: 'count' as const, group: 'domain' },
+  { key: 'notes', label: '笔记', path: '/notes', badge: null, group: 'domain' },
+  { key: 'sources', label: '资源库', path: '/sources', badge: null, group: 'domain' },
   { key: 'graph', label: '图谱', path: '/graph', badge: null, group: 'domain' },
   // —— 系统 ——
   { key: 'overview', label: '总览', path: '/overview', badge: null, group: 'system' },
@@ -35,8 +34,6 @@ interface SidebarProps {
 
 export function Sidebar({ activePage }: SidebarProps) {
   const user = useAuthStore((s) => s.user);
-  const { data: stats } = useProjectStats();
-  const { data: notes } = useAllNotes();
   const initials = userInitials(user?.username);
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
 
@@ -50,10 +47,10 @@ export function Sidebar({ activePage }: SidebarProps) {
   return (
     <aside className={`sidebar${collapsed ? ' is-collapsed' : ''}`}>
       <div className="sidebar-brand">
-        <div className="sidebar-logo" title="Voyager">V</div>
+        <div className="sidebar-logo" title={PRODUCT_NAME}>{PRODUCT_NAME.slice(0, 1)}</div>
         {!collapsed && (
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
-            <span className="sidebar-name">Voyager</span>
+            <span className="sidebar-name">{PRODUCT_NAME}</span>
             <span style={{ fontSize: 10, color: 'var(--text-400)', letterSpacing: '0.06em' }}>
               v1.0.0
             </span>
@@ -90,12 +87,6 @@ export function Sidebar({ activePage }: SidebarProps) {
                   {Icon ? <Icon /> : null}
                   {!collapsed && <span>{item.label}</span>}
                   {!collapsed && item.badge === 'AI' && <span className="nav-badge">AI</span>}
-                  {!collapsed && item.badge === 'count' && stats && (
-                    <span className="nav-badge">{stats.total}</span>
-                  )}
-                  {!collapsed && item.badge === 'notes' && notes && (
-                    <span className="nav-badge">{notes.length}</span>
-                  )}
                 </NavLink>
               );
             })}
@@ -117,7 +108,7 @@ export function Sidebar({ activePage }: SidebarProps) {
             <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2, flex: 1, minWidth: 0 }}>
               <span style={{ fontSize: 12, fontWeight: 600 }}>{user?.username ?? '访客'}</span>
               <span style={{ fontSize: 10, color: 'var(--text-400)' }}>
-                Pro · {stats?.total ?? 0} / ∞
+                本机工作台
               </span>
             </div>
           )}
