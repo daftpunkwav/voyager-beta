@@ -15,7 +15,8 @@
   --notes-card-h: 212px;
 }
 .notes-index.is-compact {
-  --notes-card-h: 168px;
+  /* 168px 放不下「双行标题 + 两行完整简介 + 28px 操作钮」，简介会被 overflow 拦腰切断 */
+  --notes-card-h: 180px;
 }
 
 .notes-shell {
@@ -601,13 +602,17 @@
 .notes-index.is-compact .note-grid-card {
   padding: 12px 14px 10px;
 }
+.notes-index.is-compact .note-card-head {
+  margin-bottom: 6px;
+}
 .notes-index.is-compact .note-grid-card h4 {
   font-size: 14px;
   margin-bottom: 6px;
 }
 .notes-index.is-compact .note-grid-card .snippet {
-  max-height: 4.8em;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  max-height: 2lh;
 }
 .notes-index.is-compact .note-grid-card .meta {
   padding-top: 8px;
@@ -1243,16 +1248,18 @@
               margin var(--notes-tr-slow) var(--notes-ease);
 }
 .note-grid-card .snippet {
+  margin: 0; /* <p> 的 UA 边距会吃掉行高，导致简介被切到字形中腰 */
   font-size: 12px;
   color: var(--text-500);
   line-height: 1.6;
-  flex: 1 1 auto;
+  flex: 0 0 auto; /* 不随卡片剩余高度被压扁，裁切只走 line-clamp */
   min-height: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
   overflow: hidden;
-  max-height: 6.4em;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  max-height: 4lh;
   transition: max-height var(--notes-tr-slow) var(--notes-ease);
 }
 .note-grid-card .meta {
