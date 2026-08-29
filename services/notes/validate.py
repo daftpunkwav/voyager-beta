@@ -9,6 +9,7 @@ from .runtime import DOMAIN
 MAX_TITLE = 200
 MAX_CONTENT = 200_000
 MAX_IMPORT_BYTES = MAX_CONTENT * 4
+MAX_SOURCE_ID = 80
 TAG_FORBIDDEN = '"\\,[]'
 
 
@@ -36,3 +37,18 @@ def validate_tag(tag: str) -> str:
     if len(tag) > 32:
         raise ServiceError(DOMAIN, ErrorSuffix.INVALID_INPUT, "标签过长(≤32 字)")
     return tag
+
+
+def validate_source_id(source_id: str) -> str:
+    """source_id 与 node_id 只允许安全标识符,禁止路径穿越字符。"""
+    sid = str(source_id or "").strip()
+    if not sid:
+        return ""
+    if "/" in sid or "\\" in sid or ".." in sid or len(sid) > MAX_SOURCE_ID:
+        raise ServiceError(DOMAIN, ErrorSuffix.INVALID_INPUT,
+                           "source_id 或 node_id 非法")
+    return sid
+
+
+def validate_node_id(node_id: str) -> str:
+    return validate_source_id(node_id)

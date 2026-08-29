@@ -158,13 +158,20 @@ def register(registry: Registry) -> None:
                                f"图片超过大小上限 {limit_mb}MB",
                                hint="可用设置 notes.assets.max_mb 调整")
         root = _workspace if _workspace else Path("workspace")
-        if not src.resolve().is_relative_to(Path(root).resolve()):
+        root_resolved = Path(root).resolve()
+        src_resolved = src.resolve(strict=True)
+        if not src_resolved.is_relative_to(root_resolved):
             raise ServiceError(_DOMAIN, ErrorSuffix.FORBIDDEN,
                                "文件须位于 workspace/ 内(经 /api/uploads 上传)")
         asset_id = uuid.uuid4().hex[:12]
         assets_dir = Path(root) / "notes-assets"
         assets_dir.mkdir(parents=True, exist_ok=True)
         dest = assets_dir / f"{asset_id}{ext}"
+        dest_resolved = dest.resolve()
+        if not dest_resolved.is_relative_to(root_resolved):
+            raise ServiceError(_DOMAIN, ErrorSuffix.FORBIDDEN,
+                               "目标路径异常,请检查 workspace 配置")
+        # 如 src 是 symlink,复制后得到普通文件,阻断通过链接指向外部路径
         shutil.copy2(src, dest)
         safe_name = _UNSAFE_FILENAME_RE.sub("_", filename or src.name)[:120]
         store.add({"asset_id": asset_id, "note_id": note_id,

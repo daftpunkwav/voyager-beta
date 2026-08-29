@@ -8,7 +8,7 @@ from platform_capability import capability
 from platform_contracts import ErrorSuffix, ServiceError
 
 from .runtime import DOMAIN, SORT_COL, STATES, emit, get_any, registry, require_alive, require_deps
-from .validate import validate_content, validate_tag, validate_title
+from .validate import validate_content, validate_node_id, validate_source_id, validate_tag, validate_title
 
 
 @capability(registry, name="create_note", description="新建 Markdown 笔记", cost=2)
@@ -18,6 +18,8 @@ async def create_note(title: str, content: str = "", tags: list[str] | None = No
     title = validate_title(title)
     validate_content(content)
     clean_tags = [validate_tag(t) for t in (tags or [])]
+    source_id = validate_source_id(source_id)
+    node_id = validate_node_id(node_id)
     nid = deps.store.create({"title": title, "content": content,
                              "tags": clean_tags, "source_id": source_id,
                              "node_id": node_id})
@@ -88,6 +90,10 @@ async def link_note(note_id: str, source_id: str | None = None,
     """"None = 不动;空串 = 清除关联"——agent 与用户都可维护引用关系。"""
     deps = require_deps()
     require_alive(note_id)
+    if source_id is not None:
+        source_id = validate_source_id(source_id)
+    if node_id is not None:
+        node_id = validate_node_id(node_id)
     deps.store.update(note_id, source_id=source_id, node_id=node_id)
     await emit("note.edited", note_id, linked=True)
     return deps.store.get(note_id)
@@ -148,5 +154,7 @@ async def empty_trash(max_age_days: int | None = None) -> dict:
         removed_assets = deps.purge_assets(nid) if deps.purge_assets else []
         deps.store.delete(nid)
         purged.append(nid)
-        await emit("note.purged", nid, removed_assets=len(removed_assets))
+    if purged:
+        await emit("note.purged_batch", purged[0],
+                   purged_count=len(purged), note_ids=purged)
     return {"purged_count": len(purged)}

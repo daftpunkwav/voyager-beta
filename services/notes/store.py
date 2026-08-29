@@ -29,6 +29,9 @@ from .store_links import backlinks as link_backlinks
 from .store_links import resolve_link_targets as link_resolve
 from .store_links import sync_links as link_sync
 
+# 延迟加载 validate_tag 避免循环导入(store 被 validate/test 大量引用)
+validate_tag: Any = None
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS notes (
     id         TEXT PRIMARY KEY,
@@ -123,18 +126,20 @@ class NoteStore:
         return nid
 
     def get(self, nid: str) -> dict[str, Any] | None:
-        row = self._conn.execute(
-            f"SELECT {','.join(_ALL_COLS)} FROM notes WHERE id = ?", (nid,)
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                f"SELECT {','.join(_ALL_COLS)} FROM notes WHERE id = ?", (nid,)
+            ).fetchone()
         return _full_row(row) if row else None
 
     def exists_by_title(self, title: str) -> str | None:
         """标题精确匹配(大小写不敏感)取最新一条存活笔记 id;链接解析用。"""
-        row = self._conn.execute(
-            "SELECT id FROM notes"
-            " WHERE lower(title)=lower(?) AND trashed_ts IS NULL"
-            " ORDER BY updated_ts DESC LIMIT 1", (title,),
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id FROM notes"
+                " WHERE lower(title)=lower(?) AND trashed_ts IS NULL"
+                " ORDER BY updated_ts DESC LIMIT 1", (title,),
+            ).fetchone()
         return row[0] if row else None
 
     def update(self, nid: str, **fields: Any) -> bool:
@@ -202,20 +207,32 @@ class NoteStore:
             self._conn.commit()
         return cur.rowcount > 0
 
-    def purge_expired(self, older_than_days: int) -> int:
-        """清掉回收站中超期条目(days<=0 表示永久保留 → no-op)。"""
+    def purge_expired(self, older_than_days: int) -> list[str]:
+        """清掉回收站中超期条目(days<=0 表示永久保留 → no-op)。
+
+        返回被清 id 列表,调用方可批量清附件与发聚合事件。
+        """
         if older_than_days <= 0:
-            return 0
+            return []
         cutoff = time.time() - older_than_days * 86400
-        rows = self._conn.execute(
-            "SELECT id FROM notes WHERE trashed_ts IS NOT NULL AND trashed_ts < ?",
-            (cutoff,),
-        ).fetchall()
-        count = 0
-        for (nid,) in rows:
-            self.delete(nid)
-            count += 1
-        return count
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id FROM notes WHERE trashed_ts IS NOT NULL AND trashed_ts < ?",
+                (cutoff,),
+            ).fetchall()
+            nids = [r[0] for r in rows]
+            if not nids:
+                return []
+            placeholders = ','.join('?' * len(nids))
+            self._conn.execute(
+                f"DELETE FROM notes WHERE id IN ({placeholders})", nids)
+            self._conn.execute(
+                f"DELETE FROM note_versions WHERE note_id IN ({placeholders})", nids)
+            self._conn.execute(
+                "DELETE FROM note_links WHERE src IN ({0}) OR dst IN ({0})".format(placeholders),
+                nids + nids)
+            self._conn.commit()
+        return nids
 
     # ---------- 列表与检索 ----------
 
@@ -258,20 +275,25 @@ class NoteStore:
                f" FROM notes WHERE {' AND '.join(conds)}")
         sql += f" ORDER BY pinned DESC, {col} {direction} LIMIT ?"
         params.append(limit)
-        return [_summary_row(r) for r in self._conn.execute(sql, params)]
+        with self._lock:
+            rows = self._conn.execute(sql, params).fetchall()
+        return [_summary_row(r) for r in rows]
 
     def stats(self) -> dict[str, Any]:
+        with self._lock:
+            counts = list(self._conn.execute(
+                "SELECT archived, trashed_ts IS NOT NULL, COUNT(*)"
+                " FROM notes GROUP BY archived, trashed_ts IS NOT NULL"
+            ))
+            tags_rows = list(self._conn.execute(
+                "SELECT tags FROM notes WHERE trashed_ts IS NULL"
+            ))
         states = {"active": 0, "archived": 0, "trash": 0}
-        for (flag, has_trash, n) in self._conn.execute(
-            "SELECT archived, trashed_ts IS NOT NULL, COUNT(*)"
-            " FROM notes GROUP BY archived, trashed_ts IS NOT NULL"
-        ):
+        for (flag, has_trash, n) in counts:
             key = "trash" if has_trash else ("archived" if flag else "active")
             states[key] = states.get(key, 0) + n
         tag_counts: dict[str, int] = {}
-        for (tags_json,) in self._conn.execute(
-            "SELECT tags FROM notes WHERE trashed_ts IS NULL"
-        ):
+        for (tags_json,) in tags_rows:
             try:
                 for t in json.loads(tags_json):
                     tag_counts[t] = tag_counts.get(t, 0) + 1
@@ -282,10 +304,12 @@ class NoteStore:
                 "tags": [{"tag": t, "count": c} for t, c in top_tags]}
 
     def all_tags(self) -> list[tuple[str, int]]:
+        with self._lock:
+            rows = list(self._conn.execute(
+                "SELECT tags FROM notes WHERE trashed_ts IS NULL"
+            ))
         counter: dict[str, int] = {}
-        for (tags_json,) in self._conn.execute(
-            "SELECT tags FROM notes WHERE trashed_ts IS NULL"
-        ):
+        for (tags_json,) in rows:
             try:
                 for t in json.loads(tags_json):
                     counter[t] = counter.get(t, 0) + 1
@@ -294,17 +318,36 @@ class NoteStore:
         return sorted(counter.items())
 
     def rename_tag(self, old: str, new: str) -> int:
-        """全局改标签名:直接对 JSON 文本做带引号的整词替换;返回影响行数。"""
-        needle_old = json.dumps(old, ensure_ascii=False)
-        needle_new = json.dumps(new, ensure_ascii=False)
+        """全局改标签名:JSON 解析后精确替换元素,避免子串误伤。"""
+        global validate_tag
+        if validate_tag is None:
+            from .validate import validate_tag as _validate_tag
+            validate_tag = _validate_tag
+        old = validate_tag(old)
+        new = validate_tag(new)
+        updated = 0
         with self._lock:
-            cur = self._conn.execute(
-                "UPDATE notes SET tags = replace(tags, ?, ?), updated_ts = ?"
-                " WHERE instr(tags, ?) > 0",
-                (needle_old, needle_new, time.time(), needle_old),
-            )
+            rows = list(self._conn.execute(
+                "SELECT id, tags FROM notes WHERE instr(tags, ?) > 0",
+                (json.dumps(old, ensure_ascii=False),),
+            ))
+            for nid, tags_json in rows:
+                try:
+                    tags = json.loads(tags_json)
+                except ValueError:
+                    continue
+                if not isinstance(tags, list):
+                    continue
+                if old not in tags:
+                    continue
+                next_tags = [new if t == old else t for t in tags]
+                self._conn.execute(
+                    "UPDATE notes SET tags = ?, updated_ts = ? WHERE id = ?",
+                    (json.dumps(next_tags, ensure_ascii=False), time.time(), nid),
+                )
+                updated += 1
             self._conn.commit()
-        return cur.rowcount
+        return updated
 
     # ---------- 版本历史 ----------
 
@@ -323,18 +366,21 @@ class NoteStore:
                 (nid, keep_from))
 
     def list_versions(self, nid: str) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = list(self._conn.execute(
+                "SELECT version, ts, content FROM note_versions"
+                " WHERE note_id = ? ORDER BY version DESC", (nid,)))
         return [
             {"version": r[0], "ts": r[1], "chars": len(r[2])}
-            for r in self._conn.execute(
-                "SELECT version, ts, content FROM note_versions"
-                " WHERE note_id = ? ORDER BY version DESC", (nid,))
+            for r in rows
         ]
 
     def get_version(self, nid: str, version: int) -> dict[str, Any] | None:
-        row = self._conn.execute(
-            "SELECT content, ts FROM note_versions"
-            " WHERE note_id = ? AND version = ?", (nid, version),
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT content, ts FROM note_versions"
+                " WHERE note_id = ? AND version = ?", (nid, version),
+            ).fetchone()
         return {"content": row[0], "ts": row[1]} if row else None
 
     # ---------- 双向链接 ----------
