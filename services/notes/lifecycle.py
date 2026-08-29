@@ -156,12 +156,13 @@ async def empty_trash(max_age_days: int | None = None) -> dict:
         trashed_ts = row.get("trashed_ts")
         if cutoff is not None and (trashed_ts is None or trashed_ts > cutoff):
             continue
-        nid = row["id"]
-        if deps.purge_assets:
+        purged.append(row["id"])
+    if not purged:
+        return {"purged_count": 0}
+    deps.store.delete_many(purged)
+    if deps.purge_assets:
+        for nid in purged:
             deps.purge_assets(nid)
-        deps.store.delete(nid)
-        purged.append(nid)
-    if purged:
-        await emit("note.purged_batch", purged[0],
-                   purged_count=len(purged), note_ids=purged)
+    await emit("note.purged_batch", purged[0],
+               purged_count=len(purged), note_ids=purged)
     return {"purged_count": len(purged)}

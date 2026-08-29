@@ -135,11 +135,14 @@ class NoteStore:
     def exists_by_title(self, title: str) -> str | None:
         """标题精确匹配(大小写不敏感)取最新一条存活笔记 id;链接解析用。"""
         with self._lock:
-            row = self._conn.execute(
-                "SELECT id FROM notes"
-                " WHERE lower(title)=lower(?) AND trashed_ts IS NULL"
-                " ORDER BY updated_ts DESC LIMIT 1", (title,),
-            ).fetchone()
+            return self._exists_by_title_locked(title)
+
+    def _exists_by_title_locked(self, title: str) -> str | None:
+        row = self._conn.execute(
+            "SELECT id FROM notes"
+            " WHERE lower(title)=lower(?) AND trashed_ts IS NULL"
+            " ORDER BY updated_ts DESC LIMIT 1", (title,),
+        ).fetchone()
         return row[0] if row else None
 
     def update(self, nid: str, **fields: Any) -> bool:
@@ -180,11 +183,27 @@ class NoteStore:
     def delete(self, nid: str) -> None:
         """彻底删除(含版本与链接)。软删除走 trash()。"""
         with self._lock:
-            self._conn.execute("DELETE FROM notes WHERE id = ?", (nid,))
-            self._conn.execute("DELETE FROM note_versions WHERE note_id = ?", (nid,))
-            self._conn.execute(
-                "DELETE FROM note_links WHERE src = ? OR dst = ?", (nid, nid))
-            self._conn.commit()
+            self._delete_ids_locked([nid])
+
+    def delete_many(self, nids: list[str]) -> None:
+        """批量彻底删除(含版本与链接)。"""
+        with self._lock:
+            self._delete_ids_locked(nids)
+
+    def _delete_ids_locked(self, nids: list[str]) -> None:
+        if not nids:
+            return
+        placeholders = ",".join("?" * len(nids))
+        self._conn.execute(
+            f"DELETE FROM notes WHERE id IN ({placeholders})", nids)
+        self._conn.execute(
+            f"DELETE FROM note_versions WHERE note_id IN ({placeholders})", nids)
+        self._conn.execute(
+            "DELETE FROM note_links WHERE src IN ({0}) OR dst IN ({0})".format(
+                placeholders),
+            [*nids, *nids],
+        )
+        self._conn.commit()
 
     # ---------- 状态机 ----------
 
@@ -221,17 +240,7 @@ class NoteStore:
                 (cutoff,),
             ).fetchall()
             nids = [r[0] for r in rows]
-            if not nids:
-                return []
-            placeholders = ','.join('?' * len(nids))
-            self._conn.execute(
-                f"DELETE FROM notes WHERE id IN ({placeholders})", nids)
-            self._conn.execute(
-                f"DELETE FROM note_versions WHERE note_id IN ({placeholders})", nids)
-            self._conn.execute(
-                "DELETE FROM note_links WHERE src IN ({0}) OR dst IN ({0})".format(placeholders),
-                nids + nids)
-            self._conn.commit()
+            self._delete_ids_locked(nids)
         return nids
 
     # ---------- 列表与检索 ----------
@@ -386,14 +395,18 @@ class NoteStore:
     # ---------- 双向链接 ----------
 
     def resolve_link_targets(self, content: str) -> list[dict[str, Any]]:
-        return link_resolve(self._conn, content, self.exists_by_title)
+        with self._lock:
+            return link_resolve(self._conn, content, self._exists_by_title_locked)
 
     def sync_links(self, src_id: str, content: str) -> None:
+        # 必须传 _locked 变体:link_sync 在本锁内回调 exists_by_title,
+        # threading.Lock 不可重入,否则含 [[标题]] 的写入会死锁。
         with self._lock:
-            link_sync(self._conn, src_id, content, self.exists_by_title)
+            link_sync(self._conn, src_id, content, self._exists_by_title_locked)
 
     def backlinks(self, nid: str, limit: int = 50) -> list[dict[str, Any]]:
-        return link_backlinks(self._conn, nid, limit)
+        with self._lock:
+            return link_backlinks(self._conn, nid, limit)
 
     # ---------- 生命周期 ----------
 

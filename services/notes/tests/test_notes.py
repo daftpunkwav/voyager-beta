@@ -461,8 +461,8 @@ class TestRetention:
         old = _t.time() - 31 * 86400
         store._conn.execute("UPDATE notes SET trashed_ts=? WHERE id=?", (old, a))
         store._conn.commit()
-        assert store.purge_expired(0) == 0          # 0 = 永久保留
-        assert store.purge_expired(30) == 1         # 只清超期的 a
+        assert store.purge_expired(0) == []          # 0 = 永久保留
+        assert store.purge_expired(30) == [a]        # 只清超期的 a
         assert store.get(a) is None and store.get(b) is not None
 
 

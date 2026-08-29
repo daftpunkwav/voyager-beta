@@ -76,10 +76,11 @@ class AssetStore:
             self._conn.commit()
 
     def get(self, asset_id: str) -> dict[str, Any] | None:
-        row = self._conn.execute(
-            "SELECT asset_id, note_id, filename, ext, path, size, created_ts"
-            " FROM note_assets WHERE asset_id = ?", (asset_id,),
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT asset_id, note_id, filename, ext, path, size, created_ts"
+                " FROM note_assets WHERE asset_id = ?", (asset_id,),
+            ).fetchone()
         if row is None:
             return None
         return dict(zip(("asset_id", "note_id", "filename", "ext", "path",
@@ -87,10 +88,10 @@ class AssetStore:
 
     def remove_of_note(self, note_id: str) -> list[str]:
         """删除某笔记名下全部资产记录,返回文件路径(调用方删文件)。"""
-        paths = [r[0] for r in self._conn.execute(
-            "SELECT path FROM note_assets WHERE note_id = ?", (note_id,),
-        ).fetchall()]
         with self._lock:
+            paths = [r[0] for r in self._conn.execute(
+                "SELECT path FROM note_assets WHERE note_id = ?", (note_id,),
+            ).fetchall()]
             self._conn.execute(
                 "DELETE FROM note_assets WHERE note_id = ?", (note_id,))
             self._conn.commit()
@@ -171,8 +172,15 @@ def register(registry: Registry) -> None:
         if not dest_resolved.is_relative_to(root_resolved):
             raise ServiceError(_DOMAIN, ErrorSuffix.FORBIDDEN,
                                "目标路径异常,请检查 workspace 配置")
-        # 如 src 是 symlink,复制后得到普通文件,阻断通过链接指向外部路径
-        shutil.copy2(src, dest)
+        # copy 前再 resolve 一次,跟已解析路径复制,避免中间替换 symlink 逃出 jail
+        src_copy = src.resolve(strict=True)
+        if src_copy != src_resolved or not src_copy.is_relative_to(root_resolved):
+            raise ServiceError(_DOMAIN, ErrorSuffix.FORBIDDEN,
+                               "文件须位于 workspace/ 内(经 /api/uploads 上传)")
+        if not dest.resolve().is_relative_to(root_resolved):
+            raise ServiceError(_DOMAIN, ErrorSuffix.FORBIDDEN,
+                               "目标路径异常,请检查 workspace 配置")
+        shutil.copy2(src_copy, dest)
         safe_name = _UNSAFE_FILENAME_RE.sub("_", filename or src.name)[:120]
         store.add({"asset_id": asset_id, "note_id": note_id,
                    "filename": safe_name, "ext": ext,
