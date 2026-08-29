@@ -312,9 +312,13 @@ export function NoteEditor({ onSave, saving, onReady, formatBarHost, visible = t
     const view = viewRef.current;
     if (!view) return;
     const current = view.state.doc.toString();
-    if (current !== content) {
-      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: content } });
-    }
+    if (current === content) return;
+    const patch = diffReplace(current, content);
+    view.dispatch({
+      changes: { from: patch.from, to: patch.to, insert: patch.insert },
+      selection: { anchor: patch.from, head: patch.from + patch.insert.length },
+      scrollIntoView: true,
+    });
   }, [content]);
 
   const btn = (
@@ -418,7 +422,7 @@ export function NoteEditor({ onSave, saving, onReady, formatBarHost, visible = t
       {btn(uploading ? '上传中…' : '插入图片', () => {
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml';
+        input.accept = 'image/png,image/jpeg,image/gif,image/webp';
         input.onchange = () => {
           if (input.files) void uploadImages(Array.from(input.files));
         };
