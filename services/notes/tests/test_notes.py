@@ -41,6 +41,12 @@ class TestCrud:
         full = await execute(registry, "get_note", AGENT_CTX, {"note_id": note["id"]})
         assert full["content"].startswith("# 大纲")  # agent 同权读(铁律 4)
 
+    async def test_rejects_illegal_source_id(self, deps) -> None:
+        with pytest.raises(ServiceError) as exc:
+            await execute(registry, "create_note", USER_CTX,
+                          {"title": "非法 source_id", "source_id": "../etc/passwd"})
+        assert exc.value.body.code == "NOTES.INVALID_INPUT"
+
     async def test_update_and_events(self, deps) -> None:
         _, log = deps
         note = await execute(registry, "create_note", USER_CTX, {"title": "t"})
@@ -68,6 +74,20 @@ class TestCrud:
         types = [e.type for _, e in log.read_after()]
         for expected in ("note.created", "note.deleted", "note.restored", "note.purged"):
             assert expected in types
+
+    async def test_empty_trash_batch_purges_and_emits_once(self, deps) -> None:
+        _, log = deps
+        a = await execute(registry, "create_note", USER_CTX, {"title": "a"})
+        b = await execute(registry, "create_note", USER_CTX, {"title": "b"})
+        await execute(registry, "delete_note", USER_CTX, {"note_id": a["id"]})
+        await execute(registry, "delete_note", USER_CTX, {"note_id": b["id"]})
+        out = await execute(registry, "empty_trash", USER_CTX, {})
+        assert out["purged_count"] == 2
+        types = [e.type for _, e in log.read_after()]
+        assert types.count("note.purged_batch") == 1
+        assert types.count("note.purged") == 0
+        listed = await execute(registry, "list_notes", USER_CTX, {"state": "trash"})
+        assert listed == []
 
     async def test_delete_twice_conflict(self, deps) -> None:
         note = await execute(registry, "create_note", USER_CTX, {"title": "x"})
@@ -149,6 +169,17 @@ class TestTagsEnhanced:
         tags_b = (await execute(registry, "get_note", USER_CTX,
                                 {"note_id": b["id"]}))["tags"]
         assert tags_b == ["typescript"]
+
+    async def test_rename_tag_does_not_substring_match(self, deps) -> None:
+        """标签 'a' 不应把 'ab' 改成 'abb';必须精确匹配元素。"""
+        note = await execute(registry, "create_note", USER_CTX,
+                             {"title": "子串", "tags": ["a", "ab"]})
+        out = await execute(registry, "rename_tag", USER_CTX,
+                            {"old": "a", "new": "x"})
+        assert out["affected"] == 1
+        tags = (await execute(registry, "get_note", USER_CTX,
+                              {"note_id": note["id"]}))["tags"]
+        assert tags == ["x", "ab"]
 
     async def test_stats_counts(self, deps) -> None:
         a = await execute(registry, "create_note", USER_CTX, {"title": "s1"})

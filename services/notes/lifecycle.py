@@ -8,7 +8,13 @@ from platform_capability import capability
 from platform_contracts import ErrorSuffix, ServiceError
 
 from .runtime import DOMAIN, SORT_COL, STATES, emit, get_any, registry, require_alive, require_deps
-from .validate import validate_content, validate_node_id, validate_source_id, validate_tag, validate_title
+from .validate import (
+    validate_content,
+    validate_node_id,
+    validate_source_id,
+    validate_tag,
+    validate_title,
+)
 
 
 @capability(registry, name="create_note", description="新建 Markdown 笔记", cost=2)
@@ -151,7 +157,8 @@ async def empty_trash(max_age_days: int | None = None) -> dict:
         if cutoff is not None and (trashed_ts is None or trashed_ts > cutoff):
             continue
         nid = row["id"]
-        removed_assets = deps.purge_assets(nid) if deps.purge_assets else []
+        if deps.purge_assets:
+            deps.purge_assets(nid)
         deps.store.delete(nid)
         purged.append(nid)
     if purged:

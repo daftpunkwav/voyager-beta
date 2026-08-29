@@ -74,6 +74,20 @@ class TestAddAsset:
             await execute(registry, "add_asset", USER_CTX,
                           {"file_path": str(outside)})
 
+    async def test_rejects_symlink_outside_workspace(self, env, tmp_path) -> None:
+        """通过 symlink 指向 workspace 外部文件仍应被拒绝。"""
+        _, ws, _ = env
+        real = tmp_path / "secret.png"
+        real.write_bytes(_PNG)
+        link = ws / "link.png"
+        try:
+            link.symlink_to(real)
+        except OSError:
+            pytest.skip("当前环境不支持创建 symlink")
+        with pytest.raises(ServiceError, match="workspace"):
+            await execute(registry, "add_asset", USER_CTX,
+                          {"file_path": str(link)})
+
 
 class TestAssetRoute:
     async def test_get_asset_file(self, env) -> None:
