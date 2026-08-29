@@ -88,15 +88,17 @@
   --lg-control-blur: 15px;
   --lg-control-inset-glow: inset 0 0 4px 2px rgba(255, 255, 255, 0.08);
 
-  --lg-dialog-tint: rgba(68, 68, 74, 0.94);
-  --lg-dialog-border: rgba(255, 255, 255, 0.24);
-  --lg-dialog-shadow-outer: 0 12px 36px rgba(0, 0, 0, 0.32), 0 1px 0 rgba(255, 255, 255, 0.06);
-  --lg-dialog-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.28);
-  --lg-dialog-inset-bottom: inset 0 -1px 0 rgba(0, 0, 0, 0.18);
-  --lg-dialog-inset-glow: inset 0 0 32px 12px rgba(255, 255, 255, 0.07);
-  --lg-dialog-edge-top: rgba(255, 255, 255, 0.48);
-  --lg-dialog-edge-left-top: rgba(255, 255, 255, 0.36);
-  --lg-dialog-edge-left-mid: rgba(255, 255, 255, 0.12);
+  /* 深色弹层纯黑实底:灰 tint + 内发光会在 #000 页上发脏。 */
+  --lg-dialog-tint: #000;
+  --lg-dialog-blur: 0px;
+  --lg-dialog-border: rgba(255, 255, 255, 0.14);
+  --lg-dialog-shadow-outer: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --lg-dialog-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --lg-dialog-inset-bottom: inset 0 -1px 0 rgba(0, 0, 0, 0.6);
+  --lg-dialog-inset-glow: inset 0 0 0 0 transparent;
+  --lg-dialog-edge-top: rgba(255, 255, 255, 0.16);
+  --lg-dialog-edge-left-top: rgba(255, 255, 255, 0.1);
+  --lg-dialog-edge-left-mid: rgba(255, 255, 255, 0.04);
 }
 
 /* --------------------------------------------------------------------------

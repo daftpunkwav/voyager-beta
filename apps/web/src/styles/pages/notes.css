@@ -1903,6 +1903,7 @@
   isolation: isolate;
 }
 .trash-panel {
+  min-height: min(52vh, 420px);
   max-height: min(72vh, 640px);
 }
 .notes-dialog.glass-card--dialog:hover,
@@ -1924,7 +1925,11 @@
   opacity: 0.55;
 }
 .trash-panel__empty {
-  margin: 12px 0 4px;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
   text-align: center;
   color: var(--text-500);
   font-size: 13px;
