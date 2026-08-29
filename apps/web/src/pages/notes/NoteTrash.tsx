@@ -11,7 +11,7 @@ type Pending =
   | { kind: 'purge'; id: string; title: string }
   | null;
 
-export function TrashPanel({ open, onClose, onOpenNote }: { open: boolean; onClose: () => void; onOpenNote: (id: string) => void }) {
+export function TrashPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { data: notes = [] } = useTrashNotes(open);
   const restore = useRestoreNote();
   const purge = usePurgeNote();
@@ -70,10 +70,7 @@ export function TrashPanel({ open, onClose, onOpenNote }: { open: boolean; onClo
                         className="btn btn-sm"
                         onClick={() =>
                           restore.mutate(n.id, {
-                            onSuccess: () => {
-                              addToast({ type: 'success', message: '已恢复' });
-                              onOpenNote(n.id);
-                            },
+                            onSuccess: () => addToast({ type: 'success', message: '已恢复' }),
                           })
                         }
                       >

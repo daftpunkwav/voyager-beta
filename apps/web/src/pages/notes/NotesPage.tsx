@@ -552,11 +552,6 @@ export function NotesPage() {
       <TrashPanel
         open={panel === 'trash'}
         onClose={() => commitNotesPanel('none')}
-        onOpenNote={async (id) => {
-          commitNotesPanel('none');
-          await flush();
-          navigate(routes.note(id));
-        }}
       />
       <ConfirmDialog
         open={deleteOpen}
