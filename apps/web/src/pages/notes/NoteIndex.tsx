@@ -1,6 +1,6 @@
 /** 笔记首页:只列清单(列表 / 卡片),不打开编辑器。归档/删除/导出在条目与批量栏即可做。 */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { GlassSelect } from '@/components/common/GlassSelect';
@@ -51,6 +51,9 @@ interface NoteIndexProps {
   busy?: boolean;
   empty: boolean;
 }
+
+/** 与 notes.css `--notes-bulk-ms` 退场时长一致 */
+const BULK_BAR_MS = 420;
 
 export function NoteIndex({
   notes,
@@ -106,6 +109,9 @@ export function NoteIndex({
   const [selectMode, setSelectMode] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
+  const [bulkMounted, setBulkMounted] = useState(false);
+  const [bulkExiting, setBulkExiting] = useState(false);
+  const bulkCountRef = useRef(0);
 
   const stopSelecting = () => {
     setSelectMode(false);
@@ -145,6 +151,29 @@ export function NoteIndex({
     return () => window.removeEventListener('keydown', onKey);
   }, [selectMode]);
 
+  const showBulk = selectMode && selected.size > 0;
+  useEffect(() => {
+    if (showBulk) {
+      setBulkMounted(true);
+      setBulkExiting(false);
+      return undefined;
+    }
+    if (!bulkMounted) return undefined;
+    const reduce = typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) {
+      setBulkMounted(false);
+      setBulkExiting(false);
+      return undefined;
+    }
+    setBulkExiting(true);
+    const t = window.setTimeout(() => {
+      setBulkMounted(false);
+      setBulkExiting(false);
+    }, BULK_BAR_MS);
+    return () => window.clearTimeout(t);
+  }, [showBulk, bulkMounted]);
+
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -157,6 +186,7 @@ export function NoteIndex({
   const selectedIds = [...selected];
   const allShownSelected = shown.length > 0 && selected.size === shown.length;
   const selecting = selectMode;
+  if (selected.size > 0) bulkCountRef.current = selected.size;
 
   const listProps = {
     projectNames,
@@ -364,15 +394,15 @@ export function NoteIndex({
       </div>
 
       <div className="page-scaffold__body">
-        {selecting && selected.size > 0 ? (
+        {bulkMounted ? (
           <div
-            className="notes-bulk"
+            className={`notes-bulk${bulkExiting ? ' is-exit' : ''}`}
             role="region"
             aria-label="已选笔记"
             data-testid="notes-bulk-bar"
           >
             <span className="notes-bulk__count" aria-live="polite">
-              已选 <strong>{selected.size}</strong> 篇
+              已选 <strong>{selected.size || bulkCountRef.current}</strong> 篇
             </span>
             <div className="notes-bulk__actions">
               <button

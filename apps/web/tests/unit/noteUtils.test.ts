@@ -4,6 +4,7 @@ import {
   parseNotesLayout,
   parseNotesListState,
   parseNotesMode,
+  parseNotesSourceId,
   parseNotesTocWidth,
   parseSplitRatio,
   parseSyncScroll,
@@ -23,6 +24,7 @@ import {
 } from '@/pages/notes/noteListing';
 import { extractNoteToc, tocHeadingLabel } from '@/pages/notes/noteOutline';
 import { buildNoteExplainMessage, parseNotesQuote } from '@/pages/notes/noteQuote';
+import { isAllowedNoteImage } from '@/pages/notes/NoteEditor';
 
 describe('parseNotesMode', () => {
   it('只认 notes-mode,缺省为编辑', () => {
@@ -75,6 +77,24 @@ describe('parseNotesLayout / parseSplitRatio / parseNotesListState', () => {
     expect(parseSyncScroll(null)).toBe(true);
     expect(parseSyncScroll('1')).toBe(true);
     expect(parseSyncScroll('0')).toBe(false);
+  });
+
+  it('非法 source_id 视为空,合法值截到 80 字', () => {
+    expect(parseNotesSourceId(null)).toBe('');
+    expect(parseNotesSourceId('../etc')).toBe('');
+    expect(parseNotesSourceId('a/b')).toBe('');
+    expect(parseNotesSourceId('a\\b')).toBe('');
+    expect(parseNotesSourceId('ok-id')).toBe('ok-id');
+    expect(parseNotesSourceId(` ${'x'.repeat(90)} `)).toBe('x'.repeat(80));
+  });
+});
+
+describe('isAllowedNoteImage', () => {
+  it('拒绝 SVG,接受 png/jpeg/gif/webp', () => {
+    expect(isAllowedNoteImage({ type: 'image/svg+xml', name: 'a.svg' })).toBe(false);
+    expect(isAllowedNoteImage({ type: 'image/png', name: 'a.png' })).toBe(true);
+    expect(isAllowedNoteImage({ type: '', name: 'shot.webp' })).toBe(true);
+    expect(isAllowedNoteImage({ type: '', name: 'x.svg' })).toBe(false);
   });
 });
 

@@ -130,7 +130,7 @@ export function NoteList({
   variant = 'list',
   density = 'comfortable',
 }: NoteListProps) {
-  const snip = density === 'compact' ? 72 : variant === 'card' ? 160 : 120;
+  const snip = variant === 'card' ? 160 : density === 'compact' ? 72 : 120;
   if (notes.length === 0) {
     return <p className="muted notes-list-empty">{emptyLabel}</p>;
   }

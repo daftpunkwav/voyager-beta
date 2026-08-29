@@ -76,77 +76,7 @@ a {
   }
 }
 
-.toast-container {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: var(--z-modal);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.toast {
-  background: var(--bg-50);
-  color: var(--text-800);
-  padding: 12px 16px;
-  border-radius: var(--radius);
-  border: 1px solid var(--bg-300);
-  box-shadow: var(--shadow-md);
-  font-size: 13px;
-  font-weight: 500;
-  min-width: 200px;
-  max-width: 360px;
-  display: flex;
-  align-items: center;
-  gap: calc(var(--sp) * 3);
-  animation: rpToastIn 0.25s var(--ease);
-}
-@keyframes rpToastIn {
-  from {
-    opacity: 0;
-    transform: translateX(20px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-.toast--success {
-  border-left: 4px solid var(--success);
-}
-.toast--error {
-  border-left: 4px solid var(--error);
-}
-.toast--warning {
-  border-left: 4px solid var(--warning);
-}
-.toast--info {
-  border-left: 4px solid var(--brand-500);
-}
-.toast__close {
-  margin-left: auto;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: 1.25rem;
-}
-.toast-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-500);
-  flex-shrink: 0;
-}
-.toast-title {
-  font-weight: 600;
-}
-.toast-hint {
-  display: block;
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--text-500);
-  line-height: 1.4;
-}
+/* Toast 视觉与入场见 design-system.css；此处不再定义 .toast / toast-in，避免后加载覆盖居中 */
 
 .modal-overlay,
 .drawer-overlay {

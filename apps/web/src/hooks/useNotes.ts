@@ -9,7 +9,7 @@ export function useAllNotes(state: NotesListView = 'active') {
   return useQuery({
     queryKey: ['notes', 'all', state],
     queryFn: async () => {
-      const res = await getApi().searchNotes('', { state, limit: 200 }); // 首页由前端二次筛选，后端 limit 只需覆盖当前展示
+      const res = await getApi().searchNotes('', { state, limit: 200 }); // 首页前端二次筛选;超过 200 篇会被截断
       return res.data;
     },
   });

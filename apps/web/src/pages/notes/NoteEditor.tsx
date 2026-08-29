@@ -2,7 +2,7 @@
  *
  * 依赖注入而非包装库(@uiw):主题经 EditorView.theme 读 CSS 变量,
  * 亮暗切换随 data-theme 即时生效;字号读 --notes-md-size,无需重载。
- * 粘贴/拖拽 image/* → uploadFile → notes.add_asset → 光标处插 attachment:// 引用。
+ * 粘贴/拖拽白名单图片 → uploadFile → notes.add_asset → 光标处插 attachment:// 引用。
  */
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -22,6 +22,19 @@ import {
   toggleLinePrefixBlock,
   type InlineFormat,
 } from './noteFormat';
+
+/** 与后端 ALLOWED_EXTS 对齐;不含 SVG(可内嵌脚本)。 */
+const NOTE_IMAGE_ACCEPT = 'image/png,image/jpeg,image/gif,image/webp';
+const NOTE_IMAGE_MIMES = new Set([
+  'image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp',
+]);
+const NOTE_IMAGE_EXT = /\.(png|jpe?g|gif|webp)$/i;
+
+export function isAllowedNoteImage(file: { type: string; name: string }): boolean {
+  if (NOTE_IMAGE_MIMES.has(file.type)) return true;
+  if (file.type.startsWith('image/')) return false;
+  return NOTE_IMAGE_EXT.test(file.name);
+}
 
 export interface NoteEditorHandle {
   scrollDom: HTMLElement;
@@ -177,6 +190,7 @@ export function NoteEditor({ onSave, saving, onReady, formatBarHost, visible = t
   const addToast = useUIStore((s) => s.addToast);
   const viewRef = useRef<EditorView | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const applyingExternalRef = useRef(false);
   const [uploading, setUploading] = useState(false);
   const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
   const [rgbHex, setRgbHex] = useState(() => {
@@ -200,10 +214,15 @@ export function NoteEditor({ onSave, saving, onReady, formatBarHost, visible = t
   };
 
   const uploadImages = async (files: File[]) => {
+    const allowed = files.filter(isAllowedNoteImage);
+    if (allowed.length === 0) {
+      addToast({ type: 'error', message: '仅支持 PNG/JPEG/GIF/WebP' });
+      return;
+    }
     const view = viewRef.current;
     setUploading(true);
     try {
-      for (const file of files) {
+      for (const file of allowed) {
         const { uploadFile } = await import('@/bridge/client');
         const { file_path, filename } = await uploadFile(file);
         const res = await (await import('@/api/client')).getApi().addAsset(file_path, filename);
@@ -228,6 +247,11 @@ export function NoteEditor({ onSave, saving, onReady, formatBarHost, visible = t
     }
   };
 
+  const uploadImagesRef = useRef(uploadImages);
+  uploadImagesRef.current = uploadImages;
+  const addToastRef = useRef(addToast);
+  addToastRef.current = addToast;
+
   useEffect(() => {
     if (!hostRef.current) return;
     const state = EditorState.create({
@@ -241,7 +265,9 @@ export function NoteEditor({ onSave, saving, onReady, formatBarHost, visible = t
         markdownTheme,
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
-          if (update.docChanged) setContent(update.state.doc.toString());
+          if (update.docChanged && !applyingExternalRef.current) {
+            setContent(update.state.doc.toString());
+          }
         }),
         keymap.of([
           {
@@ -271,19 +297,29 @@ export function NoteEditor({ onSave, saving, onReady, formatBarHost, visible = t
         ]),
         EditorView.domEventHandlers({
           paste: (event) => {
-            const files = Array.from(event.clipboardData?.files ?? []).filter((f) =>
-              f.type.startsWith('image/'));
-            if (files.length === 0) return false;
+            const files = Array.from(event.clipboardData?.files ?? []);
+            const images = files.filter(isAllowedNoteImage);
+            const hadImage = files.some((f) => f.type.startsWith('image/') || isAllowedNoteImage(f));
+            if (!hadImage) return false;
             event.preventDefault();
-            void uploadImages(files);
+            if (images.length === 0) {
+              addToastRef.current({ type: 'error', message: '仅支持 PNG/JPEG/GIF/WebP' });
+              return true;
+            }
+            void uploadImagesRef.current(images);
             return true;
           },
           drop: (event) => {
-            const files = Array.from(event.dataTransfer?.files ?? []).filter((f) =>
-              f.type.startsWith('image/'));
-            if (files.length === 0) return false;
+            const files = Array.from(event.dataTransfer?.files ?? []);
+            const images = files.filter(isAllowedNoteImage);
+            const hadImage = files.some((f) => f.type.startsWith('image/') || isAllowedNoteImage(f));
+            if (!hadImage) return false;
             event.preventDefault();
-            void uploadImages(files);
+            if (images.length === 0) {
+              addToastRef.current({ type: 'error', message: '仅支持 PNG/JPEG/GIF/WebP' });
+              return true;
+            }
+            void uploadImagesRef.current(images);
             return true;
           },
         }),
@@ -314,11 +350,19 @@ export function NoteEditor({ onSave, saving, onReady, formatBarHost, visible = t
     const current = view.state.doc.toString();
     if (current === content) return;
     const patch = diffReplace(current, content);
-    view.dispatch({
-      changes: { from: patch.from, to: patch.to, insert: patch.insert },
-      selection: { anchor: patch.from, head: patch.from + patch.insert.length },
-      scrollIntoView: true,
-    });
+    applyingExternalRef.current = true;
+    try {
+      const fullReplace = patch.from === 0 && patch.to === current.length;
+      view.dispatch({
+        changes: { from: patch.from, to: patch.to, insert: patch.insert },
+        // 切笔记:光标回文首;局部补丁:让 CM 自行映射选区,避免冲掉插入点
+        ...(fullReplace
+          ? { selection: { anchor: 0 }, scrollIntoView: true }
+          : {}),
+      });
+    } finally {
+      applyingExternalRef.current = false;
+    }
   }, [content]);
 
   const btn = (
@@ -422,7 +466,7 @@ export function NoteEditor({ onSave, saving, onReady, formatBarHost, visible = t
       {btn(uploading ? '上传中…' : '插入图片', () => {
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = 'image/png,image/jpeg,image/gif,image/webp';
+        input.accept = NOTE_IMAGE_ACCEPT;
         input.onchange = () => {
           if (input.files) void uploadImages(Array.from(input.files));
         };

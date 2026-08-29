@@ -144,9 +144,7 @@
   pointer-events: none;
 }
 
-.glass-card::after,
-.liquid-glass::after,
-.glass::after,
+/* 卡片/按钮不用左侧竖高光(易看成品牌色条)；弹层保留 */
 .modal::after,
 .ask-dialog::after,
 .import-agent-modal::after,
@@ -218,19 +216,7 @@
 
 .glass-card--panel::after,
 .liquid-glass--panel::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 1px;
-  height: 100%;
-  background: linear-gradient(
-    180deg,
-    var(--lg-panel-edge-left-top),
-    transparent,
-    var(--lg-panel-edge-left-mid)
-  );
-  pointer-events: none;
+  content: none;
 }
 
 /* 透明中层 · 不渲染底板，仅保留内层 control 玻璃 */
@@ -393,19 +379,7 @@
 }
 
 .glass-card.glass-card--overview-outer::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 1px;
-  height: 100%;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.8),
-    transparent,
-    rgba(255, 255, 255, 0.3)
-  );
-  pointer-events: none;
+  content: none;
 }
 
 .glass-card.glass-card--overview-inner {
@@ -433,19 +407,7 @@
 }
 
 .glass-card.glass-card--overview-inner::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 1px;
-  height: 100%;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.8),
-    transparent,
-    rgba(255, 255, 255, 0.3)
-  );
-  pointer-events: none;
+  content: none;
 }
 
 [data-theme='dark'] .glass-card.glass-card--overview-outer {
@@ -462,13 +424,9 @@
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
 }
 
-[data-theme='dark'] .glass-card.glass-card--overview-outer::after {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.45),
-    transparent,
-    rgba(255, 255, 255, 0.14)
-  );
+[data-theme='dark'] .glass-card.glass-card--overview-outer::after,
+[data-theme='dark'] .glass-card.glass-card--overview-inner::after {
+  content: none;
 }
 
 [data-theme='dark'] .glass-card.glass-card--overview-inner {
@@ -483,15 +441,6 @@
 
 [data-theme='dark'] .glass-card.glass-card--overview-inner::before {
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
-}
-
-[data-theme='dark'] .glass-card.glass-card--overview-inner::after {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.5),
-    transparent,
-    rgba(255, 255, 255, 0.14)
-  );
 }
 
 /* 项目页等仍沿用旧版柔亮变体 */
@@ -535,12 +484,7 @@
   --lg-edge-left-mid: rgba(255, 255, 255, 0.14);
 }
 
-/* --------------------------------------------------------------------------
-   overflow:visible 兼容
-   默认 glass-card 用 overflow:hidden 裁切圆角内的左侧 1px 高光。
-   下拉/浮层必须 visible 时加 .glass-overflow-visible，并关闭 ::after，
-   避免竖线外露；边框与 inset 阴影仍保留，观感接近。
-   -------------------------------------------------------------------------- */
+/* overflow:visible 时关闭弹层左侧高光,避免竖线外露 */
 .glass-card.glass-overflow-visible,
 .liquid-glass.glass-overflow-visible,
 .glass.glass-overflow-visible {

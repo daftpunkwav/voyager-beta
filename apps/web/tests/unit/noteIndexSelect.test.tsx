@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { vi } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import type { Note } from '@/api/types';
 import { NoteIndex } from '@/pages/notes/NoteIndex';
 
@@ -79,13 +79,22 @@ describe('笔记首页批量选择', () => {
     expect(screen.getByTestId('notes-bulk-delete')).toBeTruthy();
   });
 
-  it('取消选择后选择信息消失,仍留在批量模式', () => {
-    renderIndex();
-    fireEvent.click(screen.getByTestId('notes-select-btn'));
-    fireEvent.click(screen.getAllByTestId('note-item')[0]);
-    fireEvent.click(screen.getByTestId('notes-bulk-clear'));
-    expect(screen.queryByTestId('notes-bulk-bar')).toBeNull();
-    expect(screen.queryByRole('checkbox')).toBeNull();
-    expect(screen.getByTestId('notes-select-btn')).toHaveAccessibleName('完成');
+  it('取消选择后选择信息先退出再卸掉,仍留在批量模式', () => {
+    vi.useFakeTimers();
+    try {
+      renderIndex();
+      fireEvent.click(screen.getByTestId('notes-select-btn'));
+      fireEvent.click(screen.getAllByTestId('note-item')[0]);
+      fireEvent.click(screen.getByTestId('notes-bulk-clear'));
+      expect(screen.getByTestId('notes-bulk-bar').className).toMatch(/is-exit/);
+      act(() => {
+        vi.advanceTimersByTime(420);
+      });
+      expect(screen.queryByTestId('notes-bulk-bar')).toBeNull();
+      expect(screen.queryByRole('checkbox')).toBeNull();
+      expect(screen.getByTestId('notes-select-btn')).toHaveAccessibleName('完成');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
