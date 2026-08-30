@@ -18,9 +18,10 @@ _DEGRADED = "（尚未配置可用的 LLM 提供商:请先添加提供商并填�
 class ServiceLLM:
     """complete 能力 → LLMReply。
 
-    provider 解析:显式 provider_id 优先;否则取第一个启用且有 api key 的
-    提供商(显式选择键属设置页阶段,本阶段自动选择)。
-    调用失败(ServiceError,如网络/额度)降级为可读文本,不打断 agent 循环。
+    provider 解析:显式 provider_id 优先;否则设置项 llm.default_provider
+    (设置页指定)优先——但须 enabled 且 has_api_key 才生效;仍无则回退
+    第一个可用提供商。调用失败(ServiceError,如网络/额度)降级为可读文本,
+    不打断 agent 循环。
     """
 
     def __init__(self, call, *, provider_id: str = "", model: str = "") -> None:
@@ -34,7 +35,22 @@ class ServiceLLM:
             return {"id": self._provider_id, "default_model": self._model}
         providers = await self._call("llm", "list_providers", {})
         usable = [p for p in providers if p.get("enabled", True) and p.get("has_api_key")]
-        return usable[0] if usable else None
+        if not usable:
+            return None
+        # 设置页指定的默认提供商优先;读取失败/未设置/指向不可用提供商时回退第一个可用
+        default_id = ""
+        try:
+            item = await self._call(
+                "settings", "get_setting", {"key": "llm.default_provider"}
+            )
+            default_id = str((item or {}).get("value") or "")
+        except ServiceError:
+            pass  # 设置服务不可用不阻断对话,按未设置处理
+        if default_id:
+            for p in usable:
+                if p.get("id") == default_id:
+                    return p
+        return usable[0]
 
     async def complete(
         self, messages: list[dict[str, Any]], tools: list[ToolSpec] | None = None

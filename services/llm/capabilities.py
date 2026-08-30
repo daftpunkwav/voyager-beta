@@ -144,6 +144,7 @@ def update_provider(
     provider_id: str,
     display_name: str | None = None,
     base_url: str | None = None,
+    api_format: str | None = None,
     models: list[str] | None = None,
     default_model: str | None = None,
     enabled: bool | None = None,
@@ -153,10 +154,16 @@ def update_provider(
     current = _require_provider(provider_id)
     if base_url is not None:
         base_url = _validate_base_url(base_url, _actor)
+    if api_format is not None and not valid_format(api_format):
+        raise ServiceError(
+            _DOMAIN, ErrorSuffix.INVALID_INPUT,
+            f"api_format 仅支持 chat / anthropic: {api_format}",
+        )
     merged = {
         **current,
         **{k: v for k, v in {
-            "display_name": display_name, "base_url": base_url, "models": models,
+            "display_name": display_name, "base_url": base_url,
+            "api_format": api_format, "models": models,
             "default_model": default_model, "enabled": enabled,
         }.items() if v is not None},
     }
