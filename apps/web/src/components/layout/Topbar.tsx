@@ -5,6 +5,8 @@ import { useUIStore } from '@/stores/uiStore';
 import { userInitials } from '@/utils/user';
 import { routes } from '@/utils/routes';
 import { resolvePageTitle } from '@/shell/pageMeta';
+import { extractErrorMessage } from '@/utils/errors';
+import { useTheme } from '@/hooks/useTheme';
 
 function readSystemPrefersDark(): boolean {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
@@ -21,7 +23,8 @@ function isApplePlatform(): boolean {
 export function Topbar() {
   const user = useAuthStore((s) => s.user);
   const theme = useUIStore((s) => s.theme);
-  const setTheme = useUIStore((s) => s.setTheme);
+  const addToast = useUIStore((s) => s.addToast);
+  const { changeTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -82,8 +85,13 @@ export function Topbar() {
     }
   };
 
+  // 主题唯一写入:先 set_theme 落库(§10.11),成功后经 useTheme 回写选中态与视觉。
+  // 切换方向以所见(DOM data-theme)为准:store 短暂未同步时也不会"第一下没反应"。
   const toggleTheme = () => {
-    setTheme(isDark ? 'light' : 'dark');
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    changeTheme(next).catch((err) => {
+      addToast({ type: 'error', message: `主题切换失败:${extractErrorMessage(err)}` });
+    });
   };
 
   const pageTitle = resolvePageTitle(location.pathname);

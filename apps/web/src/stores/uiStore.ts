@@ -27,33 +27,19 @@ interface UIState {
   removeToast: (id: string) => void;
 }
 
-function applyTheme(theme: Theme): void {
-  const root = document.documentElement;
-  if (theme === 'system') {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if (prefersDark) {
-      root.setAttribute('data-theme', 'dark');
-    } else {
-      root.removeAttribute('data-theme');
-    }
-  } else if (theme === 'dark') {
-    root.setAttribute('data-theme', 'dark');
-  } else {
-    root.removeAttribute('data-theme');
-  }
-}
-
 export const useUIStore = create<UIState>()(
   persist(
     (set) => ({
-      theme: 'light',
+      // 主题唯一真相在后端 appearance.theme(§10.11);本 store 只做 UI 选中态,
+      // 由 shell/themeBridge 经 get_theme / settings.changed 回写对齐。
+      // DOM 的 data-theme 也只由 themeBridge.applyTheme 一处应用。
+      theme: 'system',
       sidebarCollapsed: false,
       fontScale: 1.0,
       toasts: [],
 
       setTheme: (theme) => {
         set({ theme });
-        applyTheme(theme);
       },
 
       toggleSidebar: () => {
@@ -85,7 +71,6 @@ export const useUIStore = create<UIState>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
-          applyTheme(state.theme);
           document.documentElement.style.setProperty(
             '--font-scale',
             String(state.fontScale)
@@ -95,5 +80,3 @@ export const useUIStore = create<UIState>()(
     }
   )
 );
-
-export { applyTheme };

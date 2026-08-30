@@ -12,7 +12,7 @@ THEMES = ("dark", "light", "system")
 DEFS = [
     # 外观
     SettingDef(key="appearance.theme", module="appearance", type=SettingType.CHOICE,
-               default="dark", choices=THEMES, description="界面主题"),
+               default="system", choices=THEMES, description="界面主题"),
     SettingDef(key="appearance.font_scale", module="appearance", type=SettingType.FLOAT,
                default=1.0, min=0.8, max=1.5, description="全局字号缩放"),
     SettingDef(key="appearance.code_font", module="appearance", type=SettingType.STR,

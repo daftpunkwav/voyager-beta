@@ -13,7 +13,8 @@ from .conftest import AGENT_CTX, USER_CTX
 class TestTheme:
     async def test_defaults(self, deps) -> None:
         out = await execute(registry, "get_theme", USER_CTX, {})
-        assert out == {"theme": "dark", "font_scale": 1.0, "code_font": "JetBrains Mono"}
+        # 工厂默认跟随系统(phase-06):用户显式浅/深之后只认设置
+        assert out == {"theme": "system", "font_scale": 1.0, "code_font": "JetBrains Mono"}
 
     async def test_list_themes(self, deps) -> None:
         out = await execute(registry, "list_themes", AGENT_CTX, {})
