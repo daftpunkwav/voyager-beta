@@ -58,6 +58,12 @@ interface SemanticFact {
   relation: string;
   object: string;
 }
+
+/** agent.list_skills 返回形状(phase-11:只 name + description,无路径) */
+interface SkillItem {
+  name: string;
+  description: string;
+}
 interface MemorySnapshot {
   profile: { summary: string; items: ProfileItem[] };
   episodic: { recent: EpisodicEntry[]; shown: number };
@@ -143,6 +149,9 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
   // 工作目录草稿
   const [workdir, setWorkdir] = useState('');
   const [workdirLoadFailed, setWorkdirLoadFailed] = useState(false);
+  // 技能清单(null = 加载中;失败该块自显提示,不整页 EmptyState)
+  const [skills, setSkills] = useState<SkillItem[] | null>(null);
+  const [skillsLoadFailed, setSkillsLoadFailed] = useState(false);
 
   const saveConduct = () => {
     const next = conductDraft.slice(0, CONDUCT_MAX);
@@ -236,6 +245,14 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
       })
       .catch(() => {
         if (alive) setWorkdirLoadFailed(true);
+      });
+    // 技能清单(只读):索引常驻对话上下文,这里仅展示
+    callCapability<SkillItem[]>('agent', 'list_skills', {})
+      .then((items) => {
+        if (alive) setSkills(Array.isArray(items) ? items : []);
+      })
+      .catch(() => {
+        if (alive) setSkillsLoadFailed(true);
       });
     return () => {
       alive = false;
@@ -651,6 +668,31 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
                 保存
               </button>
             </div>
+          )}
+        </div>
+
+        <div className="agent-settings-block">
+          <h3 className="agent-settings-subtitle">技能</h3>
+          <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+            可复用的过程包。索引（名称 + 一句描述）常驻对话上下文；需要步骤时 Agent 用 load_skill 取全文。
+          </p>
+          {skillsLoadFailed ? (
+            <p className="muted" style={{ fontSize: 12 }}>读取失败请刷新。</p>
+          ) : skills === null ? (
+            <p className="muted" style={{ fontSize: 12 }}>技能清单加载中…</p>
+          ) : skills.length === 0 ? (
+            <p className="muted" style={{ fontSize: 12 }}>
+              还没有技能。把 SKILL.md 放到工作目录的 skills/&lt;名称&gt;/ 下，重启开发服务后生效。
+            </p>
+          ) : (
+            <ul className="memory-entry-list">
+              {skills.map((s) => (
+                <li key={s.name} className="memory-entry">
+                  <span className="memory-kind">{s.name}</span>
+                  <span className="memory-entry-summary">{s.description}</span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
 

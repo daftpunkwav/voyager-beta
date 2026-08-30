@@ -1,4 +1,4 @@
-"""上下文装配(§9.12):规则 → 人格 → 画像 → 任务书 → subagent 摘要 → 页面摘要。
+"""上下文装配(§9.12):规则 → 人格 → 画像 → skill 索引 → 任务书 → subagent 摘要 → 页面摘要。
 
 注入的是各层的**摘要**;全文经 OnDemandLoader 按需加载(§9.20)。
 """
@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from agent.context.pages import PageContextRegistry
 from agent.memory import Memory
 from agent.personas import Persona
+from agent.skills.loader import SkillLoader
 
 if TYPE_CHECKING:  # 仅类型标注;运行期 duck type,避免环导入
     from agent.subagent.instance import TaskBook
@@ -23,11 +24,13 @@ class ContextBuilder:
         memory: Memory | None = None,
         digests: Any = None,  # DigestStore(避免环依赖,duck type: render())
         pages: PageContextRegistry | None = None,
+        skills: SkillLoader | None = None,
     ) -> None:
         self._rules = list(rules or [])
         self._memory = memory
         self._digests = digests
         self._pages = pages
+        self._skills = skills
 
     def system(
         self,
@@ -47,6 +50,15 @@ class ContextBuilder:
             layers.append(f"【风格】{style}")
         if self._memory is not None:
             layers.append("【用户画像】\n" + self._memory.profile.render())
+        if self._skills is not None:
+            # skill 索引常驻(§9.20):只 name+一句描述,全文经 load_skill 按需;0 个省略整层
+            entries = self._skills.index()
+            if entries:
+                layers.append(
+                    "【可用 skill】\n"
+                    + "\n".join(f"{e['name']}: {e['description']}" for e in entries)
+                    + "\n需要步骤时用 load_skill(name) 取全文。"
+                )
         if task is not None and task.goal:
             block = f"【任务书】目标: {task.goal}"
             if task.constraints:

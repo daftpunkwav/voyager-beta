@@ -2,6 +2,7 @@
 
 import pytest
 
+from agent.context import ContextBuilder
 from agent.memory.episodic import EpisodicMemory
 from agent.skills.loader import SkillLoader
 from agent.skills.organizer import SkillOrganizer
@@ -26,6 +27,77 @@ class TestLoader:
     def test_unknown_skill_raises(self, tmp_path) -> None:
         with pytest.raises(KeyError, match="未知 skill"):
             SkillLoader([tmp_path]).full_text("nope")
+
+
+class TestIndexVisibility:
+    """phase-11:索引进上下文、不泄漏本机路径;插件示例不进默认索引。"""
+
+    def test_index_entries_have_no_path(self, tmp_path) -> None:
+        _make_skill(tmp_path, "my-skill", "做一件事")
+        for entry in SkillLoader([tmp_path]).index():
+            assert set(entry) == {"name", "description"}  # path 不出 loader
+
+    def test_builder_injects_skill_layer(self, tmp_path) -> None:
+        # _read_desc 取首行作描述:首行即「一句话描述」,与真实 skill 文件一致
+        d = tmp_path / "explore-repo"
+        d.mkdir()
+        (d / "SKILL.md").write_text(
+            "# 探索仓库结构\n\n了解一个仓库的流程:…\n", encoding="utf-8"
+        )
+        builder = ContextBuilder(skills=SkillLoader([tmp_path]))
+        system = builder.system()
+        assert "【可用 skill】" in system
+        assert "explore-repo: 探索仓库结构" in system
+        assert "load_skill" in system  # 指路按需取全文
+        assert str(tmp_path) not in system  # 不泄漏本机绝对路径
+
+    def test_builder_omits_layer_when_no_skills(self, tmp_path) -> None:
+        builder = ContextBuilder(skills=SkillLoader([tmp_path / "空"]))
+        assert "【可用 skill】" not in builder.system()
+
+
+class TestDefaultWiring:
+    """build_agent 默认 roots:内置 + 用户 skills 目录;插件 _example 不进。"""
+
+    def _build(self, tmp_path):
+        from agent.llm import FakeLLM
+        from agent.main import build_agent
+
+        return build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=FakeLLM()
+        )
+
+    def test_builtin_in_user_example_out(self, tmp_path) -> None:
+        app = self._build(tmp_path)
+        try:
+            names = [e["name"] for e in app.skills.index()]
+            assert "explore-repo" in names  # 内置 skill 入库
+            assert "daily-note" not in names  # plugins/_example 未经批准不进索引
+        finally:
+            app.memory.close()
+
+    def test_user_skill_dir_discovered(self, tmp_path) -> None:
+        d = tmp_path / "ws" / "skills" / "my-workflow"
+        d.mkdir(parents=True)
+        (d / "SKILL.md").write_text("# my-workflow\n\n三步收尾流程\n", encoding="utf-8")
+        app = self._build(tmp_path)
+        try:
+            assert "my-workflow" in [e["name"] for e in app.skills.index()]
+        finally:
+            app.memory.close()
+
+    async def test_spawned_system_contains_skill_index(self, tmp_path) -> None:
+        from agent.subagent import Mode, TaskBook
+
+        app = self._build(tmp_path)
+        try:
+            inst = app.spawner.spawn(
+                TaskBook(goal="测试", mode=Mode.REACT), persona="orchestrator"
+            )
+            assert "【可用 skill】" in inst.system_prompt
+            assert "explore-repo: explore-repo(skill 内置示例)" in inst.system_prompt
+        finally:
+            app.memory.close()
 
 
 class TestOrganizer:

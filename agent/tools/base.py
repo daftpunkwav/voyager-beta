@@ -14,6 +14,7 @@ from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+from agent.hooks.triggers import HookRegistry
 from agent.llm import ToolCall, ToolSpec
 from agent.policy import Action, Level, PolicyEngine
 from agent.runtime.observability import Meter, MeterRecord
@@ -43,6 +44,7 @@ class Toolbelt:
         notify: NotifyFn | None = None,
         meter: Meter | None = None,
         active: set[str] | None = None,
+        hooks: HookRegistry | None = None,
     ) -> None:
         self._tools = dict(tools)
         self._policy = policy
@@ -50,6 +52,7 @@ class Toolbelt:
         self._notify = notify
         self._meter = meter
         self._active = active  # 分级加载(§9.20):非 None 时 specs() 只回激活集
+        self._hooks = hooks  # 工具生命周期 hook(phase-11):pre/post_tool
 
     def names(self) -> list[str]:
         return sorted(self._tools)
@@ -87,6 +90,7 @@ class Toolbelt:
             confirm=self._confirm,
             notify=self._notify,
             meter=self._meter,
+            hooks=self._hooks,
         )
 
     def with_active(self, active: set[str], extra: dict[str, AgentTool] | None = None) -> Toolbelt:
@@ -106,6 +110,7 @@ class Toolbelt:
             notify=self._notify,
             meter=self._meter,
             active=active,
+            hooks=self._hooks,
         )
 
     def with_policy(self, policy: PolicyEngine) -> Toolbelt:
@@ -118,6 +123,7 @@ class Toolbelt:
             notify=self._notify,
             meter=self._meter,
             active=self._active,
+            hooks=self._hooks,
         )
 
     async def call(self, call: ToolCall) -> str:
@@ -147,6 +153,11 @@ class Toolbelt:
                 return "[已取消] 用户未确认"
         elif decision.level == Level.L1_NOTIFY and self._notify is not None:
             await self._notify(f"{tool.name}: {target}")
+        if self._hooks is not None:
+            # pre_tool(phase-11):任一 hook 返回 False 即拦截,handler 不执行
+            pre = await self._hooks.fire("pre_tool", name=tool.name, arguments=call.arguments)
+            if any(r is False for r in pre):
+                return f"[已拦截] {tool.name}({target})被 pre_tool hook 拦截"
         start = time.perf_counter()
         ok = True
         try:
@@ -166,6 +177,9 @@ class Toolbelt:
                         ok=ok,
                     )
                 )
+        if self._hooks is not None:
+            # post_tool(phase-11):成功失败都要发,让 hook 看见调用结果
+            await self._hooks.fire("post_tool", name=tool.name, ok=ok, result=result)
         if isinstance(result, str):
             return result
         return json.dumps(result, ensure_ascii=False, default=str)

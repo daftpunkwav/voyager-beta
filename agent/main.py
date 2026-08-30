@@ -17,7 +17,7 @@ from platform_settings import SettingsStore
 
 from agent.capabilities import CapabilityDeps, build_agent_registry
 from agent.context import ContextBuilder, OnDemandLoader, PageContextRegistry
-from agent.hooks import HookRegistry
+from agent.hooks import HookLoader, HookRegistry
 from agent.llm import FakeLLM, LLMClient
 from agent.master import Arbiter, DigestStore, Master, ProactiveBudget, ProactiveEngine
 from agent.memory import Memory
@@ -60,6 +60,7 @@ class AgentApp:
     proactive: ProactiveEngine
     loop: EventLoop
     skills: SkillLoader
+    hooks: HookRegistry
     pages: PageContextRegistry
     asker: AskUser
     spawner: Spawner
@@ -101,8 +102,13 @@ def build_agent(
     memory = Memory(data_dir / "memory")
     pages = PageContextRegistry()
     asker = AskUser(bus)
-    skills = SkillLoader([Path(__file__).parent / "skills" / "builtin", Path("plugins")])
+    # skill roots(phase-11):内置 + 用户技能目录;插件 skill 未经批准不进索引
+    skills_dir = workspace / "skills"  # agent 的家(§9.10),装配时创建
+    skills_dir.mkdir(parents=True, exist_ok=True)
+    skills = SkillLoader([Path(__file__).parent / "skills" / "builtin", skills_dir])
+    # hook(phase-11):用户 hooks 目录声明式 hook 直接生效;插件目录不在此加载
     hooks = HookRegistry()
+    HookLoader(hooks).load_dir(workspace / "hooks", source="user", approved=True)
     digests = DigestStore()
     on_demand = OnDemandLoader(skills=skills, memory=memory, pages=pages)
 
@@ -142,7 +148,7 @@ def build_agent(
         tools.update(group)
     tools.update(spawn_tool(lambda *a, **kw: _master["master"].dispatch_task(*a, **kw)))
     tools.update(extra_tools or {})  # 领域能力桥(聚合运行注入,§9.4)
-    toolbelt = Toolbelt(tools, policy, confirm=_confirm, meter=meter)
+    toolbelt = Toolbelt(tools, policy, confirm=_confirm, meter=meter, hooks=hooks)
 
     scheduler = Scheduler(max_concurrent=int(settings.get("agent.subagents.max_concurrent")))
     checkpoints = CheckpointStore(data_dir / "checkpoints")
@@ -165,6 +171,7 @@ def build_agent(
         memory=memory,
         digests=digests,
         pages=pages,
+        skills=skills,  # skill 索引常驻 system(§9.20)
     )
 
     def _build_system(task, persona_key: str) -> str:
@@ -229,6 +236,9 @@ def build_agent(
             ),
             "source.ready": observer.handle,
             DomainEvent.USER_ACTIVITY: observer.handle,  # 行为上报(节流在网关侧,§7.2)
+            # 领域事件 → hook(phase-11):on_event 过滤器自行匹配事件类型;
+            # 无 hook 时是一次空 fire,不拆上面的具体 handler
+            "*": lambda ev: hooks.fire("on_event", event=ev),
         },
         cursors=cursors,
     )
@@ -242,6 +252,7 @@ def build_agent(
         proactive=proactive,
         loop=loop,
         skills=skills,
+        hooks=hooks,
         pages=pages,
         asker=asker,
         spawner=spawner,
