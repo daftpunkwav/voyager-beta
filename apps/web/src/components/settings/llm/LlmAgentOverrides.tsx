@@ -1,30 +1,35 @@
 import { useMemo } from 'react';
-import type { AgentLlmConfig, AgentSpeakingStyle, LlmProviderConfig, Settings } from '@/api/types';
+import type { AgentLlmConfig, AgentSpeakingStyle, LlmProvider } from '@/api/types';
 import { GlassSelect } from '@/components/common/GlassSelect';
 import { AGENT_CATALOG } from '@/constants/agentCatalog';
 import { SPEAKING_STYLE_OPTIONS } from '@/constants/llmConfig';
+import { useSettings } from '@/hooks/useSettings';
 
 interface LlmAgentOverridesProps {
-  settings: Settings;
-  providers: LlmProviderConfig[];
-  updateSettings: (data: Partial<Settings>) => Promise<unknown>;
+  /** llm 服务真相的提供商列表(list_providers) */
+  providers: LlmProvider[];
+  /** 设置项 llm.default_provider 当前值 */
+  defaultProviderId: string;
 }
 
+/** Agent 供应商与风格覆盖表:提供商下拉数据源是 llm.* 真相;
+ *  每-agent 覆盖配置仍存 settings blob 的 agent_llm_configs(属设置服务契约,
+ *  本阶段不迁移;Blob 通道现状在 phase 写回中单独说明)。 */
 export function LlmAgentOverrides({
-  settings,
   providers,
-  updateSettings,
+  defaultProviderId,
 }: LlmAgentOverridesProps) {
+  const { settings, updateSettings } = useSettings();
+
   const agentConfigsMap = useMemo(() => {
     const m = new Map<string, AgentLlmConfig>();
-    for (const c of settings.agent_llm_configs ?? []) m.set(c.agent_id, c);
+    for (const c of settings?.agent_llm_configs ?? []) m.set(c.agent_id, c);
     return m;
-  }, [settings.agent_llm_configs]);
+  }, [settings?.agent_llm_configs]);
 
   const enabledProviders = providers.filter((p) => p.enabled);
   const defaultProvider =
-    providers.find((p) => p.id === settings.llm_default_provider_id) ??
-    enabledProviders[0];
+    providers.find((p) => p.id === defaultProviderId) ?? enabledProviders[0];
 
   const updateAgentConfig = (agentId: string, patch: Partial<AgentLlmConfig>) => {
     const next = AGENT_CATALOG.map((a) => {
@@ -66,9 +71,9 @@ export function LlmAgentOverrides({
               };
               const provider =
                 enabledProviders.find((p) => p.id === cfg.provider_id) ?? defaultProvider;
-              const modelOptions = provider?.available_models?.length
-                ? provider.available_models
-                : [provider?.default_model].filter(Boolean) as string[];
+              const modelOptions = provider?.models?.length
+                ? provider.models
+                : ([provider?.default_model].filter(Boolean) as string[]);
 
               return (
                 <tr key={agent.id}>

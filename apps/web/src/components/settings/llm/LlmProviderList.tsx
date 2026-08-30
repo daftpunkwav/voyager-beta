@@ -1,10 +1,10 @@
-import type { LlmProviderConfig } from '@/api/types';
+import type { LlmProvider } from '@/api/types';
 import { GLASS_INNER } from '@/constants/glassTokens';
 
 interface LlmProviderListProps {
-  providers: LlmProviderConfig[];
+  providers: LlmProvider[];
   selectedId: string | null;
-  defaultProviderId: string | null;
+  defaultProviderId: string;
   onSelect: (id: string) => void;
   onAdd: () => void;
 }
@@ -35,8 +35,8 @@ export function LlmProviderList({
                   {isDefault ? <span className="llm-provider-default-tag">默认</span> : null}
                 </span>
                 <span
-                  className={`llm-provider-status ${p.enabled && p.configured ? 'is-on' : ''}`}
-                  title={p.enabled ? (p.configured ? '已配置' : '未配置 Key') : '已禁用'}
+                  className={`llm-provider-status ${p.enabled && p.has_api_key ? 'is-on' : ''}`}
+                  title={p.enabled ? (p.has_api_key ? '已配置 Key' : '未配置 Key') : '已禁用'}
                 />
               </button>
             </li>

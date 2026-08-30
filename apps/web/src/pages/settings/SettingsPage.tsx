@@ -25,11 +25,10 @@ const NAV: { id: Section; label: string; icon: string }[] = [
 ];
 
 export function SettingsPage() {
-  const { settings, isLoading, updateSettings, saveLlmApiKey, testLLM, isTestingLLM, testResult } =
-    useSettings();
+  const { settings, isLoading, updateSettings } = useSettings();
   const error = useSettingsStore((s) => s.error);
   const loadSettings = useSettingsStore((s) => s.loadSettings);
-  const { theme, setTheme, fontScale, setFontScale } = useTheme();
+  const { theme, changeTheme, fontScale, setFontScale } = useTheme();
   const { data: accounts = [], refetch: refetchAccounts } = useGithubAccounts();
   const addToast = useUIStore((s) => s.addToast);
   const [section, setSection] = useState<Section>('appearance');
@@ -135,8 +134,14 @@ export function SettingsPage() {
                   type="button"
                   className={`theme-card ${theme === t ? 'active' : ''}`}
                   onClick={() => {
-                    setTheme(t);
-                    if (t !== 'system') void updateSettings({ theme: t });
+                    // 主题唯一写入:set_theme 落库(含 system),成功后才回写选中态;
+                    // 不再走 updateSettings(那会把 {theme} 打进 set_setting 造成参数错位)
+                    changeTheme(t).catch((err) => {
+                      addToast({
+                        type: 'error',
+                        message: `主题保存失败:${err instanceof Error ? err.message : '未知错误'}`,
+                      });
+                    });
                   }}
                 >
                   <div className={`theme-preview pv-${t === 'system' ? 'auto' : t}`}>
@@ -228,21 +233,7 @@ export function SettingsPage() {
           <section className="settings-section glass-card glass-card--overview-outer">
             <h2>LLM 配置</h2>
             <p className="section-desc">供应商连接、模型列表与各 Agent 的模型与说话风格</p>
-            <LlmSettingsSection
-              settings={settings}
-              updateSettings={updateSettings}
-              testLLM={testLLM}
-              isTestingLLM={isTestingLLM}
-              testResult={testResult}
-              onSaveApiKey={async (key, providerId) => {
-                try {
-                  await saveLlmApiKey(key, providerId);
-                  addToast({ type: 'success', message: 'API Key 已保存' });
-                } catch {
-                  addToast({ type: 'error', message: 'API Key 保存失败' });
-                }
-              }}
-            />
+            <LlmSettingsSection />
             <p style={{ marginTop: 12, fontSize: 13 }}>
               <Link to="/usage" style={{ color: 'var(--brand-500)' }}>
                 查看 LLM 用量 →

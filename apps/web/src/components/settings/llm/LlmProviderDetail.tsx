@@ -1,24 +1,22 @@
-import { useState } from 'react';
-import type { LlmProviderConfig } from '@/api/types';
-import type { LlmTestResult } from '@/stores/settingsStore';
+import { useEffect, useState } from 'react';
+import type { LlmApiFormat, LlmProvider } from '@/api/types';
+import type { LlmTestOutcome } from '@/components/settings/LlmSettingsSection';
 import { GlassSelect } from '@/components/common/GlassSelect';
-import {
-  findProviderPreset,
-  LLM_API_FORMAT_OPTIONS,
-  LLM_PROVIDER_PRESETS,
-} from '@/constants/llmConfig';
+import { LLM_API_FORMAT_OPTIONS } from '@/constants/llmConfig';
 import { GLASS_INNER } from '@/constants/glassTokens';
 
 interface LlmProviderDetailProps {
-  provider: LlmProviderConfig;
+  provider: LlmProvider;
   isDefault: boolean;
   isTesting: boolean;
-  testResult: LlmTestResult | null;
-  onPatch: (patch: Partial<LlmProviderConfig> & { api_key?: string }) => void;
+  testResult: LlmTestOutcome | null;
+  onPatch: (
+    patch: Partial<Pick<LlmProvider, 'display_name' | 'base_url' | 'api_format' | 'models' | 'default_model' | 'enabled'>>,
+  ) => Promise<unknown>;
+  onSaveKey: (key: string) => Promise<unknown>;
   onSetDefault: () => void;
   onDelete: () => void;
-  onSaveKey: (key: string) => Promise<void>;
-  onTest: (model: string) => Promise<void>;
+  onTest: (model: string) => void;
 }
 
 function formatLatency(ms: number): string {
@@ -34,43 +32,69 @@ export function LlmProviderDetail({
   isTesting,
   testResult,
   onPatch,
+  onSaveKey,
   onSetDefault,
   onDelete,
-  onSaveKey,
   onTest,
 }: LlmProviderDetailProps) {
+  const [nameDraft, setNameDraft] = useState(provider.display_name);
+  const [urlDraft, setUrlDraft] = useState(provider.base_url);
   const [apiKeyDraft, setApiKeyDraft] = useState('');
   const [newModel, setNewModel] = useState('');
-  const [showKey, setShowKey] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const applyPreset = (presetId: string) => {
-    const preset = findProviderPreset(presetId);
-    if (!preset) return;
-    onPatch({
-      preset_id: preset.id,
-      display_name: preset.display_name,
-      api_base: preset.default_base_url || null,
-      api_format: preset.api_format,
-      available_models: [...preset.available_models],
-      default_model: preset.default_model,
+  // 外部 reload 回来的值同步进本地草稿(切换提供商或远端变更后)
+  useEffect(() => {
+    setNameDraft(provider.display_name);
+  }, [provider.id, provider.display_name]);
+  useEffect(() => {
+    setUrlDraft(provider.base_url);
+  }, [provider.id, provider.base_url]);
+
+  const run = (fn: () => Promise<unknown>) => {
+    setActionError(null);
+    fn().catch((err) => {
+      const e = err as { message?: string; hint?: string };
+      setActionError(e.hint ? `${e.message}(${e.hint})` : e.message ?? '操作失败');
     });
+  };
+
+  const commitName = () => {
+    const name = nameDraft.trim();
+    if (!name || name === provider.display_name) return;
+    run(() => onPatch({ display_name: name }));
+  };
+
+  const commitBaseUrl = () => {
+    const url = urlDraft.trim();
+    if (!url || url === provider.base_url) return;
+    run(() => onPatch({ base_url: url }));
   };
 
   const addModel = () => {
     const name = newModel.trim();
-    if (!name || provider.available_models.includes(name)) return;
-    onPatch({ available_models: [...provider.available_models, name] });
+    if (!name || provider.models.includes(name)) return;
     setNewModel('');
+    run(() => onPatch({ models: [...provider.models, name] }));
   };
 
   const removeModel = (model: string) => {
-    const next = provider.available_models.filter((m) => m !== model);
-    const default_model =
-      provider.default_model === model ? (next[0] ?? '') : provider.default_model;
-    onPatch({ available_models: next, default_model });
+    const next = provider.models.filter((m) => m !== model);
+    const patch: Parameters<typeof onPatch>[0] = { models: next };
+    if (provider.default_model === model) {
+      patch.default_model = next[0] ?? '';
+    }
+    run(() => onPatch(patch));
   };
 
-  const activeModel = provider.default_model || provider.available_models[0] || '';
+  const saveKey = () => {
+    const key = apiKeyDraft.trim();
+    if (!key) return;
+    setApiKeyDraft('');
+    run(() => onSaveKey(key));
+  };
+
+  const activeModel = provider.default_model || provider.models[0] || '';
 
   return (
     <div className={`llm-provider-detail glass-card glass-card--overview-inner glass-overflow-visible`}>
@@ -89,14 +113,14 @@ export function LlmProviderDetail({
           <button
             type="button"
             className={`llm-enable-pill ${provider.enabled ? 'is-on' : ''}`}
-            onClick={() => onPatch({ enabled: true })}
+            onClick={() => !provider.enabled && run(() => onPatch({ enabled: true }))}
           >
             已启用
           </button>
           <button
             type="button"
             className={`llm-enable-pill ${!provider.enabled ? 'is-off' : ''}`}
-            onClick={() => onPatch({ enabled: false })}
+            onClick={() => provider.enabled && run(() => onPatch({ enabled: false }))}
           >
             禁用
           </button>
@@ -112,26 +136,13 @@ export function LlmProviderDetail({
       </div>
 
       <div className="form-row">
-        <label htmlFor="llm-preset">供应商预设</label>
-        <GlassSelect
-          id="llm-preset"
-          value={provider.preset_id}
-          options={LLM_PROVIDER_PRESETS.map((p) => ({
-            value: p.id,
-            label: p.display_name,
-          }))}
-          onChange={applyPreset}
-          aria-label="供应商预设"
-        />
-      </div>
-
-      <div className="form-row">
         <label htmlFor="llm-display-name">显示名称</label>
         <input
           id="llm-display-name"
           className="field input"
-          value={provider.display_name}
-          onChange={(e) => onPatch({ display_name: e.target.value })}
+          value={nameDraft}
+          onChange={(e) => setNameDraft(e.target.value)}
+          onBlur={commitName}
         />
       </div>
 
@@ -140,8 +151,9 @@ export function LlmProviderDetail({
         <input
           id="llm-base-url"
           className="field input"
-          value={provider.api_base ?? ''}
-          onChange={(e) => onPatch({ api_base: e.target.value || null })}
+          value={urlDraft}
+          onChange={(e) => setUrlDraft(e.target.value)}
+          onBlur={commitBaseUrl}
           placeholder="https://…"
         />
       </div>
@@ -156,7 +168,7 @@ export function LlmProviderDetail({
                 <button
                   type="button"
                   className={`llm-format-item ${selected ? 'is-selected' : ''}`}
-                  onClick={() => onPatch({ api_format: opt.value })}
+                  onClick={() => !selected && run(() => onPatch({ api_format: opt.value as LlmApiFormat }))}
                 >
                   <span>
                     {opt.label}
@@ -173,40 +185,27 @@ export function LlmProviderDetail({
       <div className="form-row">
         <label htmlFor="llm-api-key">
           API Key
-          {provider.api_key_masked ? (
-            <span className="llm-key-masked">（已保存 {provider.api_key_masked}）</span>
-          ) : null}
+          <span className={`llm-key-masked ${provider.has_api_key ? '' : 'muted'}`}>
+            {provider.has_api_key ? '（已保存,输入可覆盖）' : '（未配置）'}
+          </span>
         </label>
         <div className="llm-key-row">
           <input
             id="llm-api-key"
-            type={showKey ? 'text' : 'password'}
+            type="password"
             className="field input"
-            placeholder="sk-… 或供应商密钥"
+            placeholder={provider.has_api_key ? '输入以覆盖 key' : 'sk-… 或供应商密钥'}
             value={apiKeyDraft}
             onChange={(e) => setApiKeyDraft(e.target.value)}
             autoComplete="off"
           />
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={() => setShowKey((v) => !v)}
-          >
-            {showKey ? '隐藏' : '显示'}
-          </button>
         </div>
         <div className="settings-actions llm-actions">
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => {
-              const key = apiKeyDraft.trim();
-              if (!key) return;
-              void (async () => {
-                await onSaveKey(key);
-                setApiKeyDraft('');
-              })();
-            }}
+            disabled={!apiKeyDraft.trim()}
+            onClick={saveKey}
           >
             保存密钥
           </button>
@@ -218,11 +217,11 @@ export function LlmProviderDetail({
         <GlassSelect
           id="llm-default-model"
           value={provider.default_model}
-          options={(provider.available_models.length
-            ? provider.available_models
+          options={(provider.models.length
+            ? provider.models
             : [provider.default_model].filter(Boolean)
           ).map((m) => ({ value: m, label: m }))}
-          onChange={(v) => onPatch({ default_model: v })}
+          onChange={(v) => v !== provider.default_model && run(() => onPatch({ default_model: v }))}
           aria-label="默认模型"
         />
       </div>
@@ -230,7 +229,7 @@ export function LlmProviderDetail({
       <div className="form-row">
         <label>模型列表</label>
         <ul className="llm-model-list">
-          {provider.available_models.map((m) => (
+          {provider.models.map((m) => (
             <li key={m} className={`llm-model-chip ${GLASS_INNER}`}>
               <span>{m}</span>
               {m === provider.default_model ? (
@@ -265,22 +264,23 @@ export function LlmProviderDetail({
         <button
           type="button"
           className="btn btn-primary"
-          disabled={isTesting || !provider.configured || !activeModel}
-          onClick={() => void onTest(activeModel)}
+          disabled={isTesting || !activeModel || !provider.has_api_key}
+          onClick={() => onTest(activeModel)}
           data-testid="test-llm-btn"
+          title={provider.has_api_key ? undefined : '先保存 api key 再测试'}
         >
           {isTesting
             ? `正在请求 ${activeModel}…`
-            : `测试模型 · ${activeModel || '未选择'}`}
+            : `测试连接 · ${activeModel || '未选择'}`}
         </button>
 
         {testResult && (
           <div
-            className={`llm-test-result ${testResult.success ? 'llm-test-result--ok' : 'llm-test-result--fail'}`}
+            className={`llm-test-result ${testResult.ok ? 'llm-test-result--ok' : 'llm-test-result--fail'}`}
             role="status"
           >
             <div className="llm-test-result__head">
-              <strong>{testResult.success ? '✓ 测试通过' : '✗ 测试失败'}</strong>
+              <strong>{testResult.ok ? '✓ 连通正常' : '✗ 测试失败'}</strong>
               <span className="muted">
                 {testResult.model ?? activeModel}
                 {typeof testResult.latency_ms === 'number'
@@ -288,17 +288,19 @@ export function LlmProviderDetail({
                   : ''}
               </span>
             </div>
-            {testResult.success ? (
-              <pre className="llm-test-result__reply">
-                {testResult.reply?.trim() || '（无正文，但请求已成功）'}
-              </pre>
-            ) : (
+            {!testResult.ok && (
               <pre className="llm-test-result__error">
                 {testResult.error?.trim() || '未知错误'}
               </pre>
             )}
           </div>
         )}
+
+        {actionError ? (
+          <div className="setting-field__error small" role="alert">
+            {actionError}
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -1,14 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getApi } from '@/api/client';
 import type { Settings } from '@/api/types';
+import { callCapability } from '@/bridge/client';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { GlassSelect } from '@/components/common/GlassSelect';
 import { AGENT_CATALOG } from '@/constants/agentCatalog';
 import { useUIStore } from '@/stores/uiStore';
 import { extractErrorMessage } from '@/utils/errors';
 
 const CONDUCT_MAX = 4000;
 const GUIDELINE_MAX = 2000;
+
+/** 全局说话风格预设(agent.style,自由字符串的常用取值;叠加在每个人格气质之上) */
+const STYLE_PRESETS = ['热心', '毒舌', '严谨', '简洁', '幽默', '专业'];
+const STYLE_KEY = 'agent.style';
+
+interface SettingItem {
+  value?: string;
+  default?: string;
+}
 
 interface AgentSettingsSectionProps {
   settings: Settings;
@@ -22,6 +33,9 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
   const [clearing, setClearing] = useState(false);
   const [activeAgentId, setActiveAgentId] = useState(AGENT_CATALOG[0]?.id ?? 'orchestrator');
   const [conductDraft, setConductDraft] = useState(settings.agent_code_of_conduct ?? '');
+  const [style, setStyle] = useState<string | null>(null); // null = 未加载
+  const [styleLoadFailed, setStyleLoadFailed] = useState(false);
+  const [savingStyle, setSavingStyle] = useState(false);
   const [guidelineDrafts, setGuidelineDrafts] = useState<Record<string, string>>(() => {
     const map: Record<string, string> = {};
     for (const a of AGENT_CATALOG) map[a.id] = '';
@@ -55,6 +69,36 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
     void updateSettings({ agent_guidelines: next }).then(() => {
       addToast({ type: 'success', message: `${AGENT_CATALOG.find((a) => a.id === agentId)?.name ?? agentId} 准则已保存` });
     });
+  };
+
+  useEffect(() => {
+    let alive = true;
+    callCapability<SettingItem>('settings', 'get_setting', { key: STYLE_KEY })
+      .then((item) => {
+        if (alive) setStyle(item.value ?? item.default ?? '热心');
+      })
+      .catch(() => {
+        if (alive) setStyleLoadFailed(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const saveStyle = (value: string) => {
+    const prev = style;
+    setStyle(value); // 乐观更新,失败回滚
+    setSavingStyle(true);
+    callCapability<SettingItem>('settings', 'set_setting', { key: STYLE_KEY, value })
+      .then((item) => {
+        setStyle(item.value ?? value);
+        addToast({ type: 'success', message: '说话风格已保存，下一轮对话生效' });
+      })
+      .catch((err) => {
+        setStyle(prev);
+        addToast({ type: 'error', message: `保存风格失败：${extractErrorMessage(err)}` });
+      })
+      .finally(() => setSavingStyle(false));
   };
 
   const handleClearMemory = async () => {
@@ -104,6 +148,31 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
               保存
             </button>
           </div>
+        </div>
+
+        <div className="agent-settings-block">
+          <h3 className="agent-settings-subtitle">说话风格</h3>
+          <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+            全局语气叠加层，会拼进每次对话的系统提示，与各 Agent 自带气质叠加。
+          </p>
+          <GlassSelect
+            size="sm"
+            value={style ?? ''}
+            options={
+              styleLoadFailed
+                ? [{ value: '', label: '读取失败，请刷新重试' }]
+                : [
+                    ...STYLE_PRESETS.map((v) => ({ value: v, label: v })),
+                    // 后端存了预设之外的值(如 agent 自己改过)时原样展示,避免显示错位
+                    ...(style && !STYLE_PRESETS.includes(style)
+                      ? [{ value: style, label: style }]
+                      : []),
+                  ]
+            }
+            onChange={(v) => saveStyle(v)}
+            aria-label="全局说话风格"
+          />
+          {savingStyle && <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>保存中…</span>}
         </div>
 
         <div className="agent-settings-block">

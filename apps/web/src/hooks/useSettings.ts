@@ -1,16 +1,12 @@
 import { useEffect } from 'react';
 import { useSettingsStore } from '@/stores/settingsStore';
 
-/** LLM 配置（供应商 / 模型 / 风格 / 探测） */
+/** 外观与 Agent 配置等 settings blob 项(供应商/key/测试已迁 llm.* 客户端,见 LlmSettingsSection) */
 export function useSettings() {
   const settings = useSettingsStore((s) => s.settings);
   const isLoading = useSettingsStore((s) => s.isLoading);
   const loadSettings = useSettingsStore((s) => s.loadSettings);
   const updateSettings = useSettingsStore((s) => s.updateSettings);
-  const saveLlmApiKey = useSettingsStore((s) => s.saveLlmApiKey);
-  const testLLM = useSettingsStore((s) => s.testLLM);
-  const isTestingLLM = useSettingsStore((s) => s.isTestingLLM);
-  const testResult = useSettingsStore((s) => s.testResult);
 
   useEffect(() => {
     void loadSettings();
@@ -21,9 +17,5 @@ export function useSettings() {
     isLoading,
     loadSettings,
     updateSettings,
-    saveLlmApiKey,
-    testLLM,
-    isTestingLLM,
-    testResult,
   };
 }

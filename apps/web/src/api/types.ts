@@ -379,8 +379,25 @@ export type SettingsUpdate = Partial<Settings>;
 
 // ---------- LLM ----------
 
-export type LlmApiFormat = 'openai' | 'anthropic' | 'google' | 'ollama' | 'custom';
+/** API 格式真相(services/llm/catalog.py):仅两种,旧 openai/google/ollama 枚举已废 */
+export type LlmApiFormat = 'chat' | 'anthropic';
 
+/** llm 服务提供商(services/llm capabilities list_providers 返回形态)。
+ *  key 永不回传,页面只读 has_api_key;写 key 只能经 llm.set_api_key。 */
+export interface LlmProvider {
+  id: string;
+  preset_id: string;
+  display_name: string;
+  base_url: string;
+  api_format: LlmApiFormat;
+  models: string[];
+  default_model: string;
+  enabled: boolean;
+  custom: boolean;
+  has_api_key: boolean;
+}
+
+/** 旧 settings blob 的提供商形态(仅 Settings.llm_providers 兼容保留,新代码勿用) */
 export interface LlmProviderConfig {
   id: string;
   preset_id: string;
