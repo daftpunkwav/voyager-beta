@@ -32,8 +32,8 @@ _DOMAIN = "gateway"
 #: note.edited 不入流——编辑器自动保存会产生高频噪音)
 _STREAM_TYPES = (
     DomainEvent.AGENT_MESSAGE, "agent.ask", DomainEvent.AGENT_NAVIGATE,
-    "task.*", "note.created", "source.added", "source.ready", "source.removed",
-    DomainEvent.SETTINGS_CHANGED, "notes.ui.changed",
+    "task.*", "agent.step", "note.created", "source.added", "source.ready",
+    "source.removed", DomainEvent.SETTINGS_CHANGED, "notes.ui.changed",
 )
 _HISTORY_TYPES = (DomainEvent.USER_MESSAGE, DomainEvent.AGENT_MESSAGE)
 

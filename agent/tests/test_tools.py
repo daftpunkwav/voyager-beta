@@ -62,6 +62,19 @@ class TestTrim:
         out = await belt.call(ToolCall("1", "write_file", {"path": "a", "content": "b"}))
         assert "[未知工具]" in out
 
+    def test_trimmed_prefix_expand_relative_to_belt(self, workdir) -> None:
+        """前缀授予(phase-06):相对当前名册展开,白名单外的新前缀名不进来。"""
+        belt = _belt(workdir)
+        trimmed = belt.trimmed(["read_*", "list_dir"])
+        assert set(trimmed.names()) == {"read_file", "list_dir"}
+        # 名册里没有 notes__* 域:前缀不凭空造工具
+        assert not any(n.startswith("notes__") for n in trimmed.names())
+
+    def test_trimmed_bare_star_is_not_prefix(self, workdir) -> None:
+        """裸 `*` 不是合法前缀授予(避免一笔放开全量名册)。"""
+        belt = _belt(workdir).trimmed(["*"])
+        assert belt.names() == []
+
 
 class TestConfirmFlow:
     async def test_l2_confirm_approve_and_deny(self, workdir) -> None:

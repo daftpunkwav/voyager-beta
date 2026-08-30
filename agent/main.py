@@ -177,6 +177,7 @@ def build_agent(
         events=events,
         checkpoints=checkpoints,
         build_system=_build_system,
+        pages=pages,  # 对话实例按当前页面预激活工具(phase-06)
     )
     budget = ProactiveBudget(
         per_session=int(settings.get("agent.proactive.per_session")),

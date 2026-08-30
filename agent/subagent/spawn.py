@@ -27,6 +27,7 @@ class Spawner:
         events: RuntimeEvents,
         checkpoints: CheckpointStore | None = None,
         build_system: BuildSystemFn | None = None,
+        pages=None,  # PageContextRegistry:对话实例按当前页面预激活工具(phase-06)
     ) -> None:
         self._llm = llm
         self._toolbelt = toolbelt
@@ -34,6 +35,7 @@ class Spawner:
         self._events = events
         self._checkpoints = checkpoints
         self._build_system = build_system or (lambda task, persona: task.goal)
+        self._pages = pages
         self.instances: dict[str, SubagentInstance] = {}
 
     def spawn(
@@ -53,6 +55,7 @@ class Spawner:
             state=RunState(task=task.goal),
             reply_sink=reply_sink,
             name=name or task.goal[:16],
+            pages=self._pages,
         )
         self.instances[instance.id] = instance
         return instance

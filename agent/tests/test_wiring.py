@@ -2,11 +2,16 @@
 
 import asyncio
 
+from platform_actor import ActorContext
+from platform_contracts import ActorKind, ActorRef
 from platform_settings import SettingsStore
 
 from agent.llm import FakeLLM
 from agent.main import build_agent
+from agent.subagent import Mode, TaskBook
 from agent.tools import AgentTool
+
+AGENT_CTX = ActorContext(actor=ActorRef(kind=ActorKind.AGENT, id="agent.main", scopes=()))
 
 
 def _extra_tool() -> AgentTool:
@@ -69,3 +74,30 @@ class TestExtraTools:
         ))
         assert '"echo": "hi"' in out  # dict 结果序列化为 JSON 文本回给 LLM
         app.close()
+
+
+class TestStyleInSystem:
+    """agent.style 是人格之上的叠加层(§9.14):改完即进下一轮对话 system。"""
+
+    async def test_style_reaches_spawned_system(self, tmp_path) -> None:
+        app = build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=FakeLLM()
+        )
+        try:
+            await app.settings.set("agent.style", "毒舌", AGENT_CTX.actor)
+            inst = app.spawner.spawn(
+                TaskBook(goal="测试", mode=Mode.REACT), persona="orchestrator"
+            )
+            assert "【人格】Lucien(热心、靠谱、有主见)" in inst.system_prompt
+            assert "【风格】毒舌" in inst.system_prompt
+        finally:
+            app.close()
+
+    async def test_default_style_is_warm(self, tmp_path) -> None:
+        app = build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=FakeLLM()
+        )
+        try:
+            assert app.settings.get("agent.style") == "热心"
+        finally:
+            app.close()

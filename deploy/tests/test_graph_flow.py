@@ -121,8 +121,12 @@ class TestIndexPipeline:
                        "graph__set_node", "graph__set_relationship",
                        "graph__get_subgraph"):
             assert expect in names
-        # Atlas 能力面裁剪后仍保留图谱工具(未索引先入队的纪律)
+        # Atlas 能力面裁剪后仍保留图谱工具(未索引先入队的纪律);
+        # phase-06 起白名单是 graph__* 前缀授予,对真名册展开后必须含这些工具
         from agent.personas import PERSONAS
         allow = PERSONAS["graph_guide"].tool_allow or ()
-        assert "graph__enqueue_index" in allow
-        assert "graph__graph_guide" in allow
+        assert "graph__*" in allow
+        trimmed_names = set(
+            backend.agent.spawner._toolbelt.trimmed(allow).names()
+        )
+        assert {"graph__enqueue_index", "graph__graph_guide"} <= trimmed_names

@@ -16,6 +16,7 @@ from agent.llm import LLMClient
 from agent.runtime.events import RuntimeEvents
 from agent.runtime.state import RunState, RunStatus
 from agent.subagent.modes import Mode, ModeLimits, run_mode
+from agent.tools.activate import graded_toolbelt, infer_domains
 from agent.tools.base import Toolbelt
 
 
@@ -53,6 +54,8 @@ class SubagentInstance:
     name: str = ""
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     history: list[dict[str, Any]] = field(default_factory=list)
+    pages: Any | None = None  # PageContextRegistry:笔记页预激活(phase-06 可选增强)
+    active: set[str] | None = None  # 对话实例的工具激活集(跨轮保留,§9.20)
 
     @property
     def status(self) -> RunStatus:
@@ -64,15 +67,33 @@ class SubagentInstance:
         if user_text:
             self.history.append({"role": "user", "content": user_text})
         messages = [{"role": "system", "content": self.system_prompt}, *self.history]
+        belt = self.toolbelt
+        if self.task.allowed_tools is None and self.toolbelt.names():
+            # 对话实例(Lucien / tool_allow=None):工具表全量可调,但每轮 complete
+            # 只送已激活 schema(phase-06 域激活);激活集挂在实例上跨轮保留。
+            if self.active is None:
+                self.active = set()
+            hinted = infer_domains(
+                *(str(m.get("content") or "") for m in self.history[-12:])
+            )
+            preactivate = list(hinted)
+            if self.pages is not None:
+                cur = self.pages.current()
+                if cur is not None and cur.page == "notes" and "notes" not in preactivate:
+                    preactivate.append("notes")  # 笔记页对话预激活,省一轮 activate
+            belt = graded_toolbelt(
+                self.toolbelt, self.active, preactivate=tuple(preactivate),
+            )
         await self.events.emit("RunStarted", run_id=self.state.run_id, subagent=self.id)
         try:
             result = await run_mode(
                 self.task.mode or Mode.REACT,
                 llm=self.llm,
-                toolbelt=self.toolbelt,
+                toolbelt=belt,
                 messages=messages,
                 limits=self.task.limits or ModeLimits(),
                 on_step=self._on_step,
+                continue_if_idle=self.task.conversational,
             )
         except Exception as exc:  # 失败落状态并上报,不炸调度器
             self.state.status = RunStatus.FAILED
@@ -101,3 +122,12 @@ class SubagentInstance:
 
     async def _on_step(self, kind: str, name: str, summary: str) -> None:
         self.state.add_step(kind, name, summary)
+        # 步骤进事件流(gateway _STREAM_TYPES 的 agent.step):Chat 能看到
+        # "正在调哪个工具";不进历史重建,只是实时进度。
+        await self.events.emit(
+            "agent.step",
+            subagent=self.name or self.id,
+            name=name,
+            kind=kind,
+            summary=(summary or "")[:120],
+        )

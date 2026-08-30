@@ -98,7 +98,7 @@ class TestTeamSurface:
         master = next(p for p in personas if p["key"] == "orchestrator")
         assert master["tool_allow"] is None  # 统筹者不裁剪
         atlas = next(p for p in personas if p["key"] == "graph_guide")
-        assert "graph__query_graph" in atlas["tool_allow"]
+        assert "graph__*" in atlas["tool_allow"]  # 前缀授予(phase-06)
         assert all(p["system_prompt"] for p in personas)
 
     async def test_register_subagent_persisted_and_listed(self, app) -> None:

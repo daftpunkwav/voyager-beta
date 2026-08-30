@@ -39,8 +39,38 @@ class TestReAct:
             Mode.REACT, llm=llm, toolbelt=_belt(), messages=messages, limits=ModeLimits()
         )
         assert result == "完成"
-        tool_msgs = [m for m in messages if m.get("role") == "tool"]
-        assert tool_msgs and tool_msgs[0]["content"] == "echo:a"
+        # 中性回填(§9.1):assistant 带 tool_calls,结果带同一 id,顺序 user→assistant→tool
+        assert [m["role"] for m in messages] == ["user", "assistant", "tool"]
+        assert messages[1]["tool_calls"] == [
+            {"id": "1", "name": "echo_tool", "arguments": {"x": "a"}}
+        ]
+        assert messages[2]["tool_call_id"] == "1"
+        assert messages[2]["content"] == "echo:a"
+
+    async def test_multiple_calls_paired_in_order(self) -> None:
+        """一轮多个 call:一条 assistant + 多条 tool,顺序一致,中间不插入 user/system。"""
+        llm = FakeLLM(
+            [
+                LLMReply(
+                    tool_calls=(
+                        ToolCall("1", "echo_tool", {"x": "a"}),
+                        ToolCall("2", "echo_tool", {"x": "b"}),
+                    )
+                ),
+                LLMReply(text="完成"),
+            ]
+        )
+        messages = _msgs()
+        result = await run_mode(
+            Mode.REACT, llm=llm, toolbelt=_belt(), messages=messages, limits=ModeLimits()
+        )
+        assert result == "完成"
+        assert [m["role"] for m in messages] == ["user", "assistant", "tool", "tool"]
+        assert messages[1]["tool_calls"] == [
+            {"id": "1", "name": "echo_tool", "arguments": {"x": "a"}},
+            {"id": "2", "name": "echo_tool", "arguments": {"x": "b"}},
+        ]
+        assert [m["tool_call_id"] for m in messages[2:]] == ["1", "2"]
 
     async def test_rounds_limit(self) -> None:
         llm = FakeLLM(dynamic=lambda _m, _t: LLMReply(tool_calls=(ToolCall("1", "echo_tool", {}),)))
@@ -61,14 +91,19 @@ class TestReAct:
                 )
             ]
         )
+        messages = _msgs()
         result = await run_mode(
             Mode.REACT,
             llm=llm,
             toolbelt=_belt(),
-            messages=_msgs(),
+            messages=messages,
             limits=ModeLimits(max_tool_calls=1),
         )
         assert result.startswith("[中断] 已达工具调用上限")
+        # 截断:只执行第一个 call,assistant.tool_calls 不含未执行的 "2",不留"有 call 无 result"
+        assert [m["role"] for m in messages] == ["user", "assistant", "tool"]
+        assert [tc["id"] for tc in messages[1]["tool_calls"]] == ["1"]
+        assert messages[2]["tool_call_id"] == "1"
 
     async def test_tool_calls_without_toolbelt(self) -> None:
         llm = FakeLLM([LLMReply(tool_calls=(ToolCall("1", "echo_tool", {}),))])
@@ -76,6 +111,34 @@ class TestReAct:
             Mode.REACT, llm=llm, toolbelt=None, messages=_msgs(), limits=ModeLimits()
         )
         assert "无工具可用" in result
+
+    async def test_zero_tool_final_continues_react_loop(self) -> None:
+        """非寒暄 + 零 tool_call 的文本不是终局:同一 loop 再 complete,不扫描「好」。"""
+        llm = FakeLLM(
+            [
+                LLMReply(text="行。"),  # 不含「马上/这就去办」
+                LLMReply(tool_calls=(ToolCall("1", "echo_tool", {"x": "a"}),)),
+                LLMReply(text="echo 完了"),
+            ]
+        )
+        messages = [{"role": "user", "content": "都测试一下"}]
+        result = await run_mode(
+            Mode.REACT, llm=llm, toolbelt=_belt(), messages=messages,
+            limits=ModeLimits(), continue_if_idle=True,
+        )
+        assert result == "echo 完了"
+        assert len(llm.calls) == 3
+        assert any("[react]" in str(m.get("content", "")) for m in messages)
+
+    async def test_chitchat_without_tools_does_not_nudge(self) -> None:
+        llm = FakeLLM([LLMReply(text="你好,我在。")])
+        messages = [{"role": "user", "content": "你好"}]
+        result = await run_mode(
+            Mode.REACT, llm=llm, toolbelt=_belt(), messages=messages,
+            limits=ModeLimits(), continue_if_idle=True,
+        )
+        assert result == "你好,我在。"
+        assert len(llm.calls) == 1
 
 
 class TestOtherModes:

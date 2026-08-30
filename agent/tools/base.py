@@ -42,33 +42,70 @@ class Toolbelt:
         confirm: ConfirmFn | None = None,
         notify: NotifyFn | None = None,
         meter: Meter | None = None,
+        active: set[str] | None = None,
     ) -> None:
         self._tools = dict(tools)
         self._policy = policy
         self._confirm = confirm
         self._notify = notify
         self._meter = meter
+        self._active = active  # 分级加载(§9.20):非 None 时 specs() 只回激活集
 
     def names(self) -> list[str]:
         return sorted(self._tools)
 
     def specs(self) -> list[ToolSpec]:
+        names = self.names()
+        if self._active is not None:
+            # 激活集中不存在的名字自然缺席;call() 不受限(误点未激活名仍可执行,
+            # 超时问题只来自 schema 体积,phase-06 决策)
+            names = [n for n in names if n in self._active]
         return [
             ToolSpec(name=t.name, description=t.description, schema=t.schema)
-            for t in (self._tools[n] for n in self.names())
+            for t in (self._tools[n] for n in names)
         ]
 
     def trimmed(self, allow: Iterable[str] | None) -> Toolbelt:
-        """能力面裁剪:allow=None 原样;否则只保留白名单中的工具。"""
+        """能力面裁剪(§9.4.1):allow=None 原样;否则只保留白名单中的工具。
+
+        白名单条目支持**前缀授予**(phase-06):以 `*` 结尾(如 `notes__*`)时,
+        相对**当前名册**展开——人格模块 import 时桥工具尚未注册,禁止在
+        persona 文件里写死展开结果;新挂载的领域能力自动进入裁剪后的工具面。
+        """
         if allow is None:
             return self
-        keep = set(allow)
+        entries = list(allow)
+        prefixes = tuple(a[:-1] for a in entries if a.endswith("*") and len(a) > 1)
+        exact = {a for a in entries if not a.endswith("*")}
+        keep = {
+            n for n in self._tools
+            if n in exact or any(n.startswith(p) for p in prefixes)
+        }
         return Toolbelt(
             {n: t for n, t in self._tools.items() if n in keep},
             self._policy,
             confirm=self._confirm,
             notify=self._notify,
             meter=self._meter,
+        )
+
+    def with_active(self, active: set[str], extra: dict[str, AgentTool] | None = None) -> Toolbelt:
+        """分级加载视图(phase-06):共享权限引擎/确认通道,specs() 只回激活集。
+
+        active 是**共享引用**:activate_tools 的 handler 原地修改它,下一次
+        specs() 即见新工具面;call() 不受限(全量可调)。extra 用于并入绑定
+        该激活集的内部工具(activate_tools),不改全局 Toolbelt(多实例共享)。
+        """
+        tools = dict(self._tools)
+        if extra:
+            tools.update(extra)
+        return Toolbelt(
+            tools,
+            self._policy,
+            confirm=self._confirm,
+            notify=self._notify,
+            meter=self._meter,
+            active=active,
         )
 
     async def call(self, call: ToolCall) -> str:

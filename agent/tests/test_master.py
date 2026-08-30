@@ -35,7 +35,7 @@ class TestChat:
     async def test_queue_mode_holds_second_message(self, tmp_path) -> None:
         llm = FakeLLM(default="收到。")
         app = _app(tmp_path, llm)
-        await app.master.handle_user_message("第一句")
+        await app.master.handle_user_message("你好")
         app.master.chat.state.status = RunStatus.RUNNING  # 模拟忙
         await app.master.handle_user_message("第二句")
         assert len(llm.calls) == 1  # queue 模式不调判官,也不插话
@@ -44,12 +44,16 @@ class TestChat:
         await app.master.handle_user_message("第三句")
         assert _replies(app) == ["收到。", "收到。", "收到。"]  # 排队的第二句被补处理
         history = [m["content"] for m in app.master.chat.history if m["role"] == "user"]
-        assert history == ["第一句", "第三句", "第二句"]  # 先当前,后排队
+        assert history == ["你好", "第三句", "第二句"]  # 先当前,后排队
         app.memory.close()
 
     async def test_auto_mode_merge_feeds_running_chat(self, tmp_path) -> None:
         # 脚本第一条被首轮对话消费,第二条才是判官判定(并入)
-        llm = FakeLLM([LLMReply(text="好。"), LLMReply(text="merge")])
+        llm = FakeLLM([
+            LLMReply(text="好。"),
+            LLMReply(text="先看结构。"),  # 非寒暄零工具会再 complete 一次,不能把判官那格提前吃掉
+            LLMReply(text="merge"),
+        ])
         app = _app(tmp_path, llm)
         await app.master.handle_user_message("分析这个项目")
         await app.settings.set("agent.arbiter.mode", "auto", LOCAL_USER)

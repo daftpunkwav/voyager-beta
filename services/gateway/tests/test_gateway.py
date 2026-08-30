@@ -62,6 +62,17 @@ class TestChat:
         assert "离线时的回复" in r.text
         assert "id: 1" in r.text  # 帧带 seq,客户端续传凭据
 
+    def test_sse_streams_agent_step(self, client, bus) -> None:
+        """工具步骤(phase-06)在人类时间线可见:agent.step 进 _STREAM_TYPES。"""
+        asyncio.run(bus.publish(Event(
+            type="agent.step",
+            actor=ActorRef(kind=ActorKind.AGENT, id="agent.main"),
+            payload={"subagent": "chat", "name": "notes__create_note",
+                     "kind": "tool", "summary": "已创建"},
+        )))
+        r = client.get("/api/chat/stream?after_seq=0&once=true")
+        assert "agent.step" in r.text and "notes__create_note" in r.text
+
 
 class TestRateLimit:
     def test_per_minute_cap(self, bus, tmp_path) -> None:
