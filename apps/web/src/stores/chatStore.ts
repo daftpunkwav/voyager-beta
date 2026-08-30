@@ -56,6 +56,14 @@ export interface CurrentStep {
   subagent: string;
 }
 
+/** agent.observe 的观察提示(phase-12 §9.2):只留最新一条,新覆盖旧,不做 timeline。 */
+export interface ObserveNotice {
+  seq: number;
+  content: string;
+  /** 后端是否真的自动派了任务(如 auto-index) */
+  acted: boolean;
+}
+
 /** SSE 帧 / 历史行的公共形态(Event.to_dict + seq)。 */
 export interface ChatEvent {
   seq: number;
@@ -75,6 +83,8 @@ interface ChatState {
   thinking: boolean;
   /** 当前工具步骤(agent.step);agent.message / 回合结束清掉 */
   currentStep: CurrentStep | null;
+  /** 最近一条观察提示(agent.observe,phase-12);新覆盖旧,agent.message 不清掉 */
+  observe: ObserveNotice | null;
   /** 历史接口消息(user.message/agent.message)→ 消息流;不触发思考态。 */
   applyHistory: (events: ChatEvent[]) => void;
   /** SSE 事件分发(agent.ask、task.* 、agent.message、note.created 等;纯状态迁移,可单测)。 */
@@ -119,6 +129,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   connected: false,
   thinking: false,
   currentStep: null,
+  observe: null,
 
   applyHistory: (events) => {
     const msgs = events
@@ -209,6 +220,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
           currentStep: {
             name: String(p.name ?? ''),
             subagent: String(p.subagent ?? ''),
+          },
+        });
+        break;
+      }
+      case 'agent.observe': {
+        // 观察提示(phase-12 §9.2):只留最新一条,不进 messages 时间线
+        // (导入一堆仓库时不刷屏);agent.message 不清它,发完话仍可看见
+        set({
+          observe: {
+            seq: ev.seq,
+            content: String(p.content ?? ''),
+            acted: Boolean(p.acted),
           },
         });
         break;

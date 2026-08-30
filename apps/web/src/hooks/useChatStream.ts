@@ -15,6 +15,7 @@ const STREAM_PATTERNS = [
   'agent.ask',
   'agent.navigate',
   'agent.step',
+  'agent.observe',
   'task.*',
   'note.created',
 ];

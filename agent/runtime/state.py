@@ -102,3 +102,16 @@ class CheckpointStore:
 
     def delete(self, run_id: str) -> None:
         (self._root / f"{_safe_run_id(run_id)}.json").unlink(missing_ok=True)
+
+
+def reclaim_alive(store: CheckpointStore) -> list[RunState]:
+    """启动 reclaim(§9.17,phase-12):进程重启时把磁盘上仍 alive 的 checkpoint
+    全部标记 failed。本阶段不实现中途 resume,不据此重建实例;返回被标 failed
+    的状态供启动日志/调用方知悉。"""
+    out: list[RunState] = []
+    for state in store.list_alive():
+        state.status = RunStatus.FAILED
+        state.error = "进程重启,任务未恢复"
+        store.save(state)
+        out.append(state)
+    return out

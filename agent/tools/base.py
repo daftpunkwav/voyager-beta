@@ -18,6 +18,7 @@ from agent.hooks.triggers import HookRegistry
 from agent.llm import ToolCall, ToolSpec
 from agent.policy import Action, Level, PolicyEngine
 from agent.runtime.observability import Meter, MeterRecord
+from agent.runtime.recovery import CircuitBreaker, CircuitOpenError, with_retry
 
 ConfirmFn = Callable[[str], Awaitable[bool]]  # 确认问题 → 用户是否同意
 NotifyFn = Callable[[str], Awaitable[None]]  # L1 提示出口
@@ -45,6 +46,9 @@ class Toolbelt:
         meter: Meter | None = None,
         active: set[str] | None = None,
         hooks: HookRegistry | None = None,
+        retries: int = 2,  # handler 失败重试次数(§9.17);写类工具恒为 0
+        retry_backoff: float = 0.1,  # 重试退避起点(秒);测试注入 0 免真睡
+        breakers: dict[str, CircuitBreaker] | None = None,  # 按工具名熔断;裁剪视图共享
     ) -> None:
         self._tools = dict(tools)
         self._policy = policy
@@ -53,6 +57,9 @@ class Toolbelt:
         self._meter = meter
         self._active = active  # 分级加载(§9.20):非 None 时 specs() 只回激活集
         self._hooks = hooks  # 工具生命周期 hook(phase-11):pre/post_tool
+        self._retries = retries
+        self._retry_backoff = retry_backoff
+        self._breakers = breakers if breakers is not None else {}
 
     def names(self) -> list[str]:
         return sorted(self._tools)
@@ -101,6 +108,9 @@ class Toolbelt:
             notify=self._notify,
             meter=self._meter,
             hooks=self._hooks,
+            retries=self._retries,
+            retry_backoff=self._retry_backoff,
+            breakers=self._breakers,
         )
 
     def with_active(self, active: set[str], extra: dict[str, AgentTool] | None = None) -> Toolbelt:
@@ -121,6 +131,9 @@ class Toolbelt:
             meter=self._meter,
             active=active,
             hooks=self._hooks,
+            retries=self._retries,
+            retry_backoff=self._retry_backoff,
+            breakers=self._breakers,
         )
 
     def with_policy(self, policy: PolicyEngine) -> Toolbelt:
@@ -134,6 +147,9 @@ class Toolbelt:
             meter=self._meter,
             active=self._active,
             hooks=self._hooks,
+            retries=self._retries,
+            retry_backoff=self._retry_backoff,
+            breakers=self._breakers,
         )
 
     async def call(self, call: ToolCall) -> str:
@@ -171,9 +187,11 @@ class Toolbelt:
         start = time.perf_counter()
         ok = True
         try:
-            result = tool.handler(**call.arguments)
-            if inspect.isawaitable(result):
-                result = await result
+            result = await self._invoke_with_recovery(tool, call)
+        except CircuitOpenError:
+            # 熔断不冒成未捕获异常打出 ReAct:折成文本结果回给 LLM(§9.17)
+            ok = False
+            result = f"[熔断] {tool.name} 连续失败已暂停,请稍后重试"
         except Exception as exc:  # noqa: BLE001  # 工具失败作为文本结果回给 LLM
             ok = False
             result = f"[工具失败] {tool.name}: {type(exc).__name__}: {exc}"
@@ -193,3 +211,33 @@ class Toolbelt:
         if isinstance(result, str):
             return result
         return json.dumps(result, ensure_ascii=False, default=str)
+
+    def _breaker_for(self, name: str) -> CircuitBreaker:
+        """按工具名一把熔断器(phase-12):懒建;裁剪/收窄视图共享同一份,不因视图重建复位。"""
+        cb = self._breakers.get(name)
+        if cb is None:
+            cb = CircuitBreaker()  # 默认连续失败 3 次断开 30s(与 §9.17 建议一致)
+            self._breakers[name] = cb
+        return cb
+
+    async def _invoke_with_recovery(self, tool: AgentTool, call: ToolCall) -> Any:
+        """handler 执行包重试 + 熔断(§9.17,phase-12)。
+
+        - 只读/网络 GET 类可重试;write / irreversible 工具禁重试(重试会双写/重复删除);
+        - 熔断按工具名计次:连续失败达到 open_after 后直接抛 CircuitOpenError,不进 handler;
+        - policy 拒绝 / 用户未确认 / pre_tool 拦截在 call() 更早返回,不进这里,
+          因此不重试、不记熔断失败;
+        - backoff 收在构造参数,单测注入 0 免真睡。
+        """
+        breaker = self._breaker_for(tool.name)
+        retries = 0 if (tool.write or tool.irreversible) else self._retries
+
+        async def _attempt() -> Any:
+            result = tool.handler(**call.arguments)
+            if inspect.isawaitable(result):
+                result = await result
+            return result
+
+        return await breaker.call(
+            lambda: with_retry(_attempt, retries=retries, backoff=self._retry_backoff)
+        )

@@ -27,7 +27,7 @@ from agent.observe import Observer
 from agent.personas import resolve_persona
 from agent.policy import FsPolicy, NetworkPolicy, PolicyEngine
 from agent.runtime import EventLoop, Meter, RuntimeEvents, Scheduler
-from agent.runtime.state import CheckpointStore
+from agent.runtime.state import CheckpointStore, reclaim_alive
 from agent.settings import DEFS as AGENT_SETTING_DEFS
 from agent.skills import SkillLoader
 from agent.subagent import Spawner, SubagentRegistry
@@ -163,6 +163,9 @@ def build_agent(
 
     scheduler = Scheduler(max_concurrent=int(settings.get("agent.subagents.max_concurrent")))
     checkpoints = CheckpointStore(data_dir / "checkpoints")
+    # 启动 reclaim(§9.17,phase-12):上次进程遗留的 alive checkpoint 标 failed;
+    # 空目录 no-op,不据此重建实例(中途 resume 不在本阶段)
+    reclaim_alive(checkpoints)
     builder = ContextBuilder(
         # 全局规则(§9.14):移植自旧版输出规范,对全部 persona 生效
         rules=[

@@ -244,11 +244,22 @@ class Master:
             return None
 
     async def consider(self, suggestion: str, *, source_event: str = "") -> None:
-        """observe 的"考虑事项"入口:默认只留痕;开启 observe.auto_index 才自动行动。"""
+        """observe 的"考虑事项"入口:留痕 + 发 agent.observe(phase-12);开 auto_index 才自动行动。"""
         if self._memory is not None:
             self._memory.episodic.log("consider", suggestion, {"source": source_event})
+        acted = False
         if self._settings.get("agent.observe.auto_index") and "索引" in suggestion:
             await self.dispatch_task(suggestion, persona="graph_guide", name="auto-index")
+            acted = True
+        if self._bus is not None:
+            # agent.observe ≠ agent.message:观察提示只入 Chat 观察行,不冒充对话
+            await self._bus.publish(
+                Event(
+                    type="agent.observe",
+                    actor=AGENT_MAIN,
+                    payload={"content": suggestion, "source": source_event, "acted": acted},
+                )
+            )
 
     async def _reply(self, text: str, *, trace_id: str = "") -> None:
         if self._bus is not None:

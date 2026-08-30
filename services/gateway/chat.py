@@ -29,11 +29,13 @@ from .ratelimit import RateLimiter
 
 _DOMAIN = "gateway"
 #: 人类时间线关心的事件(聊天 + 进度 + 弹窗 + 跳转指令 + 产物卡 + 设置热更新;
-#: note.edited 不入流——编辑器自动保存会产生高频噪音)
+#: note.edited 不入流——编辑器自动保存会产生高频噪音;agent.observe 是观察结论,
+#: 不是原始 source.ready 的重复推送)
 _STREAM_TYPES = (
     DomainEvent.AGENT_MESSAGE, "agent.ask", DomainEvent.AGENT_NAVIGATE,
-    "task.*", "agent.step", "note.created", "source.added", "source.ready",
-    "source.removed", DomainEvent.SETTINGS_CHANGED, "notes.ui.changed",
+    "task.*", "agent.step", "agent.observe", "note.created", "source.added",
+    "source.ready", "source.removed", DomainEvent.SETTINGS_CHANGED,
+    "notes.ui.changed",
 )
 _HISTORY_TYPES = (DomainEvent.USER_MESSAGE, DomainEvent.AGENT_MESSAGE)
 

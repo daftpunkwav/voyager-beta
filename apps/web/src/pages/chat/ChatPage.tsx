@@ -6,11 +6,13 @@
  */
 
 import { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { postChatMessage } from '@/bridge/chatSend';
 import { useChatStore } from '@/stores/chatStore';
 import { useChatStream } from '@/hooks/useChatStream';
-import { MessageList, StepLine, TaskCards } from '@/widgets/chat/MessageList';
+import { useLlmAvailable } from '@/hooks/useLlmAvailable';
+import { routes } from '@/utils/routes';
+import { MessageList, ObserveLine, StepLine, TaskCards } from '@/widgets/chat/MessageList';
 import { AskDialog } from '@/widgets/chat/AskDialog';
 import { ChatControls } from '@/widgets/chat/ChatControls';
 
@@ -19,6 +21,9 @@ export function ChatPage() {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const connected = useChatStore((s) => s.connected);
+  // 无可用 LLM key 空态(§9.18):missing 才禁发送;查询失败不锁死对话
+  const llm = useLlmAvailable();
+  const llmMissing = llm === 'missing';
 
   // navigate 指令:agent 带用户跳页(useCallback 稳定引用,避免订阅重建)
   const onNavigate = useCallback(
@@ -31,7 +36,7 @@ export function ChatPage() {
 
   const send = async () => {
     const content = draft.trim();
-    if (!content || sending) return;
+    if (!content || sending || llmMissing) return;
     setSending(true);
     setDraft('');
     try {
@@ -62,11 +67,20 @@ export function ChatPage() {
       <MessageList />
       <TaskCards />
       <StepLine />
+      <ObserveLine />
+      {llmMissing ? (
+        <div className="degrade-tip" role="status">
+          <span>
+            还没有可用的 LLM 提供商:先到 <Link to={routes.settings}>设置 → LLM</Link>{' '}
+            填 api key,再开始对话。
+          </span>
+        </div>
+      ) : null}
       <div className="chat-input">
         <textarea
           rows={2}
           value={draft}
-          placeholder="说点什么…(Enter 发送,Shift+Enter 换行)"
+          placeholder={llmMissing ? '先在设置里配置 LLM' : '说点什么…(Enter 发送,Shift+Enter 换行)'}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -78,7 +92,7 @@ export function ChatPage() {
         <button
           type="button"
           className="btn btn-primary"
-          disabled={sending || !draft.trim()}
+          disabled={sending || llmMissing || !draft.trim()}
           onClick={() => void send()}
         >
           发送

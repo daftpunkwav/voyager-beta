@@ -81,6 +81,11 @@ export function summarize(ev: FeedEvent): RowSummary {
       return { text: `图谱引擎回退:${clip(p.reason, 50)}`, tone: 'muted' };
     case 'agent.ask':
       return { text: `${who} 向用户提问`, tone: 'normal' };
+    case 'agent.observe': {
+      // Agent 观察提示(phase-12 §9.2):资源就绪等考虑事项;acted = 已自动派任务
+      const acted = p.acted ? ' ·已行动' : '';
+      return { text: `${who} 观察:${clip(p.content)}${acted}`, tone: 'muted' };
+    }
     case 'agent.navigate':
       return { text: `${who} 跳转页面 ${clip(p.path ?? p.to, 20)}`, tone: 'muted' };
     default:

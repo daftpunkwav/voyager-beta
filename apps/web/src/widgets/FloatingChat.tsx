@@ -5,13 +5,15 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { create } from 'zustand';
 import { postChatMessage } from '@/bridge/chatSend';
 import { subscribe } from '@/bridge/stream';
 import { useChatStore } from '@/stores/chatStore';
 import { useChatStream } from '@/hooks/useChatStream';
-import { MessageList, TaskCards } from '@/widgets/chat/MessageList';
+import { useLlmAvailable } from '@/hooks/useLlmAvailable';
+import { routes } from '@/utils/routes';
+import { MessageList, ObserveLine, TaskCards } from '@/widgets/chat/MessageList';
 import { AskDialog } from '@/widgets/chat/AskDialog';
 import { ChatControls } from '@/widgets/chat/ChatControls';
 import { NavIcons } from '@/components/icons/NavIcons';
@@ -36,6 +38,9 @@ export function FloatingChat() {
   const listRef = useRef<HTMLDivElement>(null);
   const messages = useChatStore((s) => s.messages);
   const connected = useChatStore((s) => s.connected);
+  // 无可用 LLM key 空态(§9.18):与 Chat 页同一探测与禁发逻辑
+  const llm = useLlmAvailable();
+  const llmMissing = llm === 'missing';
 
   const onNavigate = useCallback(
     (path: string) => {
@@ -74,7 +79,7 @@ export function FloatingChat() {
 
   const send = async () => {
     const content = draft.trim();
-    if (!content || sending) return;
+    if (!content || sending || llmMissing) return;
     setSending(true);
     setDraft('');
     try {
@@ -124,11 +129,20 @@ export function FloatingChat() {
         <MessageList />
         <TaskCards />
       </div>
+      <ObserveLine />
+      {llmMissing ? (
+        <div className="degrade-tip" role="status">
+          <span>
+            还没有可用的 LLM 提供商:先到 <Link to={routes.settings}>设置 → LLM</Link>{' '}
+            填 api key,再开始对话。
+          </span>
+        </div>
+      ) : null}
       <div className="float-panel__input">
         <textarea
           rows={2}
           value={draft}
-          placeholder="就地聊一句…(Enter 发送)"
+          placeholder={llmMissing ? '先在设置里配置 LLM' : '就地聊一句…(Enter 发送)'}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -137,7 +151,12 @@ export function FloatingChat() {
             }
           }}
         />
-        <button type="button" className="btn btn-primary" disabled={sending || !draft.trim()} onClick={() => void send()}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={sending || llmMissing || !draft.trim()}
+          onClick={() => void send()}
+        >
           发送
         </button>
       </div>

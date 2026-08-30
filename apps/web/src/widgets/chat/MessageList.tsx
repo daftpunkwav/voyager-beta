@@ -203,6 +203,20 @@ export function StepLine() {
   );
 }
 
+/** 观察提示行(phase-12 §9.2):source.ready 触发的考虑事项,输入区上方一句;
+ *  只显示最新一条(新覆盖旧),agent.message 不清掉——发完话仍想看见「要不要建索引」。
+ *  纯文字同 StepLine,无装饰线;acted 表示已自动派出任务。 */
+export function ObserveLine() {
+  const observe = useChatStore((s) => s.observe);
+  if (!observe?.content) return null;
+  return (
+    <div className="chat-step small muted" role="status">
+      {observe.content}
+      {observe.acted ? '(已派出自动索引)' : ''}
+    </div>
+  );
+}
+
 /** 任务进度卡区域(渲染在输入框上方,含 completed/failed 收尾态)。 */
 export function TaskCards() {
   const cards = useChatStore((s) => s.cards);

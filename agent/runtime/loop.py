@@ -13,6 +13,7 @@ from collections.abc import Awaitable, Callable
 from platform_contracts import Event
 from platform_eventbus import CursorStore, EventBus
 
+from agent.runtime.recovery import CircuitBreaker, CircuitOpenError
 from agent.runtime.trace import reset_current_trace, set_current_trace
 
 Handler = Callable[[Event], Awaitable[None]]
@@ -34,6 +35,10 @@ class EventLoop:
         self._cursors = cursors
         self._subscriber = subscriber
         self._stopped = False
+        # 每 pattern 一把熔断(phase-12 §9.17):同一 handler 连续抛错达到
+        # open_after 次后在 reset_after 内跳过,其余 pattern 不受影响,loop 不炸。
+        # 不对 handler 做 with_retry:observe/consider 重试会重复 dispatch。
+        self._breakers = {pattern: CircuitBreaker() for pattern in handlers}
 
     def stop(self) -> None:
         self._stopped = True
@@ -44,11 +49,16 @@ class EventLoop:
         token = set_current_trace(event.trace_id) if event.trace_id else None
         try:
             for pattern, handler in self._handlers.items():
-                if fnmatch.fnmatchcase(event.type, pattern):
-                    try:
-                        await handler(event)
-                    except Exception:  # 事件处理失败隔离,loop 继续
-                        log.exception("事件处理失败: %s", event.type)
+                if not fnmatch.fnmatchcase(event.type, pattern):
+                    continue
+                try:
+                    await self._breakers[pattern].call(lambda h=handler: h(event))
+                except CircuitOpenError:
+                    log.warning(
+                        "handler 连续失败已熔断,暂时跳过: %s (event=%s)", pattern, event.type
+                    )
+                except Exception:  # 事件处理失败隔离,loop 继续
+                    log.exception("事件处理失败: %s", event.type)
         finally:
             if token is not None:
                 reset_current_trace(token)
