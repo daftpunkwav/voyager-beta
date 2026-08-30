@@ -1,7 +1,7 @@
 /** 常驻悬浮对话窗(§10.12):圆点 ↔ 面板两态;与 chat 页同一 chatStore
- * 与 SSE 通道(两个视图);新消息到达且收起时圆点显示未读数;
- * ask_user 弹窗复用;agent.navigate 跳页后对话不中断。
- * chat 路由时整个组件不渲染(主聊天就在那里)。
+ * 与 SSE 通道(两个视图共用 hooks/useChatStream:历史 + 上线 + 订阅);
+ * 新消息到达且收起时圆点显示未读数;ask_user 弹窗复用;agent.navigate
+ * 跳页后对话不中断。chat 路由时整个组件不渲染(主聊天就在那里)。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -10,9 +10,10 @@ import { create } from 'zustand';
 import { postChatMessage } from '@/bridge/chatSend';
 import { subscribe } from '@/bridge/stream';
 import { useChatStore } from '@/stores/chatStore';
+import { useChatStream } from '@/hooks/useChatStream';
 import { MessageList, TaskCards } from '@/widgets/chat/MessageList';
 import { AskDialog } from '@/widgets/chat/AskDialog';
-import { safeInternalPath } from '@/utils/safeUrl';
+import { ChatControls } from '@/widgets/chat/ChatControls';
 import { NavIcons } from '@/components/icons/NavIcons';
 
 interface FloatingState {
@@ -26,28 +27,6 @@ export const useFloatingStore = create<FloatingState>((set, get) => ({
   unread: 0,
   setOpen: (v) => set({ open: v, unread: v ? 0 : get().unread }),
 }));
-
-/** 悬浮窗自己的 SSE 接线(chat 页卸载后由它接管;同 store 两视图)。 */
-function useFloatingStream(onNavigate: (path: string) => void, active: boolean) {
-  useEffect(() => {
-    if (!active) return;
-    const patterns = [
-      'agent.message', 'agent.ask', 'agent.navigate', 'task.*', 'note.created',
-    ];
-    return subscribe(patterns, (ev) => {
-      if (ev.type === 'agent.navigate') {
-        const path = safeInternalPath(ev.payload.path);
-        if (path) onNavigate(path);
-        return;
-      }
-      const store = useChatStore.getState();
-      store.dispatch(ev);
-      if (ev.type === 'agent.message' && !useFloatingStore.getState().open) {
-        useFloatingStore.setState((s) => ({ unread: s.unread + 1 }));
-      }
-    });
-  }, [onNavigate, active]);
-}
 
 export function FloatingChat() {
   const { open, unread, setOpen } = useFloatingStore();
@@ -64,7 +43,17 @@ export function FloatingChat() {
     },
     [navigate],
   );
-  useFloatingStream(onNavigate, true);
+  // 与 chat 页同一接线(历史/上线/SSE);chat 路由时本组件不渲染,二者不叠加
+  useChatStream(onNavigate);
+
+  // 未读数:agent.message 到达且面板收起时 +1(打开时不计,展开时清零)
+  useEffect(() => {
+    return subscribe(['agent.message'], () => {
+      if (!useFloatingStore.getState().open) {
+        useFloatingStore.setState((s) => ({ unread: s.unread + 1 }));
+      }
+    });
+  }, []);
 
   // 打开时滚到底;新消息时若已打开也滚底(两边滚动位置各自独立,坑 3:
   // 悬浮窗列表是独立容器,不与 chat 页共享 DOM)
@@ -129,6 +118,8 @@ export function FloatingChat() {
           收起
         </button>
       </div>
+      {/* 控制面与主页同源(§10.12):仲裁切换 / 急停 / 运行中徽章 */}
+      <ChatControls />
       <div className="float-panel__body" ref={listRef}>
         <MessageList />
         <TaskCards />

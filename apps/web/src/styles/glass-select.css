@@ -28,6 +28,10 @@
 .glass-select-trigger:hover {
   border-color: rgba(0, 122, 255, 0.35);
 }
+.glass-select-trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 .glass-select.is-open .glass-select-trigger {
   border-color: var(--brand-500);
   box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.12);

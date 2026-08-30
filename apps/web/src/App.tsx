@@ -6,7 +6,7 @@
 import { lazy, Suspense, type ComponentType } from 'react';
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { AppShell } from '@/shell/AppShell';
-import { AgentPage } from '@/pages/agent/AgentPage';
+import { ChatPage } from '@/pages/chat/ChatPage';
 import { NotFound } from '@/shell/NotFound';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { routes } from '@/utils/routes';
@@ -67,9 +67,10 @@ export function App() {
     <Suspense fallback={<PageFallback />}>
       <Routes>
         <Route element={<AppShell />}>
-          <Route index element={<AgentPage />} />
-          <Route path="chat" element={<AgentPage />} />
-          <Route path="chat/:sessionId" element={<AgentPage />} />
+          {/* 单时间线聊天(§6.3):主页即对话,旧会话深链一律归到 /chat */}
+          <Route index element={<ChatPage />} />
+          <Route path="chat" element={<ChatPage />} />
+          <Route path="chat/:sessionId" element={<Navigate to="/chat" replace />} />
           <Route path="agent" element={<RedirectKeepSearch to={routes.chat} />} />
           <Route path="team" element={<TeamPage />} />
           <Route path="notes" element={<NotesPage />} />

@@ -126,11 +126,7 @@ const METHOD_MAP: Record<string, { domain: string; name: string; argMap?: Record
   getLlmUsage: { domain: 'llm', name: 'get_usage_stats' },
 
   // ---- agent(状态 / profile / memory) ----
-  listAgentSessions: { domain: 'agent', name: 'list_subagents' },
-  getAgentSession: { domain: 'agent', name: 'list_subagents' /* 降级 */ },
-  createAgentSession: { domain: 'agent', name: 'list_subagents' /* 降级 */ },
-  deleteAgentSession: { domain: 'agent', name: 'list_subagents' /* 降级 */ },
-  updateAgentSession: { domain: 'agent', name: 'list_subagents' /* 降级 */ },
+  // 会话 CRUD 已废弃(单时间线,§6.3):见 AgentApi 内的显式抛错,不再静默映射
   getAgentProfiles: { domain: 'agent', name: 'list_personas' },
   getUserProfile: { domain: 'agent', name: 'recall_memory' },
   updateUserProfile: { domain: 'agent', name: 'recall_memory' /* 降级 */ },
@@ -399,12 +395,22 @@ class OverviewApi {
   }
 }
 
+/** 会话 CRUD 已废弃:新架构是单时间线(gateway 不建会话表,§6.3),
+ *  聊天史即事件日志;发消息走 POST /api/chat/messages,历史走 GET 同路径,
+ *  实时经 bridge/stream 订阅 SSE。禁止再映射到 agent.list_subagents 冒充会话。 */
+function deprecatedSessionApi(method: string): never {
+  throw new ApiRequestError(
+    'NOT_IMPLEMENTED',
+    `${method} 已废弃:会话 CRUD 不再存在,聊天走 /api/chat/messages 与 /api/chat/stream`,
+  );
+}
+
 class AgentApi {
-  listAgentSessions() { return call('listAgentSessions'); }
-  getAgentSession(_id: string) { return call('getAgentSession'); }
-  createAgentSession() { return call('createAgentSession'); }
-  deleteAgentSession(_id: string) { return call('deleteAgentSession'); }
-  updateAgentSession(_id: string, _d: unknown) { return call('updateAgentSession'); }
+  listAgentSessions() { deprecatedSessionApi('listAgentSessions'); }
+  getAgentSession(_id: string) { deprecatedSessionApi('getAgentSession'); }
+  createAgentSession() { deprecatedSessionApi('createAgentSession'); }
+  deleteAgentSession(_id: string) { deprecatedSessionApi('deleteAgentSession'); }
+  updateAgentSession(_id: string, _d: unknown) { deprecatedSessionApi('updateAgentSession'); }
   getAgentProfiles() { return call('getAgentProfiles'); }
   getUserProfile() { return call('getUserProfile'); }
   updateUserProfile(d: unknown) { return call('updateUserProfile', d as Record<string, unknown>); }

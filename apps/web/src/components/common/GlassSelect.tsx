@@ -13,6 +13,7 @@ interface GlassSelectProps {
   onChange: (value: string) => void;
   className?: string;
   size?: 'md' | 'sm';
+  disabled?: boolean;
   'aria-label'?: string;
 }
 
@@ -32,6 +33,7 @@ export function GlassSelect({
   onChange,
   className = '',
   size = 'md',
+  disabled = false,
   'aria-label': ariaLabel,
 }: GlassSelectProps) {
   const [open, setOpen] = useState(false);
@@ -127,6 +129,7 @@ export function GlassSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
+        disabled={disabled}
         onClick={() => {
           if (open) {
             setOpen(false);

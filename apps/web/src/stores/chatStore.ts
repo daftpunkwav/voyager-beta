@@ -5,6 +5,7 @@
  */
 
 import { create } from 'zustand';
+import { routes } from '@/utils/routes';
 
 export interface ChatMessage {
   seq: number;
@@ -21,6 +22,10 @@ export interface ProgressCard {
   stage: string;
   status: 'running' | 'completed' | 'failed';
   error?: string;
+  /** payload 自带的资源类型(doc/repo/web…),决定能否跳资源详情页 */
+  kind?: string;
+  /** 预计算的资源详情路由;graph 的 job_id 无详情页则缺省(不做假按钮) */
+  link?: string;
 }
 
 /** 笔记产物卡(note.created):点击跳 /notes?note=<id>。 */
@@ -37,6 +42,14 @@ export interface PendingQuestion {
   options: string[];
   min: number | null;
   max: number | null;
+}
+
+/** agent.step 的实时步骤(phase-06):只显示当前一步,新步骤覆盖旧的。 */
+export interface CurrentStep {
+  /** 工具名或 round-N */
+  name: string;
+  /** 在干活的 subagent 名(chat / 派遣名) */
+  subagent: string;
 }
 
 /** SSE 帧 / 历史行的公共形态(Event.to_dict + seq)。 */
@@ -56,11 +69,15 @@ interface ChatState {
   question: PendingQuestion | null;
   connected: boolean;
   thinking: boolean;
+  /** 当前工具步骤(agent.step);agent.message / 回合结束清掉 */
+  currentStep: CurrentStep | null;
   /** 历史接口消息(user.message/agent.message)→ 消息流;不触发思考态。 */
   applyHistory: (events: ChatEvent[]) => void;
   /** SSE 事件分发(agent.ask、task.* 、agent.message、note.created 等;纯状态迁移,可单测)。 */
   dispatch: (ev: ChatEvent) => void;
   appendLocal: (msg: ChatMessage) => void;
+  /** 系统提示(急停/超时等控制面事件,本地 seq);不动 thinking,由调用方决定思考态。 */
+  addSystem: (content: string) => void;
   setConnected: (v: boolean) => void;
   clearQuestion: () => void;
   setQuestion: (q: PendingQuestion | null) => void;
@@ -68,6 +85,25 @@ interface ChatState {
 
 function taskKey(payload: Record<string, unknown>): string {
   return String(payload.source_id ?? payload.job_id ?? '');
+}
+
+/** 卡片标题优先级:project → title → kind → key。
+ *  sources 进度事件常缺 project,直接用 key 会是一串 uuid,先用 kind 等可读字段兜住。 */
+function taskLabel(payload: Record<string, unknown>, fallback: string): string {
+  for (const field of ['project', 'title', 'kind'] as const) {
+    const v = payload[field];
+    if (v !== undefined && v !== null && String(v) !== '') return String(v);
+  }
+  return fallback;
+}
+
+/** source_id → 资源详情路由(§10.3);graph 等只有 job_id 的任务没有详情页,不造链接。
+ *  kind 缺省时 sourceOf 落 repo 页:当前仅 repo worker 的 task 事件不带 kind,恰好正确。 */
+function taskLink(payload: Record<string, unknown>): string | undefined {
+  const sid = payload.source_id;
+  if (sid === undefined || sid === null || String(sid) === '') return undefined;
+  const kind = payload.kind === undefined ? undefined : String(payload.kind);
+  return routes.sourceOf(kind, String(sid));
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -78,6 +114,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   question: null,
   connected: false,
   thinking: false,
+  currentStep: null,
 
   applyHistory: (events) => {
     const msgs = events
@@ -96,8 +133,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const p = ev.payload;
     switch (ev.type) {
       case 'agent.message': {
+        // question 一并清掉:agent 继续说话说明已不再等答案(如回答超时后按默认继续),
+        // 弹窗不能卡在已被后端丢弃的问题上(§9.15 超时兜底);
+        // currentStep 同步清掉:回合有产出即不再"正在调工具"
         set({
           thinking: false,
+          question: null,
+          currentStep: null,
           messages: [
             ...get().messages,
             {
@@ -152,18 +194,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
         });
         break;
       }
+      case 'agent.step': {
+        // 工具/轮次实时步骤:新步骤覆盖旧的,不做 trajectory(§9.2 的 06 切片)
+        set({
+          currentStep: {
+            name: String(p.name ?? ''),
+            subagent: String(p.subagent ?? ''),
+          },
+        });
+        break;
+      }
       case 'task.progress':
       case 'task.enqueued': {
         const key = taskKey(p);
         if (!key) break;
         const cards = { ...get().cards };
         if (!cards[key]) get().cardOrder.push(key);
+        const prev = cards[key];
         cards[key] = {
           key,
-          label: String(p.project ?? key),
-          progress: Number(p.progress ?? 0),
-          stage: String(p.stage ?? 'running'),
+          label: taskLabel(p, prev?.label ?? key),
+          progress: Number(p.progress ?? prev?.progress ?? 0),
+          stage: String(p.stage ?? prev?.stage ?? '进行中'),
           status: 'running',
+          kind: p.kind === undefined ? prev?.kind : String(p.kind),
+          link: taskLink(p) ?? prev?.link,
         };
         set({ cards, cardOrder: [...get().cardOrder] });
         break;
@@ -172,19 +227,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
       case 'task.failed': {
         const key = taskKey(p);
         if (!key) break;
-        const prev = get().cards[key];
-        if (!prev) break;
-        set({
-          cards: {
-            ...get().cards,
-            [key]: {
-              ...prev,
-              progress: ev.type === 'task.completed' ? 1 : prev.progress,
-              status: ev.type === 'task.completed' ? 'completed' : 'failed',
-              error: p.error ? String(p.error) : undefined,
-            },
-          },
-        });
+        const failed = ev.type === 'task.failed';
+        const cards = { ...get().cards };
+        const prev = cards[key];
+        // 没有先到的 progress 卡也建卡:完成/失败是终态事实,不能因为缺前序就吞掉
+        if (!prev) get().cardOrder.push(key);
+        cards[key] = {
+          key,
+          label: taskLabel(p, prev?.label ?? key),
+          progress: failed ? (prev?.progress ?? 0) : 1,
+          stage: String(p.stage ?? (failed ? (prev?.stage ?? '') : '已完成')),
+          status: failed ? 'failed' : 'completed',
+          error: p.error ? String(p.error) : undefined,
+          kind: p.kind === undefined ? prev?.kind : String(p.kind),
+          link: taskLink(p) ?? prev?.link,
+        };
+        set({ cards, cardOrder: [...get().cardOrder] });
         break;
       }
       default:
@@ -194,6 +252,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   appendLocal: (msg) => {
     set({ thinking: true, messages: [...get().messages, msg] });
+  },
+
+  addSystem: (content) => {
+    set({
+      messages: [
+        ...get().messages,
+        { seq: -Date.now(), role: 'system', content },
+      ],
+    });
   },
 
   setConnected: (v) => set({ connected: v }),

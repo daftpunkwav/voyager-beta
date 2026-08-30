@@ -3,9 +3,13 @@
  * 供 Chat 页与常驻悬浮窗共用(§10.12)，放在 widgets 层避免页面私有组件被反向依赖。
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { callCapability, ServiceError } from '@/bridge/client';
 import { useChatStore } from '@/stores/chatStore';
+
+/** 前端兜底超时:后端 Question 默认 120s(见 agent/tools/ask_user.py),到点 Future 已丢弃;
+ * 前端略放宽 10s 后关弹窗,避免 UI 卡在永远不会被回投命中的问题上。 */
+const ANSWER_WINDOW_MS = 130_000;
 
 export function AskDialog() {
   const question = useChatStore((s) => s.question);
@@ -14,16 +18,31 @@ export function AskDialog() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // 超时兜底:answer_question 的 Future 只在 ask 等待期间存在,超时后回投必 miss
+  const questionId = question?.questionId;
+  useEffect(() => {
+    if (!questionId) return;
+    const timer = setTimeout(() => {
+      useChatStore.getState().addSystem('问题超时未答,已关闭弹窗;agent 将按默认继续。');
+      useChatStore.getState().clearQuestion();
+    }, ANSWER_WINDOW_MS);
+    return () => clearTimeout(timer);
+  }, [questionId]);
+
   if (!question) return null;
 
   const submit = async (raw: unknown) => {
     setBusy(true);
     setError(null);
     try {
-      await callCapability('agent', 'answer_question', {
+      const out = await callCapability<{ matched: boolean }>('agent', 'answer_question', {
         question_id: question.questionId,
         value: raw,
       });
+      if (out.matched === false) {
+        // 后端已无此问题(超时被丢弃):提示后照常收起,让用户继续对话
+        useChatStore.getState().addSystem('该问题已失效(可能已超时),无需再答。');
+      }
       clearQuestion();
       setValue('');
     } catch (err) {

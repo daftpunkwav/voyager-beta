@@ -315,6 +315,44 @@
   gap: 10px;
 }
 .chat-status { text-align: right; }
+.chat-topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chat-topbar .chat-status { flex: 1; min-width: 0; }
+
+/* 控制面(§10.2):仲裁切换 + 急停 + 运行中徽章;主页与悬浮窗共用 */
+.chat-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.chat-controls .glass-select { width: auto; min-width: 9.5em; }
+.float-panel > .chat-controls { padding: 8px 12px 0; }
+.chat-controls__stop:not(:disabled) { color: var(--error); }
+.chat-controls__badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.chat-badge {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--bg-300);
+  background: var(--bg-100);
+  color: var(--text-700);
+  font-size: 12px;
+  cursor: pointer;
+}
+.chat-badge:hover { border-color: var(--error); color: var(--error); }
 .chat-stream {
   flex: 1;
   min-height: 0;
@@ -414,7 +452,20 @@
   gap: 12px;
   margin-bottom: 6px;
 }
-.chat-card__label { font-size: 13px; font-weight: 600; color: var(--text-800); }
+.chat-card__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-800);
+  /* sources 任务没有 project 时 label 可能是长 id:截断,悬停经 title 看全量 */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-card__stage { flex-shrink: 0; }
+/* 可跳转的任务卡整卡是链接:压掉 a 的默认下划线/配色,保持卡片外观(选中反馈走边框,不用品牌竖条) */
+a.chat-card { display: block; text-decoration: none; color: inherit; }
+a.chat-card:hover { border-color: var(--brand-500); }
 .chat-card__bar {
   height: 4px;
   border-radius: 999px;
@@ -425,6 +476,13 @@
   height: 100%;
   background: var(--brand-500);
   transition: width 0.3s var(--ease);
+}
+/* 实时工具步骤行(输入区上方):纯文字,不做卡片不加装饰线 */
+.chat-step {
+  padding: 0 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .chat-input {
   display: flex;
@@ -620,8 +678,9 @@
 .note-artifact {
   align-self: flex-start;
   display: flex;
+  flex-wrap: wrap; /* 摘要行一行;预览块换行占满 */
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   padding: 8px 12px;
   border-radius: var(--radius);
   border: 1px solid var(--success);
@@ -629,6 +688,31 @@
   font-size: 13px;
 }
 .note-artifact__icon { font-size: 15px; }
+.note-artifact__main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.note-artifact__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-artifact__open { flex-shrink: 0; color: var(--text-600); }
+.note-artifact__open:hover { color: var(--text-800); }
+/* 就地预览:限高滚动,长笔记不把对话流撑到无限长 */
+.note-artifact__preview {
+  flex-basis: 100%;
+  max-height: 360px;
+  overflow: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--bg-300);
+}
 
 /* ---------- 资源库页 ---------- */
 .sources-page {
@@ -1194,6 +1278,9 @@
   max-height: 240px;
   overflow-y: auto;
 }
+/* 造人表单(phase-07):纵向布局容器 + 模式/人格并排一行 */
+.spawn-form { display: flex; flex-direction: column; gap: 14px; max-width: 560px; }
+.spawn-form__row { display: flex; gap: 16px; flex-wrap: wrap; }
 .spawn-form__tools {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -1221,6 +1308,7 @@
   background: var(--bg-50);
   overflow-y: auto;
 }
+.inst-list { display: flex; flex-direction: column; gap: 6px; }
 .inst-row {
   display: flex;
   flex-direction: column;
