@@ -47,6 +47,13 @@ class ProfileMemory:
         rows = self._conn.execute("SELECT key, value FROM profile ORDER BY key").fetchall()
         return {k: json.loads(v) for k, v in rows}
 
+    def clear(self) -> int:
+        """清空全部画像键值(§10.11 设置页清空动作),返回删除条数。"""
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM profile")
+            self._conn.commit()
+        return cur.rowcount
+
     def render(self, max_chars: int = 800) -> str:
         """画像摘要(注入 system 的是摘要而非全量,§9.20)。"""
         data = self.all()

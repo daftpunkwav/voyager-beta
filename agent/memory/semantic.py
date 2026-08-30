@@ -78,5 +78,12 @@ class SemanticMemory:
             for r in self._conn.execute(sql, params).fetchall()
         ]
 
+    def clear(self) -> int:
+        """清空全部事实三元组(§10.11 设置页清空动作),返回删除条数。"""
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM facts")
+            self._conn.commit()
+        return cur.rowcount
+
     def close(self) -> None:
         self._conn.close()

@@ -76,6 +76,13 @@ class EpisodicMemory:
             self._conn.commit()
         return cur.rowcount
 
+    def clear(self) -> int:
+        """清空全部情节(§10.11 设置页清空动作),与 purge 的保留策略语义无关。"""
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM episodes")
+            self._conn.commit()
+        return cur.rowcount
+
     def close(self) -> None:
         self._conn.close()
 

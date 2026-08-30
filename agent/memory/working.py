@@ -18,6 +18,9 @@ class WorkingMemory:
         items = list(self._messages)
         return items[-n:]
 
+    def __len__(self) -> int:
+        return len(self._messages)
+
     def clear(self) -> None:
         self._messages.clear()
         self.current_task = None

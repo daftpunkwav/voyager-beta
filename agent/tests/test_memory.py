@@ -1,5 +1,8 @@
-"""记忆系统测试(§9.11):四类记忆 + 门面聚合检索 + 保留策略。"""
+"""记忆系统测试(§9.11):四类记忆 + 门面聚合检索 + 保留策略 + 分区清空。"""
 
+
+import pytest
+from platform_contracts import ServiceError
 
 from agent.memory import Memory
 
@@ -63,4 +66,34 @@ class TestFacade:
         assert m.purge(retention_days=0) == {"episodic": 0}  # 不自动清
         assert len(m.episodic.recent()) == 1
         assert m.purge(retention_days=90)["episodic"] == 0  # 未超期
+        m.close()
+
+    def test_clear_single_zone_returns_only_that_zone(self, tmp_path) -> None:
+        m = Memory(tmp_path)
+        m.profile.set("语言", "中文")
+        m.working.add("user", "hi")
+        m.working.add("assistant", "你好")
+        assert m.clear("working") == {"working": 2}  # working 用清空前 len
+        assert m.profile.all() == {"语言": "中文"}  # 其他区不受影响
+        assert len(m.working) == 0
+        m.close()
+
+    def test_clear_all_empties_every_zone(self, tmp_path) -> None:
+        m = Memory(tmp_path)
+        m.profile.set("语言", "中文")
+        m.episodic.log("consider", "x")
+        m.semantic.add("langgraph", "类型", "框架")
+        out = m.clear("all")
+        assert out == {"profile": 1, "episodic": 1, "semantic": 1, "working": 0}
+        assert m.profile.all() == {}
+        assert m.profile.render() == "(暂无用户画像)"  # 空画像摘要
+        assert m.episodic.recent() == []
+        assert m.semantic.query() == []
+        m.close()
+
+    def test_clear_invalid_zone_rejected(self, tmp_path) -> None:
+        m = Memory(tmp_path)
+        with pytest.raises(ServiceError) as exc:
+            m.clear("everything")
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
         m.close()

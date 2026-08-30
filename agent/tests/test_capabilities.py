@@ -88,6 +88,57 @@ class TestSurface:
         assert isinstance(out["definitions"], list)
 
 
+class TestMemorySurface:
+    """记忆查看/清空(阶段 08):设置页数据源,不改 recall 的检索语义。"""
+
+    async def test_get_memory_shape_and_profile(self, app) -> None:
+        await execute(app.registry, "set_profile", USER_CTX,
+                      {"key": "语言偏好", "value": "中文"})
+        out = await execute(app.registry, "get_memory", USER_CTX, {})
+        assert set(out) == {"profile", "episodic", "semantic", "working",
+                            "retention_days", "purged_episodic"}
+        assert "语言偏好: 中文" in out["profile"]["summary"]
+        assert out["profile"]["items"] == [{"key": "语言偏好", "value": "中文"}]
+        assert set(out["episodic"]) == {"recent", "shown"}
+        assert out["episodic"]["shown"] == len(out["episodic"]["recent"])
+        assert set(out["semantic"]) == {"recent", "shown"}
+        assert set(out["working"]) == {"size"}
+        assert isinstance(out["retention_days"], int)
+
+    async def test_clear_memory_profile_empties_summary(self, app) -> None:
+        await execute(app.registry, "set_profile", USER_CTX, {"key": "k", "value": "v"})
+        out = await execute(app.registry, "clear_memory", USER_CTX, {"zone": "profile"})
+        assert out == {"zone": "profile", "cleared": {"profile": 1}}
+        snapshot = await execute(app.registry, "get_memory", USER_CTX, {})
+        assert snapshot["profile"]["summary"] == "(暂无用户画像)"
+        assert snapshot["profile"]["items"] == []
+
+    async def test_clear_memory_invalid_zone(self, app) -> None:
+        with pytest.raises(ServiceError) as exc:
+            await execute(app.registry, "clear_memory", USER_CTX, {"zone": "everything"})
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+
+    async def test_get_memory_retention_zero_does_not_purge(self, app) -> None:
+        """retention_days=0 = 交 agent 管理:快照不清情节,purged_episodic 为 0。"""
+        await execute(app.registry, "set_setting", USER_CTX,
+                      {"key": "agent.memory.retention_days", "value": 0})
+        app.memory.episodic.log("consider", "用户在看 langgraph")
+        out = await execute(app.registry, "get_memory", USER_CTX, {})
+        assert out["retention_days"] == 0
+        assert out["purged_episodic"] == 0
+        assert out["episodic"]["shown"] == 1
+
+    async def test_set_profile_empty_key_rejected(self, app) -> None:
+        with pytest.raises(ServiceError) as exc:
+            await execute(app.registry, "set_profile", USER_CTX, {"key": "  ", "value": "x"})
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+
+    async def test_delete_profile_missing_key_is_noop(self, app) -> None:
+        """键不存在不报错(与 sqlite DELETE 语义一致)。"""
+        out = await execute(app.registry, "delete_profile", USER_CTX, {"key": "不存在"})
+        assert out == {"key": "不存在", "ok": True}
+
+
 class TestTeamSurface:
     """团队页数据源(阶段 09):人格清单、自建 subagent、工具面名册。"""
 

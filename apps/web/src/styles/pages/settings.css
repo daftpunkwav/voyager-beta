@@ -164,6 +164,71 @@
       border-top-style: dashed;
     }
 
+    /* ---------- Agent 记忆(phase-08):摘要 / 键值 / 只读列表 ---------- */
+    .memory-subhead {
+      margin: 14px 0 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-700);
+    }
+    .memory-summary {
+      margin: 0;
+      padding: 10px 12px;
+      max-height: 180px;
+      overflow-y: auto;
+      border: 1px solid var(--bg-300);
+      border-radius: var(--radius-sm);
+      background: var(--bg-50);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: var(--text-700);
+    }
+    .memory-kv-list {
+      list-style: none;
+      margin: 0 0 8px;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .memory-kv-row {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-size: 12px;
+    }
+    .memory-kv-key { flex-shrink: 0; font-weight: 600; color: var(--text-700); }
+    .memory-kv-value { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--text-600); }
+    .memory-entry-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .memory-entry {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--text-600);
+    }
+    .memory-entry time { flex-shrink: 0; font-size: 11px; color: var(--text-400); }
+    .memory-entry .memory-kind { flex-shrink: 0; font-size: 11px; color: var(--text-400); }
+    .memory-entry .memory-entry-summary { min-width: 0; overflow-wrap: anywhere; }
+    .memory-form-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .memory-form-row .input { flex: 1; min-width: 0; }
+    .memory-zone-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+
     /* ---------- 主题切换：3 张卡片选择 ---------- */
     .theme-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
     .theme-card {
