@@ -13,6 +13,7 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { MarkdownRenderer } from '@/components/common/MarkdownRenderer';
 import { TagEditor } from './TagEditor';
+import { rememberSourceDetail } from './provider';
 import { STORAGE, migrateKey } from '@/brand';
 
 migrateKey(STORAGE.pdfScale, STORAGE.legacy.pdfScale);
@@ -25,6 +26,15 @@ export function DocReader() {
   const removeDoc = useRemoveDocument();
   const setMeta = useSetDocumentMeta();
   const addToast = useUIStore((s) => s.addToast);
+
+  // 详情 id / 标题写给页面感知 provider(§9.20);标题未到先给空串(probe 落到 id)
+  useEffect(() => {
+    if (!id) {
+      rememberSourceDetail(null);
+      return;
+    }
+    rememberSourceDetail({ kind: 'doc', id, title: doc?.title ?? '' });
+  }, [id, doc?.title]);
   const [view, setView] = useState<'original' | 'text'>('original');
   const [sectionNo, setSectionNo] = useState(1);
 

@@ -16,6 +16,7 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { extractErrorMessage } from '@/utils/errors';
+import { lastTeamSnapshot, rememberTeamSnapshot } from './provider';
 
 /** 名称规则与后端 SubagentDef 同一道正则(agent/subagent/registry.py),前端先拦一道 */
 const NAME_RE = /^[a-z][a-z0-9_]*$/;
@@ -34,6 +35,17 @@ const MODE_LABELS: Record<string, string> = Object.fromEntries(
   MODE_OPTIONS.map((o) => [o.value, o.label]),
 );
 
+/** 网络档位(phase-10):'' = 跟随全局;档位值与后端 agent.network.mode 一致 */
+const NETWORK_OPTIONS = [
+  { value: '', label: '跟随全局' },
+  { value: 'off', label: '关闭' },
+  { value: 'whitelist', label: '白名单' },
+  { value: 'all', label: '全开' },
+];
+const NETWORK_LABELS: Record<string, string> = Object.fromEntries(
+  NETWORK_OPTIONS.map((o) => [o.value, o.label]),
+);
+
 interface RunningSubagent {
   id: string;
   name: string;
@@ -42,13 +54,17 @@ interface RunningSubagent {
   started_ts: number;
 }
 
-/** list_subagents.definitions 条目;allowed_tools 为 null 表示不裁剪(全部工具) */
+/** list_subagents.definitions 条目;allowed_tools 为 null 表示不裁剪(全部工具);
+ *  轮数为 null 表示跟随全局,网络档位空串表示继承全局(phase-10) */
 interface SubagentDef {
   name: string;
   mode: string;
   description: string;
   persona: string;
   allowed_tools: string[] | null;
+  max_rounds?: number | null;
+  max_tool_calls?: number | null;
+  network_mode?: string;
 }
 
 interface PersonaItem {
@@ -107,6 +123,10 @@ export function TeamPage() {
   const [persona, setPersona] = useState('');
   const [toolMode, setToolMode] = useState<'all' | 'custom'>('all');
   const [pickedTools, setPickedTools] = useState<string[]>([]);
+  // 权限档位(phase-10):空串/空输入 = 跟随全局,此时请求体不带键(与 allowed_tools 同精神)
+  const [maxRounds, setMaxRounds] = useState('');
+  const [maxToolRounds, setMaxToolRounds] = useState('');
+  const [networkMode, setNetworkMode] = useState('');
   const [confirmOverwrite, setConfirmOverwrite] = useState(false);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
@@ -130,12 +150,25 @@ export function TeamPage() {
           ),
         ]);
         if (!alive) return;
-        setPersonas(Array.isArray(p) ? p : p.personas ?? []);
-        setTools(Array.isArray(t) ? t : t.tools ?? []);
-        setDefinitions(s.definitions ?? []);
-        setInstances(s.running ?? []);
+        const personasArr = Array.isArray(p) ? p : p.personas ?? [];
+        const toolsArr = Array.isArray(t) ? t : t.tools ?? [];
+        const defsArr = s.definitions ?? [];
+        const runningArr = s.running ?? [];
+        setPersonas(personasArr);
+        setTools(toolsArr);
+        setDefinitions(defsArr);
+        setInstances(runningArr);
+        // 数据成功到达才写页面感知快照(§9.20);失败走 catch 保持 null
+        rememberTeamSnapshot({
+          personas: personasArr.length,
+          definitions: defsArr.length,
+          running: runningArr.filter((r) => r.status === 'running').length,
+        });
       } catch (err) {
-        if (alive) setError(extractErrorMessage(err));
+        if (alive) {
+          setError(extractErrorMessage(err));
+          rememberTeamSnapshot(null); // 加载失败不报,避免「0 个人格」谎言
+        }
       } finally {
         if (alive) setLoading(false);
       }
@@ -152,7 +185,18 @@ export function TeamPage() {
     const timer = setInterval(() => {
       callCapability<{ running?: RunningSubagent[] }>('agent', 'list_subagents', {})
         .then((s) => {
-          if (alive) setInstances(s.running ?? []);
+          if (alive) {
+            setInstances(s.running ?? []);
+            // 运行数变化同步进感知快照(personas/definitions 沿用当前值)
+            const prev = lastTeamSnapshot();
+            const runningArr = s.running ?? [];
+            if (prev) {
+              rememberTeamSnapshot({
+                ...prev,
+                running: runningArr.filter((r) => r.status === 'running').length,
+              });
+            }
+          }
         })
         .catch(() => {});
     }, 5000);
@@ -168,7 +212,8 @@ export function TeamPage() {
     );
   };
 
-  /** 提交注册。不裁剪时不传 allowed_tools(后端空列表是 falsy 会被并进 None,前端不制造这种形态) */
+  /** 提交注册。不裁剪时不传 allowed_tools;轮数/网络留空(跟随全局)同样不传键,
+   *  后端空列表/空串语义归一,前端不制造多余形态 */
   const doRegister = async () => {
     setBusy(true);
     setFormError('');
@@ -180,22 +225,41 @@ export function TeamPage() {
         persona,
       };
       if (toolMode === 'custom') args.allowed_tools = pickedTools;
+      if (maxRounds.trim() !== '') args.max_rounds = Number(maxRounds);
+      if (maxToolRounds.trim() !== '') args.max_tool_calls = Number(maxToolRounds);
+      if (networkMode) args.network_mode = networkMode;
       await callCapability('agent', 'register_subagent', args);
       addToast({ type: 'success', message: `已注册自建 subagent:${name.trim()}` });
       const s = await callCapability<{ definitions?: SubagentDef[] }>('agent', 'list_subagents', {});
-      setDefinitions(s.definitions ?? []);
+      const defsArr = s.definitions ?? [];
+      setDefinitions(defsArr);
+      // 新增自建后同步感知快照的定义计数
+      const prev = lastTeamSnapshot();
+      if (prev) rememberTeamSnapshot({ ...prev, definitions: defsArr.length });
       setName('');
       setDescription('');
       setMode('react');
       setPersona('');
       setToolMode('all');
       setPickedTools([]);
+      setMaxRounds('');
+      setMaxToolRounds('');
+      setNetworkMode('');
     } catch (err) {
-      // INVALID_INPUT(名称/模式不合法)的后端 message 直接给用户,不静默
+      // INVALID_INPUT(名称/模式/档位不合法)的后端 message 直接给用户,不静默
       addToast({ type: 'error', message: `注册失败:${extractErrorMessage(err)}` });
     } finally {
       setBusy(false);
     }
+  };
+
+  /** 轮数输入校验:空 = 跟随全局;填了必须是正整数。返回 null 表示合法 */
+  const parseRounds = (draft: string): number | null => {
+    const trimmed = draft.trim();
+    if (trimmed === '') return null;
+    const n = Number(trimmed);
+    if (!Number.isInteger(n) || n < 1) return NaN;
+    return n;
   };
 
   const submit = () => {
@@ -210,6 +274,14 @@ export function TeamPage() {
     }
     if (toolMode === 'custom' && pickedTools.length === 0) {
       setFormError('指定白名单时至少勾选 1 项工具');
+      return;
+    }
+    if (Number.isNaN(parseRounds(maxRounds))) {
+      setFormError('ReAct 轮数须为正整数,留空跟随全局');
+      return;
+    }
+    if (Number.isNaN(parseRounds(maxToolRounds))) {
+      setFormError('工具轮数须为正整数,留空跟随全局');
       return;
     }
     setFormError('');
@@ -331,6 +403,13 @@ export function TeamPage() {
                     ? `${d.allowed_tools.length} 项`
                     : '不裁剪(全部工具)'}
                 </p>
+                <p className="small">
+                  轮数:
+                  {d.max_rounds == null && d.max_tool_calls == null
+                    ? '跟随全局'
+                    : `${d.max_rounds ?? '全局'} / ${d.max_tool_calls ?? '全局'}`}
+                </p>
+                <p className="small">网络:{NETWORK_LABELS[d.network_mode ?? ''] ?? '跟随全局'}</p>
                 {d.allowed_tools && d.allowed_tools.length > 0 && (
                   <details className="small">
                     <summary>工具清单</summary>
@@ -396,6 +475,43 @@ export function TeamPage() {
                   onChange={setPersona}
                 />
               </div>
+            </div>
+            <div className="spawn-form__row">
+              <div className="field-group">
+                <label className="field-label" htmlFor="spawn-rounds">ReAct 轮数</label>
+                <input
+                  id="spawn-rounds"
+                  className="field input"
+                  type="number"
+                  min={1}
+                  placeholder="跟随全局"
+                  value={maxRounds}
+                  onChange={(e) => setMaxRounds(e.target.value)}
+                />
+                <span className="field-help">留空跟随全局;派出时只能比全局更严</span>
+              </div>
+              <div className="field-group">
+                <label className="field-label" htmlFor="spawn-tool-rounds">工具轮数</label>
+                <input
+                  id="spawn-tool-rounds"
+                  className="field input"
+                  type="number"
+                  min={1}
+                  placeholder="跟随全局"
+                  value={maxToolRounds}
+                  onChange={(e) => setMaxToolRounds(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="field-group">
+              <span className="field-label">网络权限</span>
+              <GlassSelect
+                aria-label="网络权限档位"
+                value={networkMode}
+                options={NETWORK_OPTIONS}
+                onChange={setNetworkMode}
+              />
+              <span className="field-help">比全局松的档位派出时会被夹回全局档位</span>
             </div>
             <div className="field-group">
               <span className="field-label">能力面</span>

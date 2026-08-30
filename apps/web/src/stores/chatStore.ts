@@ -12,6 +12,10 @@ export interface ChatMessage {
   role: 'user' | 'agent' | 'system';
   content: string;
   proactive?: boolean;
+  /** 主动消息出处(§9.8):greeting / followup / reach_out */
+  kind?: string;
+  /** 触发源短句(如「你打开了应用」),用户可见,不是 LLM 生成的解释 */
+  reason?: string;
   ts?: number;
 }
 
@@ -124,6 +128,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         role: (e.type === 'user.message' ? 'user' : 'agent') as ChatMessage['role'],
         content: String(e.payload.content ?? ''),
         proactive: Boolean(e.payload.proactive),
+        // 主动出处(§9.8)随 payload 持久化,历史回放仍可见
+        kind: e.payload.kind === undefined ? undefined : String(e.payload.kind),
+        reason: e.payload.reason === undefined ? undefined : String(e.payload.reason),
         ts: e.ts,
       }));
     set({ messages: msgs });
@@ -147,6 +154,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
               role: 'agent',
               content: String(p.content ?? ''),
               proactive: Boolean(p.proactive),
+              kind: p.kind === undefined ? undefined : String(p.kind),
+              reason: p.reason === undefined ? undefined : String(p.reason),
               ts: ev.ts,
             },
           ],

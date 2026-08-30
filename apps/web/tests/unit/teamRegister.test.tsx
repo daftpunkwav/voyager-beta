@@ -49,6 +49,9 @@ function backend(_domain: string, name: string, args: Record<string, unknown>) {
           description: args.description,
           persona: args.persona ?? '',
           allowed_tools: (args.allowed_tools as string[] | undefined) ?? null,
+          max_rounds: (args.max_rounds as number | undefined) ?? null,
+          max_tool_calls: (args.max_tool_calls as number | undefined) ?? null,
+          network_mode: (args.network_mode as string | undefined) ?? '',
         },
       ];
       return Promise.resolve({ name: args.name, mode: args.mode ?? 'react', allowed_tools: args.allowed_tools ?? null });
@@ -130,6 +133,42 @@ describe('造人表单(phase-07)', () => {
     fireEvent.click(screen.getByRole('button', { name: '注册' }));
 
     expect(screen.getByText(/名称须为小写/)).toBeTruthy();
+    expect(callCapabilityMock).not.toHaveBeenCalledWith('agent', 'register_subagent', expect.anything());
+  });
+
+  it('带轮数+网络注册(phase-10):请求体带三个新键,卡片显示档位', async () => {
+    await renderPage();
+    fillForm('guard', '守门员');
+    fireEvent.change(screen.getByLabelText('ReAct 轮数'), { target: { value: '12' } });
+    fireEvent.change(screen.getByLabelText('工具轮数'), { target: { value: '30' } });
+    fireEvent.click(screen.getByRole('button', { name: '网络权限档位' }));
+    fireEvent.click(screen.getByRole('option', { name: '白名单' }));
+    fireEvent.click(screen.getByRole('button', { name: '注册' }));
+
+    await waitFor(() =>
+      expect(callCapabilityMock).toHaveBeenCalledWith('agent', 'register_subagent', {
+        name: 'guard',
+        description: '守门员',
+        mode: 'react',
+        persona: '',
+        max_rounds: 12,
+        max_tool_calls: 30,
+        network_mode: 'whitelist',
+      }),
+    );
+    // 注册后刷新 definitions,卡片显示轮数与网络档位
+    await waitFor(() => expect(screen.getByText('守门员')).toBeTruthy());
+    expect(screen.getByText(/轮数:\s*12 \/ 30/)).toBeTruthy();
+    expect(screen.getByText('网络:白名单')).toBeTruthy();
+  });
+
+  it('轮数填非正整数前端拦截,不发注册请求', async () => {
+    await renderPage();
+    fillForm('bad_rounds', '非法轮数');
+    fireEvent.change(screen.getByLabelText('ReAct 轮数'), { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button', { name: '注册' }));
+
+    expect(screen.getByText(/ReAct 轮数须为正整数/)).toBeTruthy();
     expect(callCapabilityMock).not.toHaveBeenCalledWith('agent', 'register_subagent', expect.anything());
   });
 

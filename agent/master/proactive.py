@@ -71,7 +71,12 @@ class ProactiveEngine:
         if not self.can_send():
             return None
         text = await self._compose_greeting()
-        await self._send(text, trace_id=trace_id)
+        await self._send(
+            text,
+            kind="greeting",
+            reason="你打开了应用",
+            trace_id=trace_id,
+        )
         return text
 
     def notify_user_reply(self) -> None:
@@ -90,7 +95,12 @@ class ProactiveEngine:
             if self._followups_sent >= self.budget.follow_up_max or not self.can_send():
                 return
             self._followups_sent += 1
-            await self._send("怎么不回我?还在忙吗?有需要随时说一声。", trace_id=trace_id)
+            await self._send(
+                "怎么不回我?还在忙吗?有需要随时说一声。",
+                kind="followup",
+                reason="你一段时间没回复",
+                trace_id=trace_id,
+            )
             self.schedule_followup(delay_s=delay_s * 2, trace_id=trace_id)
 
         self._followup_timer = self._scheduler.call_later(
@@ -113,7 +123,9 @@ class ProactiveEngine:
                 return reply.text
         return "欢迎回来。要继续上次的事,还是开始点新的?"
 
-    async def _send(self, text: str, *, trace_id: str = "") -> None:
+    async def _send(self, text: str, *, kind: str, reason: str, trace_id: str = "") -> None:
+        """发出主动消息。kind/reason 是用户可见出处(§9.8/§10.2):
+        reason 是写死的触发源短句,不是 LLM 生成的解释。"""
         self._session_sent += 1
         day = time.strftime("%Y-%m-%d", time.localtime(self._clock()))
         self._day_sent[day] = self._day_sent.get(day, 0) + 1
@@ -122,7 +134,7 @@ class ProactiveEngine:
                 Event(
                     type=DomainEvent.AGENT_MESSAGE,
                     actor=AGENT_MAIN,
-                    payload={"content": text, "proactive": True},
+                    payload={"content": text, "proactive": True, "kind": kind, "reason": reason},
                     trace_id=trace_id,
                 )
             )

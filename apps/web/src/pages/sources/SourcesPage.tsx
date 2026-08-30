@@ -14,6 +14,7 @@ import { BACKEND_UNREACHABLE } from '@/utils/errors';
 import { ProjectsPage } from './ProjectsPage';
 import { ImportCenter, type ImportTab } from './ImportCenter';
 import { SourceCard } from './SourceCard';
+import { rememberSourcesListCount } from './provider';
 
 type KindTab = '' | 'repo' | 'doc' | 'web';
 
@@ -47,6 +48,12 @@ export function SourcesPage() {
       ) ?? [],
     [items, search],
   );
+
+  // 当前流条数写给页面感知 provider(§9.20);加载中/失败不写,不谎报 0 项
+  useEffect(() => {
+    if (isLoading || isError) return;
+    rememberSourcesListCount(filtered.length);
+  }, [filtered.length, isLoading, isError]);
 
   const openImport = (t: ImportTab) => {
     setImportTab(t);

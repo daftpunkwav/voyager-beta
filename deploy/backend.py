@@ -16,16 +16,39 @@ from pathlib import Path
 from fastapi import FastAPI
 from platform_actor import LocalTokenIssuer
 from platform_capability import CostQuota, SqliteAuditSink, Wiring, execute
+from platform_contracts import ErrorSuffix, ServiceError
 from platform_eventbus import EventBus, EventLog
 from platform_secrets import SecretStore
 from platform_settings import SettingsStore
 
 from agent.main import AgentApp, build_agent
+from agent.settings import DEFS as AGENT_SETTING_DEFS
 
 from .bridge import agent_context, make_domain_tools
 from .llm_adapter import ServiceLLM
 
 ROOT = Path(__file__).parent.parent
+
+
+def _resolve_workspace(
+    workspace_dir: str | Path | None, settings_store: SettingsStore
+) -> Path:
+    """工作目录解析(§9.10):显式入参(测试注入口)优先;否则读 agent.workspace.dir,
+    相对路径以仓库根为基准,空/缺省回落 ROOT/workspace。settings 库中的值禁止
+    含 `..` 段(防越出仓库根);改目录后需重启才换 jail(fs 工具与资源库启动装配)。"""
+    if workspace_dir is not None:
+        return Path(workspace_dir)
+    raw = str(settings_store.get("agent.workspace.dir") or "").strip()
+    if not raw:
+        return ROOT / "workspace"
+    if ".." in Path(raw).parts:
+        raise ServiceError(
+            "agent",
+            ErrorSuffix.INVALID_INPUT,
+            f"agent.workspace.dir 禁止包含 .. 段: {raw}",
+        )
+    path = Path(raw)
+    return path if path.is_absolute() else ROOT / path
 
 
 @dataclass
@@ -67,7 +90,6 @@ def build(
     from services.sources.wiring import wire as wire_sources
 
     data_root = Path(data_dir) if data_dir else ROOT / "runtime-data"
-    workspace = Path(workspace_dir) if workspace_dir else ROOT / "workspace"
     data_root.mkdir(parents=True, exist_ok=True)
 
     # 共享基础设施:一条事件时间线、一个加密仓、一个设置存储、一个审计库
@@ -81,6 +103,9 @@ def build(
     quota = [CostQuota(default_daily_budget=50_000)]
     # gateway 自身设置项由部署入口注册(其模块注释约定,无 wiring 装配)
     settings_store.register_fresh(GATEWAY_SETTING_DEFS)
+    # agent 设置项也要先注册:工作目录解析要读 agent.workspace.dir(§9.10)
+    settings_store.register_fresh(AGENT_SETTING_DEFS)
+    workspace = _resolve_workspace(workspace_dir, settings_store)
 
     # graph L0 资源目录桥:按 kinds 从 sources 各店 fan-out 资源摘要
     # (形状= list_sources summaries;依赖倒置,graph 不 import sources)。

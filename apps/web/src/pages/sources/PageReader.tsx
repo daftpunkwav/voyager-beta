@@ -1,5 +1,6 @@
 /** 网页阅读器:剪藏正文 + 原文链接;agent 剪藏与用户剪藏同源展示。 */
 
+import { useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useRemovePage, useSetPageMeta, useWebPage } from '@/hooks/useSources';
 import { useUIStore } from '@/stores/uiStore';
@@ -7,6 +8,7 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { MarkdownRenderer } from '@/components/common/MarkdownRenderer';
 import { TagEditor } from './TagEditor';
+import { rememberSourceDetail } from './provider';
 
 export function PageReader() {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +17,15 @@ export function PageReader() {
   const removePage = useRemovePage();
   const setMeta = useSetPageMeta();
   const addToast = useUIStore((s) => s.addToast);
+
+  // 详情 id / 标题写给页面感知 provider(§9.20);标题未到先给空串(probe 落到 id)
+  useEffect(() => {
+    if (!id) {
+      rememberSourceDetail(null);
+      return;
+    }
+    rememberSourceDetail({ kind: 'web', id, title: page?.title ?? '' });
+  }, [id, page?.title]);
 
   if (isLoading) {
     return <div className="reader-state"><LoadingSpinner label="加载网页中…" /></div>;

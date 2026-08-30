@@ -29,6 +29,7 @@ import { AGENT_CATALOG } from '@/constants/agentCatalog';
 import { GLASS_INNER, GLASS_OUTER } from '@/constants/glassTokens';
 import { callCapability } from '@/bridge/client';
 import { routes } from '@/utils/routes';
+import { rememberSourceDetail } from './provider';
 import {
   ProjectAiPanel,
   type ProjectAiLine,
@@ -198,6 +199,15 @@ export function ProjectDetailPage() {
   const { data: tags = [] } = useTags();
   const updateProgress = useUpdateProgress();
   const deleteProject = useDeleteProject();
+
+  // 详情 id / 标题写给页面感知 provider(§9.20);标题未到先给空串(probe 落到 id)
+  useEffect(() => {
+    if (!id) {
+      rememberSourceDetail(null);
+      return;
+    }
+    rememberSourceDetail({ kind: 'repo', id, title: project?.name ?? '' });
+  }, [id, project?.name]);
 
   const [tab, setTab] = useState<DetailTab>('readme');
   const [deleteOpen, setDeleteOpen] = useState(false);

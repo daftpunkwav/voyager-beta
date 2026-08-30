@@ -11,7 +11,7 @@ import {
   reportPageView,
 } from '@/bridge/activity';
 import { subscribe } from '@/bridge/stream';
-import { PAGE_PROBES } from '@/shell/pageProbes';
+import { resolvePageProbe } from '@/shell/pageProbes';
 
 const SUMMARY_INTERVAL_MS = 30_000;
 const SELECTION_POLL_MS = 2000;
@@ -49,7 +49,7 @@ export function PageProbe() {
 
   const reportSummary = useCallback(() => {
     if (!activityReportEnabled()) return;
-    const probe = PAGE_PROBES[location.pathname];
+    const probe = resolvePageProbe(location.pathname);
     if (!probe) return;
     const out = probe.report();
     if (!out) return; // 数据未就绪,不报空页(坑 2)
@@ -67,7 +67,7 @@ export function PageProbe() {
   // 选中变化:轻轮询对比(避免侵入各页 store 订阅;选中变化频率低)
   const pollSelection = useCallback(() => {
     if (!activityReportEnabled()) return;
-    const probe = PAGE_PROBES[location.pathname];
+    const probe = resolvePageProbe(location.pathname);
     if (!probe) return;
     const out = probe.report();
     const sel = out?.selected ?? '';

@@ -406,6 +406,10 @@
   background: linear-gradient(135deg, var(--chart-5), var(--chart-4));
   color: #fff;
 }
+/* 主动消息出处行(§9.8):正文下的触发源脚注,属内容排版,非 Chrome */
+.chat-origin {
+  margin-top: 4px;
+}
 .chat-system {
   align-self: center;
   font-size: 12px;

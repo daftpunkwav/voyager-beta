@@ -8,6 +8,7 @@ from agent.policy.engine import (
     NetworkPolicy,
     PolicyEngine,
     ResourcePolicy,
+    narrow_network,
 )
 from agent.policy.levels import Level
 
@@ -20,4 +21,5 @@ __all__ = [
     "NetworkPolicy",
     "PolicyEngine",
     "ResourcePolicy",
+    "narrow_network",
 ]

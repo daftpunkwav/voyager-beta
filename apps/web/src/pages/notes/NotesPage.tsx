@@ -43,6 +43,7 @@ import {
 } from './notesView';
 import { isPersistedNoteId, syncScrollRatio } from './noteLine';
 import { noteSourceId } from './noteListing';
+import { rememberNotesListCount } from './provider';
 import { extractNoteToc, type NoteTocItem } from './noteOutline';
 import { parseSplitRatio } from './notePrefs';
 
@@ -71,6 +72,10 @@ export function NotesPage() {
   const density = useNotesUiStore((s) => s.density);
   const { data: notes = [], isLoading } = useAllNotes(listState);
   const { data: projectsData } = useProjects();
+  // 列表到达后把条数写给页面感知 provider(§9.20);加载中不写,避免谎报 0 条
+  useEffect(() => {
+    if (!isLoading) rememberNotesListCount(notes.length);
+  }, [notes.length, isLoading]);
   const editorContent = useNoteStore((s) => s.editorContent);
   const editorTitle = useNoteStore((s) => s.editorTitle);
   const startEditing = useNoteStore((s) => s.startEditing);

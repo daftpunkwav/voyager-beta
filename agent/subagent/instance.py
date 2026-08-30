@@ -19,6 +19,19 @@ from agent.subagent.modes import Mode, ModeLimits, run_mode
 from agent.tools.activate import graded_toolbelt, infer_domains
 from agent.tools.base import Toolbelt
 
+#: 页面 → 预激活域(§9.20):用户停在这三个领域页时,对话开局即并入该域
+#: 工具,省一轮 activate_tools;其他页(settings/usage…)不预激活。
+_PAGE_PREACTIVATE: dict[str, str] = {
+    "notes": "notes",
+    "graph": "graph",
+    "sources": "sources",
+}
+
+
+def page_preactivate(page: str) -> str | None:
+    """当前页面对应的工具域;无映射返回 None(单测直测这个小函数)。"""
+    return _PAGE_PREACTIVATE.get(page)
+
 
 class SubStatus(str, Enum):
     CREATED = "created"
@@ -54,7 +67,7 @@ class SubagentInstance:
     name: str = ""
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     history: list[dict[str, Any]] = field(default_factory=list)
-    pages: Any | None = None  # PageContextRegistry:笔记页预激活(phase-06 可选增强)
+    pages: Any | None = None  # PageContextRegistry:领域页预激活(notes/graph/sources)
     active: set[str] | None = None  # 对话实例的工具激活集(跨轮保留,§9.20)
 
     @property
@@ -79,8 +92,10 @@ class SubagentInstance:
             preactivate = list(hinted)
             if self.pages is not None:
                 cur = self.pages.current()
-                if cur is not None and cur.page == "notes" and "notes" not in preactivate:
-                    preactivate.append("notes")  # 笔记页对话预激活,省一轮 activate
+                if cur is not None:
+                    domain = page_preactivate(cur.page)
+                    if domain and domain not in preactivate:
+                        preactivate.append(domain)  # 领域页对话预激活,省一轮 activate
             belt = graded_toolbelt(
                 self.toolbelt, self.active, preactivate=tuple(preactivate),
             )

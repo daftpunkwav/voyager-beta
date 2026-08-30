@@ -14,6 +14,18 @@ from agent.policy.levels import Level
 
 NET_OFF, NET_WHITELIST, NET_ALL = "off", "whitelist", "all"
 
+# 档位严格度(§9.9「每级只能更严」):off < whitelist < all
+_NET_STRICTNESS = {NET_OFF: 0, NET_WHITELIST: 1, NET_ALL: 2}
+
+
+def narrow_network(global_mode: str, requested: str) -> str:
+    """网络档位收窄(§9.9):自建 subagent 指定的档位与全局档位取更严的一档。"""
+    if _NET_STRICTNESS.get(requested, _NET_STRICTNESS[NET_WHITELIST]) < _NET_STRICTNESS.get(
+        global_mode, _NET_STRICTNESS[NET_WHITELIST]
+    ):
+        return requested
+    return global_mode
+
 
 @dataclass(frozen=True)
 class NetworkPolicy:
@@ -69,12 +81,14 @@ class PolicyEngine:
         app: AppPolicy | None = None,
         resource: ResourcePolicy | None = None,
         shell_level: Level = Level.L2_CONFIRM,
+        settings=None,  # 可选设置句柄(有 get(key) 即可):网络判定热读当前值(§9.9)
     ) -> None:
         self.network = network or NetworkPolicy()
         self.fs = fs or FsPolicy()
         self.app = app or AppPolicy()
         self.resource = resource or ResourcePolicy()
         self.shell_level = shell_level
+        self._settings = settings
 
     def decide(self, action: Action) -> Decision:
         handler = {
@@ -87,17 +101,28 @@ class PolicyEngine:
             return Decision(allow=True)  # none/resource 等:L0
         return handler(action)
 
+    def _network_policy(self) -> NetworkPolicy:
+        """本次判定用的网络档位:有 settings 句柄则热读当前值(改设置不重启即生效),
+        没有则用构造时的快照(单元测试路径)。"""
+        if self._settings is None:
+            return self.network
+        return NetworkPolicy(
+            mode=self._settings.get("agent.network.mode"),
+            domains=tuple(self._settings.get("agent.network.domains") or ()),
+        )
+
     def _decide_network(self, action: Action) -> Decision:
-        if self.network.mode == NET_OFF:
+        net = self._network_policy()
+        if net.mode == NET_OFF:
             return Decision(False, reason="网络权限:关闭(设置里可改为白名单/全开)")
         # urlparse.hostname:去端口/去 userinfo(https://evil.com@github.com/ 实连 evil.com)
         # 并统一小写;裸域名(无 scheme)按原样处理
         host = (urlparse(action.target).hostname or "") if "://" in action.target \
             else action.target
         host = host.lower()
-        if self.network.mode == NET_ALL:
+        if net.mode == NET_ALL:
             return Decision(True, Level.L1_NOTIFY, "网络全开")
-        if any(host == d or host.endswith("." + d) for d in self.network.domains):
+        if any(host == d or host.endswith("." + d) for d in net.domains):
             return Decision(True, Level.L1_NOTIFY, f"白名单域名: {host}")
         return Decision(False, reason=f"域名不在白名单: {host}(可在设置页添加)")
 

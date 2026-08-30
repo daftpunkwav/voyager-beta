@@ -1,8 +1,13 @@
 """聚合装配测试:build() 起全系统,/health 六域 up,能力经聚合入口可用。"""
 
-from fastapi.testclient import TestClient
+import asyncio
 
-from deploy.backend import build
+import pytest
+from fastapi.testclient import TestClient
+from platform_contracts import LOCAL_USER, ServiceError
+
+from deploy.backend import ROOT, _resolve_workspace, build
+from platform_settings import SettingsStore
 
 DOMAINS = {"llm", "sources", "notes", "graph", "settings", "agent"}
 
@@ -38,3 +43,35 @@ def test_domain_tools_reach_agent(tmp_path) -> None:
     names = backend.agent.spawner._toolbelt.names()
     assert "notes__create_note" in names  # 领域能力已注入 agent 工具集
     assert "llm__complete" in names
+
+
+class TestWorkspaceResolution:
+    """工作目录解析(phase-10,§9.10):显式入参优先,否则读 agent.workspace.dir,
+    相对路径拼仓库根,含 .. 段拒绝。"""
+
+    def _store(self, tmp_path, raw) -> SettingsStore:
+        store = SettingsStore(tmp_path / "settings.db")
+        from agent.settings import DEFS as AGENT_SETTING_DEFS
+
+        store.register_fresh(AGENT_SETTING_DEFS)
+        if raw is not None:
+            asyncio.run(store.set("agent.workspace.dir", raw, LOCAL_USER))
+        return store
+
+    def test_explicit_dir_wins(self, tmp_path) -> None:
+        store = self._store(tmp_path, "from_setting")
+        assert _resolve_workspace(tmp_path / "explicit", store) == tmp_path / "explicit"
+
+    def test_setting_relative_joins_root(self, tmp_path) -> None:
+        store = self._store(tmp_path, "my/workspace")
+        assert _resolve_workspace(None, store) == ROOT / "my" / "workspace"
+
+    def test_empty_setting_falls_back_to_default(self, tmp_path) -> None:
+        store = self._store(tmp_path, "")
+        assert _resolve_workspace(None, store) == ROOT / "workspace"
+
+    def test_dotdot_rejected(self, tmp_path) -> None:
+        store = self._store(tmp_path, "../evil")
+        with pytest.raises(ServiceError) as exc:
+            _resolve_workspace(None, store)
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"

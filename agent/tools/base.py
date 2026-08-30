@@ -108,6 +108,18 @@ class Toolbelt:
             active=active,
         )
 
+    def with_policy(self, policy: PolicyEngine) -> Toolbelt:
+        """换权限引擎(§9.9 派出收窄):同一工具表、新判定引擎;通常在 trimmed() 之后套用,
+        不经 _tools 私有字段从外面硬拆。"""
+        return Toolbelt(
+            self._tools,
+            policy,
+            confirm=self._confirm,
+            notify=self._notify,
+            meter=self._meter,
+            active=self._active,
+        )
+
     async def call(self, call: ToolCall) -> str:
         tool = self._tools.get(call.name)
         if tool is None:

@@ -16,6 +16,7 @@ import { routes } from '@/utils/routes';
 import { safeHttpUrl } from '@/utils/safeUrl';
 import { BACKEND_UNREACHABLE } from '@/utils/errors';
 import type { GraphNode } from '@/api/types';
+import { rememberGraphSnapshot } from './provider';
 // 玻璃层级 token(旧 OVERVIEW_OUTER_GLASS / OVERVIEW_INNER_GLASS 已统一至此)
 import { GLASS_INNER, GLASS_OUTER } from '@/constants/glassTokens';
 
@@ -134,6 +135,20 @@ export function GraphPage() {
   useEffect(() => {
     setSimilarPage(0);
   }, [selectedNodeId]);
+
+  // 当前视图的节点/边数写给页面感知 provider(§9.20);数据未到先清成 null,不编数字
+  useEffect(() => {
+    if (!data) {
+      rememberGraphSnapshot(null);
+      return;
+    }
+    rememberGraphSnapshot({
+      nodes: filteredData.nodes.length,
+      edges: filteredData.edges.length,
+      selectedId: selectedNodeId ?? '',
+      selectedName: selectedNode?.name ?? '',
+    });
+  }, [data, filteredData, selectedNodeId, selectedNode]);
 
   /** 右侧详情栏高度与左侧信息栏对齐（收起左侧时保留上次展开高度） */
   useEffect(() => {

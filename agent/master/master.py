@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import deque
+from dataclasses import replace
 
 from platform_contracts import DomainEvent, Event
 from platform_eventbus import EventBus
@@ -20,9 +21,11 @@ from agent.master.arbiter import Arbiter, ArbiterMode
 from agent.master.digest import DigestStore
 from agent.master.settings_store_protocol import SettingsReader
 from agent.personas import PERSONAS, resolve_persona
+from agent.policy import NetworkPolicy, PolicyEngine, narrow_network
 from agent.runtime.events import AGENT_MAIN
 from agent.runtime.state import RunStatus
 from agent.subagent import Mode, ModeLimits, Spawner, SubagentInstance, TaskBook
+from agent.tools.base import Toolbelt
 
 log = logging.getLogger("agent.master")
 
@@ -30,6 +33,35 @@ CHAT_GOAL = (
     "与用户对话,理解并满足需求。需要动手做事时,用 spawn_subagent 派出任务型"
     " subagent 后台执行;不确定时经 ask_user 向用户提问。回复简洁有温度。"
 )
+
+_DEFAULT_LIMITS = ModeLimits()
+
+
+def limits_from_settings(
+    settings: SettingsReader,
+    *,
+    max_rounds: int | None = None,
+    max_tool_calls: int | None = None,
+) -> ModeLimits:
+    """轮数上限装配(§9.19):全局默认从 settings 每次现读;覆盖值非法/≤0 当没填;
+    生效值 = min(覆盖, 全局)——派出档位只能比全局更严。"""
+    defaults = (_DEFAULT_LIMITS.max_rounds, _DEFAULT_LIMITS.max_tool_calls)
+
+    def _cap(override: int | None, key: str, fallback: int) -> int:
+        try:
+            global_v = int(settings.get(key))
+        except (TypeError, ValueError):
+            global_v = 0
+        if global_v <= 0:
+            global_v = fallback
+        if override is None or override <= 0:
+            return global_v
+        return min(override, global_v)
+
+    return ModeLimits(
+        max_rounds=_cap(max_rounds, "agent.rounds.max", defaults[0]),
+        max_tool_calls=_cap(max_tool_calls, "agent.rounds.tool_max", defaults[1]),
+    )
 
 
 class Master:
@@ -46,6 +78,7 @@ class Master:
         hooks=None,
         memory=None,
         subagents=None,  # SubagentRegistry:自建定义按名派遣(§9.4.4)
+        policy: PolicyEngine | None = None,  # 全局权限引擎:自建 subagent 网络收窄时拷贝(§9.9)
     ) -> None:
         self._llm = llm
         self._bus = bus
@@ -57,6 +90,7 @@ class Master:
         self._hooks = hooks
         self._memory = memory
         self._subagents = subagents
+        self._policy = policy
         self._chat: SubagentInstance | None = None
         self._inbox: deque[str] = deque()
         self._lock = asyncio.Lock()
@@ -109,6 +143,8 @@ class Master:
                 name="chat",
                 reply_sink=self._reply,
             )
+        # 每回合重读轮数上限(§9.19):设置页改小/改大后下一句生效,不必重启对话实例
+        self._chat.task = replace(self._chat.task, limits=limits_from_settings(self._settings))
         await self._spawner.start(self._chat, text)
         self._digests.upsert(self._chat)
 
@@ -139,9 +175,10 @@ class Master:
             mode = Mode.REACT.value  # 统筹者强制 ReAct(决策 §15)
         if allowed_tools is None and preset is not None:
             allowed_tools = preset.tool_allow
-        limits = ModeLimits(
-            max_rounds=int(self._settings.get("agent.rounds.max")),
-            max_tool_calls=int(self._settings.get("agent.rounds.tool_max")),
+        limits = limits_from_settings(
+            self._settings,
+            max_rounds=custom.max_rounds if custom is not None else None,
+            max_tool_calls=custom.max_tool_calls if custom is not None else None,
         )
         task = TaskBook(
             goal=goal,
@@ -152,6 +189,8 @@ class Master:
         )
         spawn_key = preset.key if preset is not None else persona
         inst = self._spawner.spawn(task, persona=spawn_key, name=name or goal[:16])
+        if custom is not None and custom.network_mode:
+            inst.toolbelt = self._narrowed_toolbelt(inst.toolbelt, custom.network_mode)
         self._digests.upsert(inst)
         if self._hooks is not None:
             await self._hooks.fire("on_subagent_start", subagent=inst.id, goal=goal)
@@ -174,6 +213,24 @@ class Master:
         self._bg.add(task)
         task.add_done_callback(self._bg.discard)
         return inst
+
+    def _narrowed_toolbelt(self, belt: Toolbelt, requested_mode: str) -> Toolbelt:
+        """自建 subagent 指定网络档位时的实例专属工具带(§9.9「派出再裁,只能更严」)。
+
+        同一(已裁剪)工具表换一份新 PolicyEngine:fs/app 复用全局,网络档位取
+        narrow_network(全局, 自建),域名用全局 agent.network.domains。
+        拷贝不带 settings 句柄——任务中途全局放宽不回灌到已派出实例。
+        """
+        global_mode = str(self._settings.get("agent.network.mode") or "")
+        domains = tuple(self._settings.get("agent.network.domains") or ())
+        engine = PolicyEngine(
+            network=NetworkPolicy(
+                mode=narrow_network(global_mode, requested_mode), domains=domains
+            ),
+            fs=self._policy.fs if self._policy is not None else None,
+            app=self._policy.app if self._policy is not None else None,
+        )
+        return belt.with_policy(engine)
 
     def _load_custom(self, name: str):
         """按名取自建 subagent 定义;未注册返回 None(按普通无名任务处理)。"""

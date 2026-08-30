@@ -20,6 +20,7 @@ import { useCodeGraphStore } from '@/stores/codeGraphStore';
 import { getApi } from '@/api/client';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { useUIStore } from '@/stores/uiStore';
+import { rememberCodeGraphDetail } from './provider';
 import {
   loadDisplaySettings,
   saveDisplaySettings,
@@ -119,6 +120,19 @@ export function CodeGraphPage() {
     hideEntryPoints,
     layoutMode,
   ]);
+
+  // 项目 id / 当前布局节点边数写给页面感知 provider(§9.20);数据未到记 null,不编数字
+  useEffect(() => {
+    if (!id) {
+      rememberCodeGraphDetail(null);
+      return;
+    }
+    rememberCodeGraphDetail({
+      projectId: id,
+      nodes: filtered ? filtered.nodes.length : null,
+      edges: filtered ? filtered.edges.length : null,
+    });
+  }, [id, filtered]);
 
   useEffect(() => {
     if (selectedPath) return;

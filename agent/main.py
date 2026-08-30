@@ -112,6 +112,7 @@ def build_agent(
             domains=tuple(settings.get("agent.network.domains")),
         ),
         fs=FsPolicy(roots=(str(workspace),)),
+        settings=settings,  # 网络判定热读设置(§9.9):改档位/白名单不重启即生效
     )
     meter = Meter()
     events = RuntimeEvents(bus)
@@ -201,6 +202,7 @@ def build_agent(
         hooks=hooks,
         memory=memory,
         subagents=subagent_registry,
+        policy=policy,  # 自建 subagent 网络收窄时拷贝用(§9.9)
     )
     _master["master"] = master
     observer = Observer(master.consider)

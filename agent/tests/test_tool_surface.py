@@ -14,6 +14,7 @@ import agent.personas.organizer as organizer_mod
 from agent.llm import FakeLLM, LLMReply, ToolCall
 from agent.main import build_agent
 from agent.personas import resolve_persona
+from agent.subagent.instance import page_preactivate
 from agent.tools import AgentTool, Toolbelt
 
 from agent.tests.test_master import _replies
@@ -170,3 +171,16 @@ class TestStepEvents:
         assert all(s.get("subagent") for s in steps)
         assert all(len(s.get("summary", "")) <= 120 for s in steps)
         app.memory.close()
+
+
+class TestPagePreactivate:
+    """phase-09:页面 → 预激活域的小映射(扩到 notes/graph/sources)。"""
+
+    def test_domain_pages_map_to_own_domain(self) -> None:
+        assert page_preactivate("notes") == "notes"
+        assert page_preactivate("graph") == "graph"
+        assert page_preactivate("sources") == "sources"
+
+    def test_other_pages_do_not_preactivate(self) -> None:
+        for page in ("chat", "team", "activity", "settings", "usage", ""):
+            assert page_preactivate(page) is None

@@ -158,11 +158,15 @@ class TestTeamSurface:
             "mode": "direct", "allowed_tools": ["web_search", "web_fetch"],
         })
         assert out == {"name": "scout", "mode": "direct",
-                       "allowed_tools": ["web_search", "web_fetch"]}
+                       "allowed_tools": ["web_search", "web_fetch"],
+                       "max_rounds": None, "max_tool_calls": None,
+                       "network_mode": ""}  # 未传档位:轮数 None、网络空串(继承全局)
         defs = (await execute(app.registry, "list_subagents", USER_CTX, {}))["definitions"]
         mine = next(d for d in defs if d["name"] == "scout")
         assert mine["mode"] == "direct"
         assert mine["allowed_tools"] == ["web_search", "web_fetch"]
+        assert mine["max_rounds"] is None and mine["max_tool_calls"] is None
+        assert mine["network_mode"] == ""
 
     async def test_register_subagent_invalid_mode(self, app) -> None:
         with pytest.raises(ServiceError) as exc:
@@ -203,3 +207,56 @@ class TestTeamSurface:
         inst = await app.master.dispatch_task("查资料", persona="scout2")
         names = inst.toolbelt.names()
         assert names == ["web_search"]  # write_file 等真的不在工具面里
+
+    async def test_register_subagent_with_limits_and_network(self, app) -> None:
+        """造人档位(phase-10):轮数/网络注册后 list 卡片形状可见。"""
+        await execute(app.registry, "register_subagent", USER_CTX, {
+            "name": "capped", "description": "受限侦察员",
+            "max_rounds": 5, "max_tool_calls": 9, "network_mode": "off",
+        })
+        defs = (await execute(app.registry, "list_subagents", USER_CTX, {}))["definitions"]
+        mine = next(d for d in defs if d["name"] == "capped")
+        assert mine["max_rounds"] == 5
+        assert mine["max_tool_calls"] == 9
+        assert mine["network_mode"] == "off"
+
+    async def test_register_subagent_invalid_network_mode(self, app) -> None:
+        with pytest.raises(ServiceError) as exc:
+            await execute(app.registry, "register_subagent", USER_CTX, {
+                "name": "bad_net", "description": "x", "network_mode": "everything",
+            })
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+
+    async def test_register_subagent_invalid_rounds(self, app) -> None:
+        with pytest.raises(ServiceError) as exc:
+            await execute(app.registry, "register_subagent", USER_CTX, {
+                "name": "bad_rounds", "description": "x", "max_rounds": 0,
+            })
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+
+    async def test_dispatch_custom_limits_capped_stricter(self, app) -> None:
+        """派出夹严(§9.9/§9.19):自建轮数比全局严取自建;比全局松取全局。"""
+        await execute(app.registry, "register_subagent", USER_CTX, {
+            "name": "tight", "description": "小步子", "max_rounds": 5,
+        })
+        await execute(app.registry, "register_subagent", USER_CTX, {
+            "name": "loose", "description": "想开大", "max_rounds": 99,
+        })
+        tight = await app.master.dispatch_task("跑一单", persona="tight")
+        loose = await app.master.dispatch_task("跑一单", persona="loose")
+        assert tight.task.limits.max_rounds == 5   # 全局 20、自建 5 → 5
+        assert loose.task.limits.max_rounds == 20  # 自建 99 → 全局 20
+
+    async def test_dispatch_custom_network_copy(self, app) -> None:
+        """网络拷贝(§9.9):全局 whitelist + 自建 all → 实例判定仍 whitelist,
+        非白名单 URL 被拒(拷贝不带 settings 句柄,任务中途全局放宽不回灌)。"""
+        from agent.policy import Action
+
+        await execute(app.registry, "register_subagent", USER_CTX, {
+            "name": "net_all", "description": "想要全开", "network_mode": "all",
+        })
+        inst = await app.master.dispatch_task("抓网页", persona="net_all")
+        decision = inst.toolbelt._policy.decide(
+            Action(dimension="network", target="https://evil.com/x")
+        )
+        assert not decision.allow

@@ -7,6 +7,7 @@ from agent.policy import (
     Level,
     NetworkPolicy,
     PolicyEngine,
+    narrow_network,
 )
 
 
@@ -91,3 +92,42 @@ class TestShell:
         engine = PolicyEngine()
         d = engine.decide(Action(dimension="none"))
         assert d.allow and d.level == Level.L0_SILENT
+
+
+class _FakeSettings:
+    """最小设置句柄(有 get 即可);value 是 mock 的 settings 库。"""
+
+    def __init__(self, values: dict) -> None:
+        self._values = values
+
+    def get(self, key: str):
+        return self._values.get(key)
+
+
+class TestHotNetworkSettings:
+    """网络判定热读设置(phase-10):不传 settings 仍用构造快照,传了则每次现读。"""
+
+    def test_settings_override_construction_snapshot(self) -> None:
+        settings = _FakeSettings({"agent.network.mode": "all",
+                                  "agent.network.domains": ["github.com"]})
+        engine = PolicyEngine(network=NetworkPolicy(mode="off"), settings=settings)
+        d = engine.decide(Action(dimension="network", target="https://example.com"))
+        assert d.allow and d.level == Level.L1_NOTIFY  # 构造时 off,判定跟 settings 走
+
+    def test_whitelist_domains_read_from_settings(self) -> None:
+        settings = _FakeSettings({"agent.network.mode": "whitelist",
+                                  "agent.network.domains": ["pypi.org"]})
+        engine = PolicyEngine(network=NetworkPolicy(mode="all"), settings=settings)
+        assert engine.decide(Action(dimension="network", target="https://pypi.org/x")).allow
+        assert not engine.decide(Action(dimension="network", target="https://github.com/x")).allow
+
+    def test_no_settings_keeps_construction_snapshot(self) -> None:
+        engine = PolicyEngine(network=NetworkPolicy(mode="off"))
+        assert not engine.decide(Action(dimension="network", target="https://github.com/x")).allow
+
+    def test_narrow_network_takes_stricter(self) -> None:
+        assert narrow_network("whitelist", "all") == "whitelist"  # 自建全开被夹回全局
+        assert narrow_network("whitelist", "off") == "off"  # 自建更严则生效
+        assert narrow_network("off", "all") == "off"
+        assert narrow_network("all", "all") == "all"
+        assert narrow_network("whitelist", "whitelist") == "whitelist"

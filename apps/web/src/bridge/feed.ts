@@ -39,8 +39,14 @@ export function summarize(ev: FeedEvent): RowSummary {
   switch (ev.type) {
     case 'user.message':
       return { text: `${who} 发消息:${clip(p.content)}`, tone: 'normal' };
-    case 'agent.message':
+    case 'agent.message': {
+      // 主动消息带触发源出处(§9.8):活动页也能看出「为什么找我」
+      if (p.proactive) {
+        const why = String(p.reason ?? '').trim();
+        return { text: `${who} 主动${why ? `(${why})` : ''}:${clip(p.content)}`, tone: 'normal' };
+      }
       return { text: `${who} 回复:${clip(p.content)}`, tone: 'normal' };
+    }
     case 'user.online':
       return { text: `${who} 上线`, tone: 'muted' };
     case 'user.activity':

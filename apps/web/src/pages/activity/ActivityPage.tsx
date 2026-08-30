@@ -11,6 +11,7 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { summarize, type FeedEvent } from '@/bridge/feed';
 import { extractErrorMessage, BACKEND_UNREACHABLE } from '@/utils/errors';
+import { rememberActivityFeedCount } from './provider';
 
 interface FetchResp {
   events?: FeedEvent[];
@@ -51,9 +52,15 @@ export function ActivityPage() {
         }
         const body = (await resp.json()) as FetchResp;
         if (!alive) return;
-        setEvents(body.events ?? body.items ?? []);
+        const feed = body.events ?? body.items ?? [];
+        setEvents(feed);
+        // feed 拉到后写页面感知条数(§9.20);加载中/失败不写
+        rememberActivityFeedCount(feed.length);
       } catch (err) {
-        if (alive) setError(extractErrorMessage(err));
+        if (alive) {
+          setError(extractErrorMessage(err));
+          rememberActivityFeedCount(null); // 失败不报旧数
+        }
       } finally {
         if (alive) setLoading(false);
       }

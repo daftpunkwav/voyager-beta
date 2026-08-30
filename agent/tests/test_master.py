@@ -6,6 +6,7 @@ from platform_contracts import LOCAL_USER, DomainEvent
 
 from agent.llm import FakeLLM, LLMReply
 from agent.main import build_agent
+from agent.master.master import limits_from_settings
 from agent.runtime.state import RunStatus
 from agent.subagent import Mode
 
@@ -20,6 +21,16 @@ def _replies(app) -> list[str]:
     return [
         e.payload["content"] for _, e in app.log.read_after(types=[DomainEvent.AGENT_MESSAGE])
     ]
+
+
+class _FakeSettings:
+    """最小设置句柄(master 只依赖读设置,SettingsReader 协议)。"""
+
+    def __init__(self, values: dict) -> None:
+        self._values = values
+
+    def get(self, key: str):
+        return self._values.get(key)
 
 
 class TestChat:
@@ -93,4 +104,42 @@ class TestDispatch:
         inst = await app.master.dispatch_task("巡检仓库", persona="atlas")
         assert "write_file" not in inst.toolbelt.names()  # atlas 能力面不含写
         await asyncio.sleep(0.05)
+        app.memory.close()
+
+
+class TestLimitsFromSettings:
+    """轮数上限装配辅助(phase-10,§9.19):全局现读 + 覆盖只能更严。"""
+
+    def test_global_values_read_each_call(self) -> None:
+        s = _FakeSettings({"agent.rounds.max": 7, "agent.rounds.tool_max": 9})
+        limits = limits_from_settings(s)
+        assert (limits.max_rounds, limits.max_tool_calls) == (7, 9)
+
+    def test_override_stricter_wins_looser_capped(self) -> None:
+        s = _FakeSettings({"agent.rounds.max": 20, "agent.rounds.tool_max": 40})
+        assert limits_from_settings(s, max_rounds=5).max_rounds == 5
+        assert limits_from_settings(s, max_rounds=99).max_rounds == 20  # 比全局松 → 夹回全局
+
+    def test_invalid_override_treated_as_unset(self) -> None:
+        s = _FakeSettings({"agent.rounds.max": 20, "agent.rounds.tool_max": 40})
+        assert limits_from_settings(s, max_rounds=0).max_rounds == 20
+        assert limits_from_settings(s, max_rounds=-3).max_rounds == 20
+        assert limits_from_settings(s, max_tool_calls=None).max_tool_calls == 40
+
+    def test_missing_global_falls_back_to_dataclass_default(self) -> None:
+        limits = limits_from_settings(_FakeSettings({}))
+        assert (limits.max_rounds, limits.max_tool_calls) == (20, 40)
+
+
+class TestChatLimitsRefresh:
+    async def test_chat_limits_reread_each_turn(self, tmp_path) -> None:
+        """对话主实例每回合重读轮数(phase-10):改设置后下一句生效,无需重建实例。"""
+        app = _app(tmp_path, FakeLLM(default="好。"))
+        await app.master.handle_user_message("你好")
+        chat = app.master.chat
+        assert chat is not None and chat.task.limits.max_rounds == 20
+        await app.settings.set("agent.rounds.max", 5, LOCAL_USER)
+        await app.master.handle_user_message("继续")
+        assert app.master.chat is chat  # 同一实例复用
+        assert app.master.chat.task.limits.max_rounds == 5  # limits 已 replace
         app.memory.close()

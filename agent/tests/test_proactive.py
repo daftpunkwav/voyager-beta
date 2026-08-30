@@ -9,6 +9,7 @@ from platform_eventbus import EventBus, EventLog
 from agent.llm import FakeLLM
 from agent.master.proactive import ProactiveBudget, ProactiveEngine
 from agent.runtime.scheduler import Scheduler
+from agent.tools.reach_out import reach_out_tool
 
 
 def _clock(hour: int):
@@ -41,6 +42,9 @@ class TestGreeting:
         assert text == "欢迎回来,接着看 langgraph 吗?"
         msgs = _messages(log)
         assert len(msgs) == 1 and msgs[0]["proactive"] is True
+        # 出处(§9.8/§10.2):问候的触发源写死,不是 LLM 生成的解释
+        assert msgs[0]["kind"] == "greeting"
+        assert msgs[0]["reason"] == "你打开了应用"
 
     async def test_quiet_hours_block(self, tmp_path) -> None:
         engine, log = _engine(tmp_path, hour=2)  # 凌晨 2 点,安静时段内
@@ -59,7 +63,11 @@ class TestFollowUp:
         engine, log = _engine(tmp_path)
         engine.schedule_followup(delay_s=0.02)
         await asyncio.sleep(0.3)  # 0.02 → 0.04,链到上限即停
-        assert len(_messages(log)) == 2
+        msgs = _messages(log)
+        assert len(msgs) == 2
+        # 每条追问都带出处(§9.8)
+        assert all(m["kind"] == "followup" for m in msgs)
+        assert all(m["reason"] == "你一段时间没回复" for m in msgs)
 
     async def test_user_reply_cancels_chain(self, tmp_path) -> None:
         engine, log = _engine(tmp_path)
@@ -67,3 +75,27 @@ class TestFollowUp:
         engine.notify_user_reply()  # 用户回复了:取消追问
         await asyncio.sleep(0.15)
         assert _messages(log) == []
+
+
+class TestReachOut:
+    """reach_out 工具(fire-and-forget,不走 ProactiveEngine 预算)带出处 payload。"""
+
+    async def test_blank_reason_falls_back_to_default(self, tmp_path) -> None:
+        log = EventLog(tmp_path / "events.db")
+        bus = EventBus(log)
+        handler = reach_out_tool(bus)["reach_out"].handler
+        await handler("顺手帮你把索引建好了")
+        msgs = _messages(log)
+        assert len(msgs) == 1
+        assert msgs[0]["proactive"] is True
+        assert msgs[0]["kind"] == "reach_out"
+        assert msgs[0]["reason"] == "Agent 主动联系"
+
+    async def test_reason_passthrough_when_given(self, tmp_path) -> None:
+        log = EventLog(tmp_path / "events.db")
+        bus = EventBus(log)
+        handler = reach_out_tool(bus)["reach_out"].handler
+        await handler("在吗", reason="  你在学图谱  ")  # 去空白后采用调用方的
+        msgs = _messages(log)
+        assert msgs[0]["kind"] == "reach_out"
+        assert msgs[0]["reason"] == "你在学图谱"

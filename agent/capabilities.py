@@ -58,7 +58,9 @@ def build_agent_registry(deps: CapabilityDeps) -> Registry:
             "definitions": [
                 {"name": d.name, "mode": d.mode, "description": d.description,
                  "persona": d.persona, "allowed_tools": list(d.allowed_tools)
-                 if d.allowed_tools else None}
+                 if d.allowed_tools else None,
+                 "max_rounds": d.max_rounds, "max_tool_calls": d.max_tool_calls,
+                 "network_mode": d.network_mode}
                 for d in deps.subagents.list()
             ],
             "running": [
@@ -99,20 +101,29 @@ def build_agent_registry(deps: CapabilityDeps) -> Registry:
                 cost=2)
     def register_subagent(name: str, description: str, mode: str = "react",
                           allowed_tools: list[str] | None = None,
-                          persona: str = "") -> dict:
+                          persona: str = "",
+                          max_rounds: int | None = None,
+                          max_tool_calls: int | None = None,
+                          network_mode: str = "") -> dict:
         """写入 SubagentRegistry;mode 取七种模式枚举(非法值 AGENT.INVALID_INPUT)。
 
         allowed_tools 是能力面白名单裁剪(Toolbelt.trimmed,§9.4.1):
         不给 write_file 就是真的不能写,不是提示词约束;None = 不裁剪。
+        max_rounds / max_tool_calls / network_mode 是权限档位覆盖(§9.9/§9.19):
+        轮数不传跟随全局,网络档位空串继承全局;派出时只能比全局更严。
         """
         from agent.subagent.registry import SubagentDef
 
         d = SubagentDef(
             name=name, description=description, mode=mode, persona=persona,
             allowed_tools=tuple(allowed_tools) if allowed_tools else None,
+            max_rounds=max_rounds, max_tool_calls=max_tool_calls,
+            network_mode=network_mode or "",
         )
         deps.subagents.save(d)
-        return {"name": d.name, "mode": d.mode, "allowed_tools": allowed_tools}
+        return {"name": d.name, "mode": d.mode, "allowed_tools": allowed_tools,
+                "max_rounds": d.max_rounds, "max_tool_calls": d.max_tool_calls,
+                "network_mode": d.network_mode}
 
     @capability(reg, name="list_tools", description="当前工具面名册(自建 subagent 白名单候选项)")
     def list_tools() -> list[dict]:

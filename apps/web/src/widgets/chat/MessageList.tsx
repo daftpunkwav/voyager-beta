@@ -107,6 +107,12 @@ function Bubble({ msg }: { msg: ChatMessage }) {
       <div className="chat-md">
         <ChatMarkdown content={msg.content} />
       </div>
+      {msg.proactive && msg.reason ? (
+        // 主动出处(§9.8/§10.2):触发源短句,内容排版不算 Chrome
+        <div className="chat-origin small muted" aria-label={`为什么找我:${msg.reason}`}>
+          为什么找我:{msg.reason}
+        </div>
+      ) : null}
     </div>
   );
 }

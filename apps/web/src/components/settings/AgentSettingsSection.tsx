@@ -18,6 +18,24 @@ const STYLE_KEY = 'agent.style';
 const RETENTION_KEY = 'agent.memory.retention_days';
 const RETENTION_MAX = 3650;
 
+/** 轮数上限(agent.rounds.*;范围与 SettingDef 一致) */
+const ROUNDS_MAX_KEY = 'agent.rounds.max';
+const ROUNDS_TOOL_KEY = 'agent.rounds.tool_max';
+const ROUNDS_RE_MAX = 200;
+const ROUNDS_TOOL_MAX = 500;
+
+/** 网络权限(agent.network.*;档位值与后端枚举一致) */
+const NETWORK_MODE_KEY = 'agent.network.mode';
+const NETWORK_DOMAINS_KEY = 'agent.network.domains';
+const NETWORK_MODE_OPTIONS = [
+  { value: 'off', label: '关闭' },
+  { value: 'whitelist', label: '白名单' },
+  { value: 'all', label: '全开' },
+];
+
+/** 工作目录(agent.workspace.dir,§9.10):相对仓库根,保存后需重启才换 jail */
+const WORKDIR_KEY = 'agent.workspace.dir';
+
 /** agent.get_memory 返回形状(与 agent/capabilities.py 对齐,前端不猜字段) */
 interface SettingItem<T = string> {
   value?: T;
@@ -74,6 +92,12 @@ const fmtTs = (ts: number) => new Date(ts * 1000).toLocaleString();
 const fmtValue = (value: unknown) =>
   typeof value === 'string' ? value : JSON.stringify(value) ?? '';
 
+/** get_setting 值转数字输入草稿;非数字(如 mock/异常值)回落空串,避免 NaN 挂草稿 */
+const numericDraft = (item: SettingItem<number>) => {
+  const n = Number(item.value ?? item.default);
+  return Number.isFinite(n) ? String(n) : '';
+};
+
 interface AgentSettingsSectionProps {
   settings: Settings;
   updateSettings: (data: Partial<Settings>) => Promise<unknown>;
@@ -107,6 +131,18 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
   const [confirmZone, setConfirmZone] = useState<MemoryZone | null>(null);
   const [clearing, setClearing] = useState(false);
   const [busyZone, setBusyZone] = useState<MemoryZone | null>(null);
+
+  // 轮数草稿('' = 未加载);读取失败该块自显提示,不整页 EmptyState
+  const [roundsRe, setRoundsRe] = useState('');
+  const [roundsTool, setRoundsTool] = useState('');
+  const [limitsLoadFailed, setLimitsLoadFailed] = useState(false);
+  // 网络权限:mode null = 未加载;域名草稿多行文本,切档不丢草稿
+  const [netMode, setNetMode] = useState<string | null>(null);
+  const [domainsDraft, setDomainsDraft] = useState('');
+  const [netLoadFailed, setNetLoadFailed] = useState(false);
+  // 工作目录草稿
+  const [workdir, setWorkdir] = useState('');
+  const [workdirLoadFailed, setWorkdirLoadFailed] = useState(false);
 
   const saveConduct = () => {
     const next = conductDraft.slice(0, CONDUCT_MAX);
@@ -162,6 +198,44 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
       })
       .catch(() => {
         /* 保留天数读取失败由快照值兜底,不拦记忆区 */
+      });
+    // 轮数上限:两个数字输入的草稿
+    callCapability<SettingItem<number>>('settings', 'get_setting', { key: ROUNDS_MAX_KEY })
+      .then((item) => {
+        if (alive) setRoundsRe(numericDraft(item));
+      })
+      .catch(() => {
+        if (alive) setLimitsLoadFailed(true);
+      });
+    callCapability<SettingItem<number>>('settings', 'get_setting', { key: ROUNDS_TOOL_KEY })
+      .then((item) => {
+        if (alive) setRoundsTool(numericDraft(item));
+      })
+      .catch(() => {
+        if (alive) setLimitsLoadFailed(true);
+      });
+    // 网络权限:档位 + 白名单域名(JSON 数组 → 多行草稿)
+    callCapability<SettingItem<string>>('settings', 'get_setting', { key: NETWORK_MODE_KEY })
+      .then((item) => {
+        if (alive) setNetMode(item.value ?? item.default ?? 'whitelist');
+      })
+      .catch(() => {
+        if (alive) setNetLoadFailed(true);
+      });
+    callCapability<SettingItem<string[]>>('settings', 'get_setting', { key: NETWORK_DOMAINS_KEY })
+      .then((item) => {
+        if (alive) setDomainsDraft((item.value ?? item.default ?? []).join('\n'));
+      })
+      .catch(() => {
+        if (alive) setNetLoadFailed(true);
+      });
+    // 工作目录
+    callCapability<SettingItem<string>>('settings', 'get_setting', { key: WORKDIR_KEY })
+      .then((item) => {
+        if (alive) setWorkdir(item.value ?? item.default ?? '');
+      })
+      .catch(() => {
+        if (alive) setWorkdirLoadFailed(true);
       });
     return () => {
       alive = false;
@@ -270,6 +344,77 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
       });
   };
 
+  /** 保存一个轮数上限;范围外 toast 警告不发请求 */
+  const saveRound = (key: string, draft: string, max: number, label: string) => {
+    const n = Number(draft);
+    if (!Number.isInteger(n) || n < 1 || n > max) {
+      addToast({ type: 'warning', message: `${label}须为 1–${max} 的整数` });
+      return;
+    }
+    callCapability<SettingItem<number>>('settings', 'set_setting', { key, value: n })
+      .then(() => {
+        addToast({ type: 'success', message: `${label}已保存，下一句对话 / 下一单任务生效` });
+      })
+      .catch((err) => {
+        addToast({ type: 'error', message: `保存${label}失败：${extractErrorMessage(err)}` });
+      });
+  };
+
+  /** 切网络档位;乐观更新失败回滚(风格区同一手法) */
+  const saveNetworkMode = (mode: string) => {
+    const prev = netMode;
+    setNetMode(mode);
+    callCapability<SettingItem<string>>('settings', 'set_setting', { key: NETWORK_MODE_KEY, value: mode })
+      .then(() => {
+        addToast({ type: 'success', message: '网络权限已保存，下一轮联网判定即生效' });
+      })
+      .catch((err) => {
+        setNetMode(prev);
+        addToast({ type: 'error', message: `保存网络权限失败：${extractErrorMessage(err)}` });
+      });
+  };
+
+  /** 保存白名单域名:trim、小写、去空行,一行一个 host;带协议/路径的整段 URL 拒收 */
+  const saveDomains = () => {
+    const lines = domainsDraft
+      .split('\n')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    const bad = lines.find((line) => line.includes('://') || line.includes('/'));
+    if (bad) {
+      addToast({ type: 'warning', message: `「${bad}」不是域名：一行填一个 host（如 github.com），不带协议与路径` });
+      return;
+    }
+    callCapability<SettingItem<string[]>>('settings', 'set_setting', {
+      key: NETWORK_DOMAINS_KEY,
+      value: lines,
+    })
+      .then(() => {
+        setDomainsDraft(lines.join('\n'));
+        addToast({ type: 'success', message: `白名单已保存（${lines.length} 个域名），下一轮联网判定即生效` });
+      })
+      .catch((err) => {
+        addToast({ type: 'error', message: `保存白名单失败：${extractErrorMessage(err)}` });
+      });
+  };
+
+  /** 保存工作目录:含 .. 段拒收(启动解析也会再拦一道);成功 toast 写明要重启 */
+  const saveWorkdir = () => {
+    const next = workdir.trim();
+    if (next.split(/[\\/]+/).includes('..')) {
+      addToast({ type: 'warning', message: '工作目录不允许包含 .. 段' });
+      return;
+    }
+    callCapability<SettingItem<string>>('settings', 'set_setting', { key: WORKDIR_KEY, value: next })
+      .then(() => {
+        setWorkdir(next);
+        addToast({ type: 'success', message: '已保存。重启开发服务后，文件工具与资源库会用新目录。' });
+      })
+      .catch((err) => {
+        addToast({ type: 'error', message: `保存工作目录失败：${extractErrorMessage(err)}` });
+      });
+  };
+
   const activeAgent = AGENT_CATALOG.find((a) => a.id === activeAgentId) ?? AGENT_CATALOG[0];
 
   return (
@@ -375,6 +520,136 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
                   保存
                 </button>
               </div>
+            </div>
+          )}
+        </div>
+
+        <div className="agent-settings-block">
+          <h3 className="agent-settings-subtitle">轮数上限</h3>
+          <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+            ReAct 推理轮数与工具调用次数的全局上限。对话每回合与任务派出都会读取，改完下一句对话 / 下一单任务生效。
+          </p>
+          {limitsLoadFailed ? (
+            <p className="muted" style={{ fontSize: 12 }}>读取失败请刷新。</p>
+          ) : (
+            <>
+              <div className="memory-form-row">
+                <span className="muted" style={{ fontSize: 12 }}>ReAct 轮数</span>
+                <input
+                  className="field input"
+                  type="number"
+                  min={1}
+                  max={ROUNDS_RE_MAX}
+                  style={{ maxWidth: 120 }}
+                  value={roundsRe}
+                  onChange={(e) => setRoundsRe(e.target.value)}
+                  onBlur={() => saveRound(ROUNDS_MAX_KEY, roundsRe, ROUNDS_RE_MAX, 'ReAct 轮数')}
+                  aria-label="ReAct 轮数上限"
+                />
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => saveRound(ROUNDS_MAX_KEY, roundsRe, ROUNDS_RE_MAX, 'ReAct 轮数')}
+                >
+                  保存
+                </button>
+              </div>
+              <div className="memory-form-row">
+                <span className="muted" style={{ fontSize: 12 }}>工具调用轮数</span>
+                <input
+                  className="field input"
+                  type="number"
+                  min={1}
+                  max={ROUNDS_TOOL_MAX}
+                  style={{ maxWidth: 120 }}
+                  value={roundsTool}
+                  onChange={(e) => setRoundsTool(e.target.value)}
+                  onBlur={() => saveRound(ROUNDS_TOOL_KEY, roundsTool, ROUNDS_TOOL_MAX, '工具调用轮数')}
+                  aria-label="工具调用轮数上限"
+                />
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => saveRound(ROUNDS_TOOL_KEY, roundsTool, ROUNDS_TOOL_MAX, '工具调用轮数')}
+                >
+                  保存
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="agent-settings-block">
+          <h3 className="agent-settings-subtitle">网络权限</h3>
+          <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+            控制 Agent 联网抓取的档位；下一轮联网判定即生效，无需重启。
+          </p>
+          {netLoadFailed ? (
+            <p className="muted" style={{ fontSize: 12 }}>读取失败请刷新。</p>
+          ) : (
+            <>
+              <GlassSelect
+                size="sm"
+                value={netMode ?? ''}
+                options={
+                  netMode === null
+                    ? [{ value: '', label: '读取中…' }]
+                    : NETWORK_MODE_OPTIONS.some((o) => o.value === netMode)
+                      ? NETWORK_MODE_OPTIONS
+                      : [...NETWORK_MODE_OPTIONS, { value: netMode, label: netMode }]
+                }
+                onChange={(v) => saveNetworkMode(v)}
+                aria-label="网络权限模式"
+              />
+              <p className="muted" style={{ fontSize: 12, margin: '8px 0 4px' }}>
+                白名单域名(一行一个,如 github.com):
+              </p>
+              <textarea
+                className="field input agent-guideline-textarea"
+                rows={3}
+                value={domainsDraft}
+                disabled={netMode !== 'whitelist'}
+                onChange={(e) => setDomainsDraft(e.target.value)}
+                onBlur={saveDomains}
+                placeholder={'github.com\narxiv.org'}
+                aria-label="白名单域名"
+              />
+              <div className="agent-guideline-meta">
+                <span className="muted">{domainsDraft.split('\n').filter((s) => s.trim()).length} 个域名</span>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  disabled={netMode !== 'whitelist'}
+                  onClick={saveDomains}
+                >
+                  保存
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="agent-settings-block">
+          <h3 className="agent-settings-subtitle">工作目录</h3>
+          <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+            相对仓库根，默认 workspace；与资源库共用。保存后需重启开发服务才切换。
+          </p>
+          {workdirLoadFailed ? (
+            <p className="muted" style={{ fontSize: 12 }}>读取失败请刷新。</p>
+          ) : (
+            <div className="memory-form-row">
+              <input
+                className="field input"
+                style={{ maxWidth: 260 }}
+                value={workdir}
+                onChange={(e) => setWorkdir(e.target.value)}
+                onBlur={saveWorkdir}
+                placeholder="workspace"
+                aria-label="工作目录"
+              />
+              <button type="button" className="btn btn-sm btn-ghost" onClick={saveWorkdir}>
+                保存
+              </button>
             </div>
           )}
         </div>
