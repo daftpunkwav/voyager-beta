@@ -1,4 +1,11 @@
-# agent/clients — 服务连接(骨架)
+# agent/clients — 服务连接
 
-pool.py:各服务的 MCP client 连接池;discovery.py:启动时按各服务 service.json
-发现并连接,动态 list_tools(§9.4)。
+- `pool.py`:外接 MCP server 连接池(§9.13/phase-11b)。用户在设置页添加
+  stdio/URL 配置(`agent.mcp.servers`),列出远端 tools,批准(整包/逐项)
+  后以 `mcp__<id>__<tool>` 挂进 Toolbelt;连接实现可注入,测试用 Fake。
+- `session.py`:MCP 会话产品路径(stdio 子进程 shell=False、HTTP POST JSON-RPC),
+  最小握手 initialize → tools/list / tools/call。
+- `discovery.py`:启动时按各服务 service.json 发现模块卡(只读卡,不连接)。
+
+领域工具(notes__* 等)已走 deploy/bridge.py 的 capability 桥,
+禁止再用 MCP client 把 services/*/mcp_server 灌进工具面。

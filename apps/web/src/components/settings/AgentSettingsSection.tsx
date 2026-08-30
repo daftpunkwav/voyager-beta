@@ -64,6 +64,59 @@ interface SkillItem {
   name: string;
   description: string;
 }
+
+/** 外接 MCP(phase-11b):agent.list_mcp_servers 返回形状,与 agent/clients/pool.py list_state 对齐 */
+interface McpToolPreview {
+  name: string;
+  description: string;
+}
+interface McpServerState {
+  id: string;
+  name: string;
+  kind: 'stdio' | 'url';
+  command: string;
+  args: string[];
+  url: string;
+  approval: 'package' | 'item';
+  approved: string[];
+  enabled: boolean;
+  connected: boolean;
+  error: string;
+  preview: McpToolPreview[];
+  mounted: string[];
+}
+interface McpAddResult {
+  ok: boolean;
+  id: string;
+  connected: boolean;
+  error: string;
+  preview: McpToolPreview[];
+}
+interface McpApproveResult {
+  ok: boolean;
+  approved: string[];
+  mounted: string[];
+}
+
+/** 添加表单草稿(args 一行一个;kind/approval 取值与后端枚举一致) */
+interface McpFormDraft {
+  id: string;
+  name: string;
+  kind: 'stdio' | 'url';
+  command: string;
+  argsDraft: string;
+  url: string;
+  approval: 'package' | 'item';
+}
+const EMPTY_MCP_FORM: McpFormDraft = {
+  id: '',
+  name: '',
+  kind: 'stdio',
+  command: '',
+  argsDraft: '',
+  url: '',
+  approval: 'package',
+};
 interface MemorySnapshot {
   profile: { summary: string; items: ProfileItem[] };
   episodic: { recent: EpisodicEntry[]; shown: number };
@@ -152,6 +205,14 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
   // 技能清单(null = 加载中;失败该块自显提示,不整页 EmptyState)
   const [skills, setSkills] = useState<SkillItem[] | null>(null);
   const [skillsLoadFailed, setSkillsLoadFailed] = useState(false);
+
+  // 外接 MCP(phase-11b):列表(null = 加载中)、添加表单、逐项勾选、待移除 id
+  const [mcpServers, setMcpServers] = useState<McpServerState[] | null>(null);
+  const [mcpLoadFailed, setMcpLoadFailed] = useState(false);
+  const [mcpForm, setMcpForm] = useState<McpFormDraft>(EMPTY_MCP_FORM);
+  const [mcpBusy, setMcpBusy] = useState(false);
+  const [mcpChecked, setMcpChecked] = useState<Record<string, string[]>>({});
+  const [confirmRemoveMcpId, setConfirmRemoveMcpId] = useState<string | null>(null);
 
   const saveConduct = () => {
     const next = conductDraft.slice(0, CONDUCT_MAX);
@@ -253,6 +314,14 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
       })
       .catch(() => {
         if (alive) setSkillsLoadFailed(true);
+      });
+    // 外接 MCP:配置 + 运行态一次取齐
+    callCapability<McpServerState[]>('agent', 'list_mcp_servers', {})
+      .then((items) => {
+        if (alive) setMcpServers(Array.isArray(items) ? items : []);
+      })
+      .catch(() => {
+        if (alive) setMcpLoadFailed(true);
       });
     return () => {
       alive = false;
@@ -430,6 +499,103 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
       .catch((err) => {
         addToast({ type: 'error', message: `保存工作目录失败：${extractErrorMessage(err)}` });
       });
+  };
+
+  // ---- 外接 MCP(phase-11b)----
+
+  /** 重新拉 MCP 列表(操作后刷新;失败静默保留现列表,操作结果以 toast 为准) */
+  const reloadMcp = () =>
+    callCapability<McpServerState[]>('agent', 'list_mcp_servers', {})
+      .then((items) => setMcpServers(Array.isArray(items) ? items : []))
+      .catch(() => undefined);
+
+  const handleAddMcp = async () => {
+    const id = mcpForm.id.trim();
+    if (!/^[a-z][a-z0-9-]{0,31}$/.test(id)) {
+      addToast({ type: 'warning', message: 'id 须为小写字母开头的 1–32 位小写字母/数字/连字符' });
+      return;
+    }
+    setMcpBusy(true);
+    try {
+      const res = await callCapability<McpAddResult>('agent', 'add_mcp_server', {
+        id,
+        name: mcpForm.name.trim() || id,
+        kind: mcpForm.kind,
+        command: mcpForm.kind === 'stdio' ? mcpForm.command.trim() : '',
+        args:
+          mcpForm.kind === 'stdio'
+            ? mcpForm.argsDraft.split('\n').map((s) => s.trim()).filter(Boolean)
+            : [],
+        url: mcpForm.kind === 'url' ? mcpForm.url.trim() : '',
+        approval: mcpForm.approval,
+      });
+      setMcpForm(EMPTY_MCP_FORM);
+      if (res.connected) {
+        addToast({
+          type: 'success',
+          message: `MCP「${id}」已添加并列出工具；批准后进入工具名册，下一句或新对话可见`,
+        });
+      } else {
+        addToast({
+          type: 'warning',
+          message: `MCP「${id}」已保存，但连接失败：${res.error}。修好后可「刷新工具列表」`,
+        });
+      }
+      await reloadMcp();
+    } catch (err) {
+      addToast({ type: 'error', message: `添加 MCP 失败：${extractErrorMessage(err)}` });
+    } finally {
+      setMcpBusy(false);
+    }
+  };
+
+  /** 刷新某台 server 的工具预览(未批准也可);失败只 toast 本条,不动列表 */
+  const refreshMcpPreview = async (id: string) => {
+    try {
+      await callCapability('agent', 'preview_mcp_tools', { id });
+      await reloadMcp();
+    } catch (err) {
+      addToast({ type: 'error', message: `刷新工具列表失败：${extractErrorMessage(err)}` });
+    }
+  };
+
+  /** 批准:names=['*'] 整包,或勾选的远端工具名;批准后下一句对话可见 */
+  const approveMcp = async (id: string, names: string[]) => {
+    try {
+      const res = await callCapability<McpApproveResult>('agent', 'approve_mcp_tools', {
+        id,
+        names,
+      });
+      addToast({
+        type: 'success',
+        message: `已批准 ${res.mounted.length} 个工具进名册；当前这句对话若已开始，下一句或新对话可见`,
+      });
+      await reloadMcp();
+    } catch (err) {
+      addToast({ type: 'error', message: `批准失败：${extractErrorMessage(err)}` });
+    }
+  };
+
+  const toggleMcpTool = (sid: string, tool: string) => {
+    setMcpChecked((prev) => {
+      const cur = prev[sid] ?? [];
+      return {
+        ...prev,
+        [sid]: cur.includes(tool) ? cur.filter((t) => t !== tool) : [...cur, tool],
+      };
+    });
+  };
+
+  const removeMcp = async (id: string) => {
+    try {
+      await callCapability('agent', 'remove_mcp_server', { id });
+      addToast({ type: 'success', message: `已移除 MCP「${id}」，其工具已从名册卸下` });
+    } catch (err) {
+      addToast({ type: 'error', message: `移除失败：${extractErrorMessage(err)}` });
+    } finally {
+      setConfirmRemoveMcpId(null);
+      await reloadMcp();
+    }
   };
 
   const activeAgent = AGENT_CATALOG.find((a) => a.id === activeAgentId) ?? AGENT_CATALOG[0];
@@ -697,6 +863,195 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
         </div>
 
         <div className="agent-settings-block">
+          <h3 className="agent-settings-subtitle">外接 MCP</h3>
+          <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+            添加后先列出它的工具，批准才会进对话工具面；领域笔记/图谱仍走内置能力，不要在这里填本仓库的 mcp_server。
+          </p>
+          {mcpLoadFailed ? (
+            <p className="muted" style={{ fontSize: 12 }}>读取失败请刷新。</p>
+          ) : mcpServers === null ? (
+            <p className="muted" style={{ fontSize: 12 }}>外接 MCP 列表加载中…</p>
+          ) : mcpServers.length === 0 ? (
+            <p className="muted" style={{ fontSize: 12 }}>
+              还没有外接 MCP。用下面的表单添加一台 stdio 命令或 HTTP URL。
+            </p>
+          ) : (
+            <ul className="memory-entry-list">
+              {mcpServers.map((s) => (
+                <li key={s.id} className="memory-entry">
+                  <span className="memory-kind">{s.name}</span>
+                  <span className="memory-entry-summary">
+                    {s.kind === 'stdio' ? `stdio · ${s.command}` : s.url}
+                    {' · '}
+                    {s.approved.includes('*')
+                      ? '已批准（整包）'
+                      : s.approved.length > 0
+                        ? `已批准 ${s.approved.length} 项`
+                        : '未批准'}
+                    {s.connected ? '' : ' · 未连接'}
+                  </span>
+                  {s.error && (
+                    <span className="memory-entry-summary" style={{ color: 'var(--error)' }}>
+                      {s.error}
+                    </span>
+                  )}
+                  {s.mounted.length > 0 && (
+                    <span className="muted" style={{ fontSize: 12 }}>
+                      已挂载 {s.mounted.length} 个工具（mcp__{s.id}__…）
+                    </span>
+                  )}
+                  {/* 未批准/部分批准且已连上:预览清单 + 批准操作(整包一个按钮;逐项勾选) */}
+                  {!s.approved.includes('*') && s.connected && s.preview.length > 0 && (
+                    <div style={{ margin: '6px 0' }}>
+                      {s.preview.map((t) => (
+                        <div key={t.name} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                          {s.approval === 'item' && (
+                            <input
+                              type="checkbox"
+                              checked={(mcpChecked[s.id] ?? []).includes(t.name)}
+                              onChange={() => toggleMcpTool(s.id, t.name)}
+                              aria-label={`${s.id} · ${t.name}`}
+                            />
+                          )}
+                          <span style={{ fontSize: 12 }}>
+                            <strong>{t.name}</strong>
+                            {t.description ? ` — ${t.description}` : ''}
+                          </span>
+                        </div>
+                      ))}
+                      <div className="agent-guideline-meta">
+                        {s.approval === 'package' ? (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-ghost"
+                            aria-label={`批准全部 ${s.name}`}
+                            onClick={() => void approveMcp(s.id, ['*'])}
+                          >
+                            批准全部
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-ghost"
+                            aria-label={`批准所选 ${s.name}`}
+                            disabled={(mcpChecked[s.id]?.length ?? 0) === 0}
+                            onClick={() => void approveMcp(s.id, mcpChecked[s.id] ?? [])}
+                          >
+                            批准所选
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  <div className="agent-guideline-meta">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost"
+                      aria-label={`刷新工具列表 ${s.name}`}
+                      onClick={() => void refreshMcpPreview(s.id)}
+                    >
+                      刷新工具列表
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-danger"
+                      aria-label={`移除 ${s.name}`}
+                      onClick={() => setConfirmRemoveMcpId(s.id)}
+                    >
+                      移除
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="memory-subhead">添加外接 MCP</div>
+          <div className="memory-form-row">
+            <input
+              className="field input"
+              style={{ maxWidth: 160 }}
+              placeholder="id（如 my-search）"
+              value={mcpForm.id}
+              onChange={(e) => setMcpForm((f) => ({ ...f, id: e.target.value }))}
+              aria-label="MCP id"
+            />
+            <input
+              className="field input"
+              style={{ maxWidth: 160 }}
+              placeholder="展示名（可同 id）"
+              value={mcpForm.name}
+              onChange={(e) => setMcpForm((f) => ({ ...f, name: e.target.value }))}
+              aria-label="MCP 展示名"
+            />
+            <GlassSelect
+              size="sm"
+              value={mcpForm.kind}
+              options={[
+                { value: 'stdio', label: 'stdio 命令' },
+                { value: 'url', label: 'HTTP URL' },
+              ]}
+              onChange={(v) => setMcpForm((f) => ({ ...f, kind: v as McpFormDraft['kind'] }))}
+              aria-label="MCP 类型"
+            />
+            <GlassSelect
+              size="sm"
+              value={mcpForm.approval}
+              options={[
+                { value: 'package', label: '整包批准' },
+                { value: 'item', label: '逐项批准' },
+              ]}
+              onChange={(v) =>
+                setMcpForm((f) => ({ ...f, approval: v as McpFormDraft['approval'] }))
+              }
+              aria-label="批准粒度"
+            />
+          </div>
+          {mcpForm.kind === 'stdio' ? (
+            <>
+              <div className="memory-form-row">
+                <input
+                  className="field input"
+                  placeholder="命令（如 npx / uv；Windows 上可能是 npx.cmd）"
+                  value={mcpForm.command}
+                  onChange={(e) => setMcpForm((f) => ({ ...f, command: e.target.value }))}
+                  aria-label="MCP command"
+                />
+              </div>
+              <textarea
+                className="field input agent-guideline-textarea"
+                rows={2}
+                placeholder={'参数，一行一个\n如 -y\n如 @modelcontextprotocol/server-xxx'}
+                value={mcpForm.argsDraft}
+                onChange={(e) => setMcpForm((f) => ({ ...f, argsDraft: e.target.value }))}
+                aria-label="MCP args"
+              />
+            </>
+          ) : (
+            <div className="memory-form-row">
+              <input
+                className="field input"
+                placeholder="https://…（MCP 端点 URL）"
+                value={mcpForm.url}
+                onChange={(e) => setMcpForm((f) => ({ ...f, url: e.target.value }))}
+                aria-label="MCP URL"
+              />
+            </div>
+          )}
+          <div className="agent-guideline-meta">
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              aria-label="添加 MCP"
+              disabled={mcpBusy}
+              onClick={() => void handleAddMcp()}
+            >
+              添加
+            </button>
+          </div>
+        </div>
+
+        <div className="agent-settings-block">
           <h3 className="agent-settings-subtitle">记忆</h3>
           <p className="muted" style={{ fontSize: 12, marginBottom: 10 }}>
             Agent 的四类记忆。画像摘要会注入每次对话的系统提示；清空只影响记忆，
@@ -858,6 +1213,18 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
           danger
           onConfirm={() => void handleClearMemory()}
           onCancel={() => setConfirmZone(null)}
+        />
+      )}
+
+      {confirmRemoveMcpId && (
+        <ConfirmDialog
+          open
+          title={`移除 MCP「${confirmRemoveMcpId}」`}
+          message="会断开连接、从工具名册卸下它的工具并删除配置。确定移除？"
+          confirmLabel="移除"
+          danger
+          onConfirm={() => void removeMcp(confirmRemoveMcpId)}
+          onCancel={() => setConfirmRemoveMcpId(null)}
         />
       )}
     </>

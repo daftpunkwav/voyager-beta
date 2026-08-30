@@ -166,6 +166,9 @@ def build(
         for w in wirings.values():
             if w.start:
                 await w.start()
+        # 外接 MCP(phase-11b):重启后重连 enabled 且已批准的 server 并重挂工具;
+        # 幂等,单台失败只记条目 error 不挡启动
+        await agent.mcp.start()
         agent_task = asyncio.create_task(agent.loop.run())
         try:
             yield

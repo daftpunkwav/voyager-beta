@@ -1,9 +1,11 @@
-"""clients 骨架测试(phase-11,§9.13):发现 services/*/service.json;连接池为空。"""
+"""clients 测试(§9.13):发现 services/*/service.json;外接 MCP 配置校验与空池。"""
 
 import json
 from pathlib import Path
 
-from agent.clients import McpClientPool, discover_services
+import pytest
+
+from agent.clients import McpClientPool, discover_services, validate_server_config
 
 REPO_ROOT = Path(__file__).parents[2]
 
@@ -36,7 +38,23 @@ class TestDiscovery:
 
 class TestPool:
     def test_pool_starts_empty(self) -> None:
-        """空池是合法稳态:外接 MCP 是 11b,不往 Toolbelt 塞工具。"""
+        """空池是合法稳态:没有外接 MCP 配置时 list_state 为空,不往 Toolbelt 塞工具。"""
         pool = McpClientPool()
-        assert pool.list_servers() == []
-        assert pool.list_tools("notes") == []
+        assert pool.list_state() == []
+        assert pool.configs() == []
+
+    def test_validate_rejects_bad_config(self) -> None:
+        """非法配置(id 形状 / file: URL / 空 command)在入口即拒。"""
+        from platform_contracts import ServiceError
+
+        with pytest.raises(ServiceError):
+            validate_server_config({"id": "Bad_Id", "kind": "stdio", "command": "npx"})
+        with pytest.raises(ServiceError):
+            validate_server_config({"id": "ok", "kind": "url", "url": "file:///etc"})
+        with pytest.raises(ServiceError):
+            validate_server_config({"id": "ok", "kind": "stdio", "command": ""})
+        # 合法形状:normalize 后字段齐全
+        cfg = validate_server_config(
+            {"id": "demo", "kind": "stdio", "command": "npx", "args": ["-y", "x"]}
+        )
+        assert cfg["name"] == "demo" and cfg["approval"] == "item" and cfg["enabled"]

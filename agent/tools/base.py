@@ -57,6 +57,16 @@ class Toolbelt:
     def names(self) -> list[str]:
         return sorted(self._tools)
 
+    def register(self, tools: dict[str, AgentTool]) -> None:
+        """原地并入根名册(phase-11b 外接 MCP):对话实例每轮从根再拷名册,
+        下一句对话即可见;已存在的同名工具被覆盖(批准重挂时先 unregister)。"""
+        self._tools.update(tools)
+
+    def unregister(self, names: Iterable[str]) -> None:
+        """从根名册原地移除(移除 MCP server / 重挂前清理残名);缺名忽略。"""
+        for n in names:
+            self._tools.pop(n, None)
+
     def specs(self) -> list[ToolSpec]:
         names = self.names()
         if self._active is not None:

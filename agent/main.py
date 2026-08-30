@@ -16,6 +16,8 @@ from platform_eventbus import CursorStore, EventBus, EventLog
 from platform_settings import SettingsStore
 
 from agent.capabilities import CapabilityDeps, build_agent_registry
+from agent.clients import McpClientPool
+from agent.clients.pool import ConnectFn
 from agent.context import ContextBuilder, OnDemandLoader, PageContextRegistry
 from agent.hooks import HookLoader, HookRegistry
 from agent.llm import FakeLLM, LLMClient
@@ -65,11 +67,14 @@ class AgentApp:
     asker: AskUser
     spawner: Spawner
     registry: Any  # agent 能力注册表(§5 capabilities.py)
+    mcp: McpClientPool  # 外接 MCP 连接池(phase-11b;空池合法)
     owns_settings: bool = True  # 共享 store(聚合运行)时为 False,close 不关它
     owns_log: bool = True  # 共享 bus(聚合运行共用 EventLog)时为 False
 
     def close(self) -> None:
         """关闭持有文件句柄的组件(测试与关停路径用)。"""
+        # 外接 MCP 会话:有 loop 就挂 task aclose,没有则同步尽力杀(不卡 pytest)
+        self.mcp.close_best_effort()
         self.memory.close()
         if self.owns_settings:
             self.settings.close()
@@ -85,6 +90,7 @@ def build_agent(
     bus: EventBus | None = None,
     settings_store: SettingsStore | None = None,
     extra_tools: dict[str, AgentTool] | None = None,
+    mcp_connect: ConnectFn | None = None,  # 外接 MCP 连接注入口(测试用 Fake)
 ) -> AgentApp:
     data_dir = Path(data_dir)
     llm = llm or FakeLLM()
@@ -149,6 +155,11 @@ def build_agent(
     tools.update(spawn_tool(lambda *a, **kw: _master["master"].dispatch_task(*a, **kw)))
     tools.update(extra_tools or {})  # 领域能力桥(聚合运行注入,§9.4)
     toolbelt = Toolbelt(tools, policy, confirm=_confirm, meter=meter, hooks=hooks)
+
+    # 外接 MCP(phase-11b,§9.13):空池合法;批准动作经能力层 register 进根名册
+    #(对话下一轮 from 根再拷即见),start() 只重连 enabled 且已批准的条目
+    mcp = McpClientPool(settings=settings, toolbelt=toolbelt,
+                        connect=mcp_connect, cwd=workspace)
 
     scheduler = Scheduler(max_concurrent=int(settings.get("agent.subagents.max_concurrent")))
     checkpoints = CheckpointStore(data_dir / "checkpoints")
@@ -223,6 +234,7 @@ def build_agent(
             pages=pages,
             asker=asker,
             toolbelt=toolbelt,
+            mcp=mcp,
         )
     )
     loop = EventLoop(
@@ -257,6 +269,7 @@ def build_agent(
         asker=asker,
         spawner=spawner,
         registry=registry,
+        mcp=mcp,
         owns_settings=owns_settings,
         owns_log=owns_log,
     )

@@ -30,8 +30,9 @@ CORE_TOOLS = (
     "activate_tools",
 )
 
-#: 可按域激活的前缀(= 桥挂载的领域服务;fs/shell/web 是内部工具名前缀)
-DOMAINS = ("notes", "sources", "graph", "settings", "llm", "fs", "shell", "web")
+#: 可按域激活的前缀(= 桥挂载的领域服务;fs/shell/web 是内部工具名前缀;
+#: mcp 是外接 MCP 挂载的工具,phase-11b,批准后进名册)
+DOMAINS = ("notes", "sources", "graph", "settings", "llm", "fs", "shell", "web", "mcp")
 
 # 从近况话里猜要预激活的域(「都测试一下」本身无域名,靠上文「底纹/笔记」)
 _DOMAIN_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (

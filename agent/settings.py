@@ -42,4 +42,9 @@ DEFS = [
                description="情节记忆保留天数;0 = 交 agent 管理(§9.11)"),
     SettingDef(key="agent.observe.auto_index", module="agent", type=SettingType.BOOL,
                default=False, description="观察到新资源就绪时自动建立图谱索引(§9.2)"),
+    # 外接 MCP(phase-11b,§9.13):用户在设置页添加的 stdio/URL server 列表。
+    # 一条记录:{id,name,kind,command,args,url,approval,approved,enabled};
+    # 远端 schema / 本机绝对路径不进这条 JSON,连接细节在运行态。
+    SettingDef(key="agent.mcp.servers", module="agent", type=SettingType.JSON,
+               default=[], description="外接 MCP server 配置与批准记录(§9.13)"),
 ]
