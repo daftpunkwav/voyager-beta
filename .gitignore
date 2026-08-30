@@ -103,6 +103,9 @@ services/*/data/
 # 开发阶段执行文档(过程性产物,随迭代过时,不入库)
 docs/phases/
 
+# Cursor(Grok) ↔ ZCode(GLM) 协作交接(过程性产物,不入库)
+docs/collab/
+
 # 本地讲解/学习站与生成脚本（不入库）
 docs-site/
 
