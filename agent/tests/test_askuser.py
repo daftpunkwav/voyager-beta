@@ -78,7 +78,10 @@ class TestChatLoopClosedLoop:
         )
         assert out["matched"] is True
 
-        await asyncio.wait_for(run_task, timeout=5)
+        await asyncio.wait_for(run_task, timeout=5)  # 入口即返回(回合后台化,phase-15)
+        from agent.tests.test_master import _settle
+
+        await _settle(app)  # 等后台回合消化答案并产出最终回复
         replies = [
             e.payload["content"]
             for _, e in app.log.read_after(types=[DomainEvent.AGENT_MESSAGE])

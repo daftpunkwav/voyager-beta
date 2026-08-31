@@ -65,6 +65,26 @@ class TestCompressor:
         out = compress(msgs, budget=100)
         assert len(out) == 9  # system 永不压缩,但循环必须终止
 
+    def test_prune_false_truncates_without_dropping(self) -> None:
+        """prune=False 只截断不剪条目(phase-15):同一回合 transcript 上的
+        assistant(tool_calls) 与 tool 对不能拆散,否则端点 400。"""
+        msgs = [
+            {"role": "system", "content": "系统提示"},
+            {"role": "user", "content": "任务"},
+            {"role": "assistant", "content": "", "tool_calls": [{"id": "a"}]},
+            {"role": "tool", "tool_call_id": "a", "content": "旧结果" * 300},
+            {"role": "assistant", "content": "", "tool_calls": [{"id": "b"}]},
+            {"role": "tool", "tool_call_id": "b", "content": "新结果" * 300},
+            {"role": "user", "content": "继续"},
+            {"role": "assistant", "content": "收尾"},
+            {"role": "user", "content": "再继续"},
+        ]
+        out = compress(msgs, budget=200, prune=False)
+        assert len(out) == len(msgs)  # 只截断,条数不变
+        assert "已压缩" in out[3]["content"]  # 旧 tool 被截断(末 4 条之外)
+        assert out[5]["content"] == "新结果" * 300  # 最近 4 条内不动
+        assert out[0]["content"] == "系统提示"  # system 保留
+
 
 class TestPages:
     def test_update_and_render(self) -> None:

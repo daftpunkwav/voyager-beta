@@ -15,9 +15,8 @@ from agent.llm import FakeLLM, LLMReply, ToolCall
 from agent.main import build_agent
 from agent.personas import resolve_persona
 from agent.subagent.instance import page_preactivate
-from agent.tools import AgentTool, Toolbelt
-
-from agent.tests.test_master import _replies
+from agent.tests.test_master import _replies, _settle
+from agent.tools import AgentTool
 
 
 def _app(tmp_path, llm, extra_tools=None):
@@ -89,6 +88,7 @@ class TestLucienDomainActivation:
         ])
         app = _app(tmp_path, llm, _fake_notes_tools())
         await app.master.handle_user_message("开始处理刚才那几件事")
+        await _settle(app)
         first = [s.name for s in llm.calls[0]["tools"]]
         second = [s.name for s in llm.calls[1]["tools"]]
         # 首轮:远小于全量名册,无 notes 工具,但有 activate_tools
@@ -109,6 +109,7 @@ class TestLucienDomainActivation:
         ])
         app = _app(tmp_path, llm, _fake_notes_tools())
         await app.master.handle_user_message("直接写笔记,别激活")
+        await _settle(app)
         # 工具结果在当轮 messages(llm.calls[1])里,不进跨轮 history(现有行为)
         tool_results = [
             m["content"]
@@ -129,6 +130,7 @@ class TestLucienDomainActivation:
         ])
         app = _app(tmp_path, llm, _fake_notes_tools())
         await app.master.handle_user_message("都测试一下")
+        await _settle(app)
         assert len(llm.calls) == 4  # 没有第二次 handle_user_message
         assert "底纹已加上" in _replies(app)[-1]
         app.memory.close()
@@ -138,6 +140,7 @@ class TestLucienDomainActivation:
         llm = FakeLLM([LLMReply(text="先看一眼工具面。")])
         app = _app(tmp_path, llm, _fake_notes_tools())
         await app.master.handle_user_message("给这篇笔记加底纹")
+        await _settle(app)
         first = [s.name for s in llm.calls[0]["tools"]]
         assert "notes__mark_note_span" in first
         app.memory.close()
@@ -164,6 +167,7 @@ class TestStepEvents:
         ])
         app = _app(tmp_path, llm)
         await app.master.handle_user_message("看看工作目录")
+        await _settle(app)
         steps = [
             e.payload for _, e in app.log.read_after(types=["agent.step"])
         ]

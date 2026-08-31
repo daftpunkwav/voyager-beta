@@ -73,6 +73,17 @@ class TestChat:
         r = client.get("/api/chat/stream?after_seq=0&once=true")
         assert "agent.step" in r.text and "notes__create_note" in r.text
 
+    def test_sse_replay_includes_task_glob(self, client, bus) -> None:
+        """once 补读认识 glob(phase-15):_STREAM_TYPES 里的 'task.*' 补读能
+        拿到事先落库的 task.progress(此前 SQL IN 字面量补不到,断线丢进度)。"""
+        asyncio.run(bus.publish(Event(
+            type="task.progress",
+            actor=ActorRef(kind=ActorKind.AGENT, id="sources.doc"),
+            payload={"task_id": "t1", "progress": "解析中 50%"},
+        )))
+        r = client.get("/api/chat/stream?after_seq=0&once=true")
+        assert "task.progress" in r.text and "解析中 50%" in r.text
+
 
 class TestRateLimit:
     def test_per_minute_cap(self, bus, tmp_path) -> None:

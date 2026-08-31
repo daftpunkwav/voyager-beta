@@ -98,7 +98,13 @@ class Master:
         self._bg: set[asyncio.Task] = set()
 
     async def handle_user_message(self, text: str, *, trace_id: str = "") -> None:
-        """用户消息入口(由事件循环分发)。"""
+        """用户消息入口(由事件循环分发)。
+
+        回合后台化(phase-15):新回合的 _turn + 排队消息消化放进 asyncio.Task
+        持在 _bg,入口在「已判定排队 / 已启动回合」后即返回——EventLoop 仍是
+        串行 await dispatch,但 user.message 的 dispatch 立刻结束,第一句还在
+        LLM 上跑时第二句就能进来走仲裁,不再等整轮 ReAct。
+        """
         if self._proactive is not None:
             self._proactive.notify_user_reply()
         if self._hooks is not None:
@@ -117,14 +123,28 @@ class Master:
                 if decision.action == "enqueue_notify":
                     await self._reply(f"[已排队] {decision.reason}", trace_id=trace_id)
             return
+        self._start_turn(text, trace_id)
 
-        async with self._lock:
-            await self._turn(text, trace_id)
-            while self._inbox:  # 排队的消息按序补处理
-                queued = self._inbox.popleft()
-                if self._memory is not None:
-                    self._memory.working.add("user", queued)
-                await self._turn(queued, trace_id)
+    def _start_turn(self, text: str, trace_id: str) -> None:
+        """把回合放后台跑:入口立即返回,锁保证同一时刻只有一轮在写 chat。"""
+
+        async def _run() -> None:
+            try:
+                async with self._lock:
+                    await self._turn(text, trace_id)
+                    while self._inbox:  # 排队的消息按序补处理
+                        queued = self._inbox.popleft()
+                        if self._memory is not None:
+                            self._memory.working.add("user", queued)
+                        await self._turn(queued, trace_id)
+            except Exception:
+                # 回合已后台化:EventLoop 不再 await 整轮,失败不能变成
+                # 「Task exception was never retrieved」;与 loop 隔离同语义
+                log.exception("用户回合失败")
+
+        task = asyncio.create_task(_run())
+        self._bg.add(task)
+        task.add_done_callback(self._bg.discard)
 
     async def _turn(self, text: str, trace_id: str) -> None:
         if self._settings.get("agent.direct_chat"):  # 直聊:不派 subagent(默认关)

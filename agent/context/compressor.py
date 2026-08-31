@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+#: 压缩预算(粗 token 估);接线上只提为常量,不开设置项(phase-15)
+COMPRESS_BUDGET = 6000
+
 
 #: 粗略 token 估算:中文约 1 字 ≈ 1 token,英文约 4 字符 ≈ 1 token;取保守值
 def estimate_tokens(messages: list[dict[str, Any]]) -> int:
@@ -15,9 +18,15 @@ def estimate_tokens(messages: list[dict[str, Any]]) -> int:
 
 
 def compress(
-    messages: list[dict[str, Any]], budget: int = 6000
+    messages: list[dict[str, Any]], budget: int = COMPRESS_BUDGET,
+    *, prune: bool = True,
 ) -> list[dict[str, Any]]:
-    """返回压缩后的副本,不改原列表。system 消息永不压缩。"""
+    """返回压缩后的副本,不改原列表。system 消息永不压缩。
+
+    prune=False 时只走第一刀(截断旧 tool 文本),不删消息条目——供 ReAct
+    在同一回合的 transcript 上原地压缩:assistant(带 tool_calls) 与随后
+    tool 行必须成对存在,剪掉任一侧端点会 400(phase-15)。
+    """
     out = list(messages)
     if estimate_tokens(out) <= budget:
         return out
@@ -29,6 +38,8 @@ def compress(
                 out[i] = {**m, "content": content[:80] + " …[已压缩]"}
         if estimate_tokens(out) <= budget:
             return out
+    if not prune:
+        return out
     # 第二刀:丢弃最旧的非 system 消息(保留最近 6 条)
     while len(out) > 8 and estimate_tokens(out) > budget:
         removed = False

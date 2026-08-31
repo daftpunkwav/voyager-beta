@@ -56,6 +56,8 @@ class Spawner:
             reply_sink=reply_sink,
             name=name or task.goal[:16],
             pages=self._pages,
+            persona=persona,
+            build_system=self._build_system,  # 每回合重算 system(phase-15)
         )
         self.instances[instance.id] = instance
         return instance

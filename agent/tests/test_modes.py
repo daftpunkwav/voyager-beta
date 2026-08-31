@@ -130,6 +130,31 @@ class TestReAct:
         assert len(llm.calls) == 3
         assert any("[react]" in str(m.get("content", "")) for m in messages)
 
+    async def test_compresses_over_budget_before_complete(self) -> None:
+        """每轮 complete 前压缩(phase-15):超预算的旧 tool 结果被截断,system 保留。"""
+        messages = [
+            {"role": "system", "content": "系统提示"},
+            {"role": "user", "content": "任务"},
+            {"role": "assistant", "content": "", "tool_calls": [{"id": "a"}]},
+            {"role": "tool", "tool_call_id": "a", "content": "旧结果" * 9000},
+            {"role": "assistant", "content": "", "tool_calls": [{"id": "b"}]},
+            {"role": "tool", "tool_call_id": "b", "content": "次新结果" * 9000},
+            {"role": "assistant", "content": "", "tool_calls": [{"id": "c"}]},
+            {"role": "tool", "tool_call_id": "c", "content": "最新结果" * 9000},
+            {"role": "user", "content": "收尾"},
+        ]
+        llm = FakeLLM([LLMReply(text="完成")])
+        result = await run_mode(
+            Mode.REACT, llm=llm, toolbelt=None, messages=messages, limits=ModeLimits()
+        )
+        assert result == "完成"
+        sent = llm.calls[0]["messages"]
+        assert sent[0]["role"] == "system" and sent[0]["content"] == "系统提示"
+        assert "已压缩" in sent[3]["content"] and len(sent[3]["content"]) < 200
+        assert sent[5]["content"] == "次新结果" * 9000  # 最近 4 条内不动
+        assert sent[7]["content"] == "最新结果" * 9000
+        assert len(sent) == len(messages)  # 只截断不剪条目:tool 对保持成对
+
     async def test_chitchat_without_tools_does_not_nudge(self) -> None:
         llm = FakeLLM([LLMReply(text="你好,我在。")])
         messages = [{"role": "user", "content": "你好"}]

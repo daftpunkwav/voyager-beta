@@ -28,10 +28,6 @@ def _wait_event(log, types, *, timeout=8.0, pred=None):
     raise AssertionError(f"等待事件超时: {types}")
 
 
-def _seqs(log, types):
-    return [s for s, _ in log.read_after(types=types)]
-
-
 class TestChatFlow:
     def test_message_roundtrip(self, tmp_path) -> None:
         """用户 POST → user.message → agent 处理 → agent.message(非空)。"""
@@ -86,13 +82,22 @@ class TestChatFlow:
             assert any("A" in str(m.get("content", "")) for m in second_messages)
 
     def test_queue_mode_second_message_waits(self, tmp_path) -> None:
-        """queue 仲裁:第一句处理中第二句只入队,完成后依次处理(事件顺序可证)。"""
+        """queue 仲裁真排队(phase-15):第一句还在 LLM 上时第二句只入队、不开新
+        complete,完成后两条回复先后落库。
+
+        第一条先产生一次真实 Action(request_context)再收尾:零工具纯文本非寒暄
+        会被 §9.1 续步语义当非终局,窗口断言与回复内容都要避开这条规则。
+        """
         calls: list[float] = []
 
         async def dynamic(messages, tools):
             calls.append(time.monotonic())
             if len(calls) == 1:
                 await asyncio.sleep(1.0)  # 第一条处理耗时,制造"执行中"窗口
+                return LLMReply(tool_calls=(ToolCall(
+                    "c1", "request_context", {"need": "上下文"},
+                ),))
+            if len(calls) == 2:
                 return LLMReply(text="第一条完成。")
             return LLMReply(text="第二条完成。")
 
@@ -113,6 +118,9 @@ class TestChatFlow:
                         pred=lambda e: e.payload.get("content") == "第一条完成。")
             _wait_event(backend.log, _AGENT_MSG,
                         pred=lambda e: e.payload.get("content") == "第二条完成。")
-            # 依次处理:第二条的处理开始不早于第一条的回复事件
-            seqs1 = _seqs(backend.log, _AGENT_MSG)
-            assert len(seqs1) >= 2
+            # 依次处理:第二条回复的 seq 在第一条之后
+            seqs = [(s, e) for s, e in backend.log.read_after(types=_AGENT_MSG)
+                    if e.payload.get("content") in ("第一条完成。", "第二条完成。")]
+            assert [e.payload["content"] for _, e in seqs] == [
+                "第一条完成。", "第二条完成。"
+            ]

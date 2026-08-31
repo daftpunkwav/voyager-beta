@@ -32,6 +32,22 @@ class TestEventLog:
         assert len(rows) == 1
         assert rows[0][1].payload == {"n": 1}
 
+    def test_read_after_glob_types(self, log) -> None:
+        """glob 与订阅同语义(phase-15):字面量 'task.*' 补读能拿到 task.progress。"""
+        log.append(_ev("task.enqueued", id="t1"))
+        log.append(_ev("task.progress", pct=50))
+        log.append(_ev("agent.message", text="hi"))
+        rows = log.read_after(types=["task.*"])
+        assert [e.type for _, e in rows] == ["task.enqueued", "task.progress"]
+
+    def test_read_after_mixed_exact_and_glob(self, log) -> None:
+        """精确类型与 glob 混用:并集,按 seq 升序;不在查询集的类型不返回。"""
+        log.append(_ev("agent.message", text="a"))
+        log.append(_ev("task.progress", pct=1))
+        log.append(_ev("user.message", text="b"))
+        rows = log.read_after(types=[DomainEvent.AGENT_MESSAGE, "task.*"])
+        assert [e.type for _, e in rows] == ["agent.message", "task.progress"]
+
     def test_roundtrip_preserves_fields(self, log) -> None:
         ev = _ev("user.message", text="你好")
         log.append(ev)

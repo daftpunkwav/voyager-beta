@@ -23,6 +23,15 @@ def _replies(app) -> list[str]:
     ]
 
 
+async def _settle(app) -> None:
+    """等 handle_user_message 起的后台回合任务全部结束(phase-15 回合后台化)。
+
+    入口现在创建 asyncio.Task 即返回;断言 llm.calls / 事件前必须先收完后台回合。
+    """
+    while app.master._bg:
+        await asyncio.gather(*list(app.master._bg))
+
+
 class _FakeSettings:
     """最小设置句柄(master 只依赖读设置,SettingsReader 协议)。"""
 
@@ -37,6 +46,7 @@ class TestChat:
     async def test_first_message_spawns_chat_subagent(self, tmp_path) -> None:
         app = _app(tmp_path, FakeLLM(default="你好,我在。"))
         await app.master.handle_user_message("你好")
+        await _settle(app)
         assert _replies(app) == ["你好,我在。"]
         chat = app.master.chat
         assert chat is not None and chat.status == RunStatus.WAITING_INPUT
@@ -47,12 +57,14 @@ class TestChat:
         llm = FakeLLM(default="收到。")
         app = _app(tmp_path, llm)
         await app.master.handle_user_message("你好")
+        await _settle(app)
         app.master.chat.state.status = RunStatus.RUNNING  # 模拟忙
         await app.master.handle_user_message("第二句")
         assert len(llm.calls) == 1  # queue 模式不调判官,也不插话
         assert len(_replies(app)) == 1
         app.master.chat.state.status = RunStatus.WAITING_INPUT  # 恢复空闲
         await app.master.handle_user_message("第三句")
+        await _settle(app)  # 第三句 + 排队的第二句都在后台回合里
         assert _replies(app) == ["收到。", "收到。", "收到。"]  # 排队的第二句被补处理
         history = [m["content"] for m in app.master.chat.history if m["role"] == "user"]
         assert history == ["你好", "第三句", "第二句"]  # 先当前,后排队
@@ -67,6 +79,7 @@ class TestChat:
         ])
         app = _app(tmp_path, llm)
         await app.master.handle_user_message("分析这个项目")
+        await _settle(app)
         await app.settings.set("agent.arbiter.mode", "auto", LOCAL_USER)
         app.master.chat.state.status = RunStatus.RUNNING
         await app.master.handle_user_message("补充:只看 Python 部分")
@@ -78,6 +91,7 @@ class TestChat:
         app = _app(tmp_path, FakeLLM(default="直接回答。"))
         await app.settings.set("agent.direct_chat", True, LOCAL_USER)
         await app.master.handle_user_message("1+1=?")
+        await _settle(app)
         assert _replies(app) == ["直接回答。"]
         assert app.master.chat is None  # 直聊不派 subagent
         app.memory.close()
@@ -136,10 +150,61 @@ class TestChatLimitsRefresh:
         """对话主实例每回合重读轮数(phase-10):改设置后下一句生效,无需重建实例。"""
         app = _app(tmp_path, FakeLLM(default="好。"))
         await app.master.handle_user_message("你好")
+        await _settle(app)
         chat = app.master.chat
         assert chat is not None and chat.task.limits.max_rounds == 20
         await app.settings.set("agent.rounds.max", 5, LOCAL_USER)
         await app.master.handle_user_message("继续")
+        await _settle(app)
         assert app.master.chat is chat  # 同一实例复用
         assert app.master.chat.task.limits.max_rounds == 5  # limits 已 replace
         app.memory.close()
+
+
+class TestSystemRefresh:
+    async def test_next_turn_system_reflects_style_change(self, tmp_path) -> None:
+        """每回合重算 system(phase-15):改 agent.style 后下一句的 system 含新风格。"""
+        llm = FakeLLM(default="好。")
+        app = _app(tmp_path, llm)
+        await app.master.handle_user_message("你好")
+        await _settle(app)
+        old_sys = llm.calls[0]["messages"][0]["content"]
+        await app.settings.set("agent.style", "毒舌", LOCAL_USER)
+        await app.master.handle_user_message("继续")
+        await _settle(app)
+        new_sys = llm.calls[-1]["messages"][0]["content"]
+        assert "【风格】毒舌" in new_sys
+        assert "【风格】毒舌" not in old_sys
+        app.memory.close()
+
+
+class TestHistoryBound:
+    async def test_history_capped_after_many_turns(self, tmp_path) -> None:
+        """history 硬上限(phase-15):多回合后不超 HISTORY_MAX,成对丢、头部仍是 user。"""
+        from platform_eventbus import EventBus, EventLog
+
+        from agent.policy import PolicyEngine
+        from agent.runtime.events import RuntimeEvents
+        from agent.runtime.state import RunState
+        from agent.subagent.instance import HISTORY_MAX, SubagentInstance, TaskBook
+        from agent.tools import AgentTool, Toolbelt
+
+        async def chat_tool() -> str:
+            return "ok"
+
+        inst = SubagentInstance(
+            task=TaskBook(goal="聊", conversational=True),
+            toolbelt=Toolbelt(
+                {"chat_tool": AgentTool(name="chat_tool", description="占位", handler=chat_tool)},
+                PolicyEngine(),
+            ),
+            llm=FakeLLM(default="嗯。"),
+            system_prompt="s",
+            events=RuntimeEvents(EventBus(EventLog(tmp_path / "ev.db"))),
+            state=RunState(task="聊"),
+        )
+        for _ in range(35):  # 每回合 user+assistant 两条 → 70 条,须被裁回上限内
+            await inst.run_turn("话")
+        assert len(inst.history) <= HISTORY_MAX
+        assert inst.history[0]["role"] == "user"  # 成对丢弃,头部不是残回合
+        assert inst.status == RunStatus.WAITING_INPUT

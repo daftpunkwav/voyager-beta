@@ -19,6 +19,11 @@ from agent.subagent.modes import Mode, ModeLimits, run_mode
 from agent.tools.activate import graded_toolbelt, infer_domains
 from agent.tools.base import Toolbelt
 
+#: 跨轮 history 硬上限(条数,phase-15):长对话不无限涨。
+#: history 里只有 user/assistant 行(本回合 tool 行只活在 messages),成对丢弃。
+HISTORY_MAX = 60
+
+
 #: 页面 → 预激活域(§9.20):用户停在这三个领域页时,对话开局即并入该域
 #: 工具,省一轮 activate_tools;其他页(settings/usage…)不预激活。
 _PAGE_PREACTIVATE: dict[str, str] = {
@@ -69,6 +74,10 @@ class SubagentInstance:
     history: list[dict[str, Any]] = field(default_factory=list)
     pages: Any | None = None  # PageContextRegistry:领域页预激活(notes/graph/sources)
     active: set[str] | None = None  # 对话实例的工具激活集(跨轮保留,§9.20)
+    persona: str = ""  # spawn 时的人格 key:每回合重算 system 要用(phase-15)
+    build_system: Callable[[TaskBook, str], str] | None = None
+    # Spawner 注入的 system 重算函数(phase-15):每回合 run_turn 现调,
+    # 风格/画像/页面/digest/skill 索引改动下一句即生效;不持有 builder 引用避免环导入
 
     @property
     def status(self) -> RunStatus:
@@ -77,6 +86,9 @@ class SubagentInstance:
     async def run_turn(self, user_text: str | None = None) -> str:
         """跑一轮(对话型=一轮问答;任务型=跑到完成)。"""
         self.state.status = RunStatus.RUNNING
+        if self.build_system is not None:
+            # 每回合重算 system(phase-15):跨回合后风格/画像/页面/digest 才不过期
+            self.system_prompt = self.build_system(self.task, self.persona)
         if user_text:
             self.history.append({"role": "user", "content": user_text})
         messages = [{"role": "system", "content": self.system_prompt}, *self.history]
@@ -116,6 +128,7 @@ class SubagentInstance:
             await self.events.emit("RunFailed", run_id=self.state.run_id, error=self.state.error)
             raise
         self.history.append({"role": "assistant", "content": result})
+        self._bound_history()
         self.state.result = result
         if self.task.conversational:
             self.state.status = RunStatus.WAITING_INPUT
@@ -131,6 +144,16 @@ class SubagentInstance:
     def feed(self, text: str) -> None:
         """仲裁 merge 路径:新输入直接并入本实例上下文(§9.7)。"""
         self.history.append({"role": "user", "content": text})
+
+    def _bound_history(self) -> None:
+        """超 HISTORY_MAX 从头部成对丢最旧回合(phase-15)。
+
+        history 里只有 user/assistant 交替行,向上取偶数条丢弃后头部仍是 user,
+        不会把 assistant 开头的残回合留给下一轮。
+        """
+        over = len(self.history) - HISTORY_MAX
+        if over > 0:
+            del self.history[: (over + 1) // 2 * 2]
 
     def cancel(self) -> None:
         self.state.status = RunStatus.CANCELLED

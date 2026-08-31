@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from agent.context.compressor import COMPRESS_BUDGET, compress
 from agent.llm import LLMClient
 from agent.tools.base import Toolbelt
 
@@ -116,10 +117,13 @@ async def _react(
     纯文本且本回合还没有任何 Action 时,不把这当成结束(寒暄除外)——
     这是 loop 的退出条件,不是去扫描「好/这就去办」。
     specs 每轮 complete 前重取(phase-06 域激活)。成对回填形状不变(§9.1)。
+    每轮 complete 前压缩 transcript(phase-15):超预算先截断旧 tool 文本;
+    只截断不剪枝,本回合的 assistant(tool_calls) 与 tool 对不能拆散。
     """
     tool_calls_used = 0
     for round_n in range(1, limits.max_rounds + 1):
         specs = toolbelt.specs() if toolbelt is not None else None
+        messages[:] = compress(messages, budget=COMPRESS_BUDGET, prune=False)
         reply = await llm.complete(messages, specs)
         await on_step(
             "llm",
