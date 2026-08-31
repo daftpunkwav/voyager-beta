@@ -10,9 +10,9 @@ import asyncio
 from typing import TYPE_CHECKING
 
 from agent.master.settings_store_protocol import SettingsReader
-from agent.personas import PERSONAS, resolve_persona
+from agent.personas import resolve_persona
 from agent.policy import NetworkPolicy, PolicyEngine, narrow_network
-from agent.subagent import Mode, ModeLimits, Spawner, SubagentInstance, TaskBook
+from agent.subagent import Mode, Spawner, SubagentInstance, TaskBook
 from agent.subagent.registry import SubagentDef, SubagentRegistry
 from agent.tools.base import Toolbelt
 
