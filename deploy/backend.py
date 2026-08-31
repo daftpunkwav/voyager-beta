@@ -14,9 +14,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from fastapi import FastAPI
-from platform_actor import LocalTokenIssuer
+from platform_actor import ActorContext, LocalTokenIssuer
 from platform_capability import CostQuota, SqliteAuditSink, Wiring, execute
-from platform_contracts import ErrorSuffix, ServiceError
+from platform_contracts import ActorKind, ActorRef, ErrorSuffix, ServiceError
 from platform_eventbus import EventBus, EventLog
 from platform_secrets import SecretStore
 from platform_settings import SettingsStore
@@ -95,7 +95,6 @@ def build(
     from services.llm.wiring import wire as wire_llm
     from services.notes.wiring import wire as wire_notes
     from services.settings.wiring import wire as wire_settings
-    from services.sources.files import build_files_router
     from services.sources.wiring import wire as wire_sources
 
     data_root = Path(data_dir) if data_dir else ROOT / "runtime-data"
@@ -116,43 +115,41 @@ def build(
     settings_store.register_fresh(AGENT_SETTING_DEFS)
     workspace = _resolve_workspace(workspace_dir, settings_store)
 
-    # graph L0 资源目录桥:按 kinds 从 sources 各店 fan-out 资源摘要
-    # (形状= list_sources summaries;依赖倒置,graph 不 import sources)。
-    # STORES 由下方 wire_sources→init_all 填充,闭包惰性读取故先定义无碍。
-    from services.sources.capabilities import STORES as SOURCES_STORES
+    wirings: dict[str, Wiring] = {}
+    wirings["settings"] = wire_settings(data_root / "settings", bus=bus,
+                                        store=settings_store)
+    wirings["llm"] = wire_llm(data_root / "llm", secrets=secrets,
+                              settings_store=settings_store)
+    wirings["sources"] = wire_sources(data_root / "sources", workspace=workspace,
+                                      bus=bus, secrets=secrets, clone_fn=clone_fn,
+                                      parse_fn=parse_fn,
+                                      settings_store=settings_store)
+
+    # graph L0 资源目录:经统一能力入口 list_sources 取资源摘要(§13.1 装配根
+    # 走协议、不读邻服务表;依赖倒置,graph 不 import sources)。
+    # 回调是同步的:run_l0 经 asyncio.to_thread 在工作线程执行,彼处无 running
+    # loop,asyncio.run 才合法;若从协程直接调用本回调会抛 RuntimeError。
+    l0_actor = ActorContext(actor=ActorRef(kind=ActorKind.SYSTEM, id="deploy.l0"))
 
     def _graph_resource_provider(kinds: list[str]) -> list[dict]:
         out: list[dict] = []
         for k in kinds:
-            store = SOURCES_STORES.get(k)
-            if store is not None:
-                out.extend(store.summaries(limit=2000))
+            rows = asyncio.run(execute(wirings["sources"].registry,
+                                       "list_sources", l0_actor,
+                                       {"kind": k, "limit": 2000}))
+            out.extend(rows)
         return out
 
-    wirings: dict[str, Wiring] = {
-        "settings": wire_settings(data_root / "settings", bus=bus, store=settings_store),
-        "llm": wire_llm(data_root / "llm", secrets=secrets,
-                        settings_store=settings_store),
-        "sources": wire_sources(data_root / "sources", workspace=workspace,
-                                bus=bus, secrets=secrets, clone_fn=clone_fn,
-                                parse_fn=parse_fn,
-                                settings_store=settings_store),
-        "notes": wire_notes(data_root / "notes", bus=bus,
-                            settings_store=settings_store, workspace=workspace),
-        "graph": wire_graph(data_root / "graph", bus=bus,
-                            settings_store=settings_store,
-                            resource_provider=_graph_resource_provider,
-                            workspace=workspace),
-    }
-    # sources 自带文档文件只读路由(wire→init_all 已填充其 STORES)
-    # notes 自带附件只读路由(/api/notes/assets/{id};wire 后可用)
-    from services.notes.assets import build_assets_router as build_notes_assets_router
+    wirings["notes"] = wire_notes(data_root / "notes", bus=bus,
+                                  settings_store=settings_store,
+                                  workspace=workspace)
+    wirings["graph"] = wire_graph(data_root / "graph", bus=bus,
+                                  settings_store=settings_store,
+                                  resource_provider=_graph_resource_provider,
+                                  workspace=workspace)
+    # 各域自带路由(文档下载/笔记附件)由 wire 交出,装配根原样透传
     mounts = [MountSpec(domain=name, registry=w.registry, probe=w.probe,
-                        extra_router=(
-                            build_files_router(SOURCES_STORES["doc"])
-                            if name == "sources"
-                            else build_notes_assets_router() if name == "notes"
-                            else None))
+                        extra_router=w.extra_router)
               for name, w in wirings.items()]
     extra_routers = [build_upload_router(workspace)]
 

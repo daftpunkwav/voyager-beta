@@ -30,8 +30,9 @@ class Capability:
     description: str
     handler: Handler
     input_model: type | None = None
-    cost: int = 1  # 配额扣减档(§7.5)
+    cost: int = 1  # 配额扣减档(§7.5);只管配额,不参与 write 判定
     reversible: bool = True
+    write: bool = True  # 是否写能力(显式声明,不从 cost 推导);桥原样透传
     scopes: frozenset[str] = frozenset()  # 所需权限;空 = 无额外要求
     long_running: bool = False  # True 时 handler 必须返回 JobRef(只入队,§7.3)
 
@@ -44,6 +45,7 @@ def capability(
     input_model: type | None = None,
     cost: int = 1,
     reversible: bool = True,
+    write: bool = True,
     scopes: typing.Iterable[str] = (),
     long_running: bool = False,
 ) -> Callable[[Handler], Handler]:
@@ -64,6 +66,7 @@ def capability(
                 input_model=input_model,
                 cost=cost,
                 reversible=reversible,
+                write=write,
                 scopes=frozenset(scopes),
                 long_running=long_running,
             )

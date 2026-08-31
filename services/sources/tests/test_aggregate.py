@@ -81,6 +81,15 @@ class TestListSources:
         titles = [r["title"] for r in out]
         assert titles == sorted(titles)
 
+    async def test_limit_2000_not_capped_at_500(self, deps) -> None:
+        """帽抬到 2000(phase-14):graph L0 按 kind 取 2000 不被旧 500 帽静默截断。"""
+        for i in range(501):  # 501 = 能区分「全量」与「被 500 截断」的最小行数
+            deps.web_store.add({"title": f"页 {i}", "url": f"https://a.com/{i}",
+                                "domain": "a.com"})
+        out = await execute(registry, "list_sources", USER_CTX,
+                            {"kind": "web", "limit": 2000})
+        assert len(out) == 501
+
 
 class TestSearchSources:
     async def test_title_hit_and_section_hit(self, deps) -> None:

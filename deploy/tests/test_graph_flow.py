@@ -130,3 +130,43 @@ class TestIndexPipeline:
             backend.agent.spawner._toolbelt.trimmed(allow).names()
         )
         assert {"graph__enqueue_index", "graph__graph_guide"} <= trimmed_names
+
+
+class TestL0ViaProvider:
+    def test_l0_provider_through_list_sources(self, tmp_path) -> None:
+        """phase-14:装配根资源目录 provider 经 list_sources 能力取数
+        (deploy 不读 STORES);两条同 tag 文档进 L0 并产出 RELATED 边。"""
+        app = build(tmp_path / "data", tmp_path / "ws",
+                    parse_fn=lambda path, ext: [])
+        with TestClient(app) as client:
+            src = tmp_path / "ws" / "imports"
+            src.mkdir(parents=True, exist_ok=True)
+            for i, title in enumerate(("手册 A", "手册 B")):
+                f = src / f"a{i}.md"
+                f.write_text("内容", encoding="utf-8")
+                ref = client.post("/api/sources/capabilities/add_document", json={
+                    "file_path": str(f), "title": title, "tags": ["共享标签"]})
+                assert ref.status_code == 202
+            # 等两份文档 ready(L0 排除 importing/parsing/failed)
+            stats = {}
+            deadline = time.time() + 8
+            while time.time() < deadline:
+                stats = client.post("/api/sources/capabilities/sources_stats",
+                                    json={}).json()["result"]
+                if stats.get("doc") == 2 and not stats.get("importing") \
+                        and not stats.get("parsing"):
+                    break
+                time.sleep(0.1)
+            else:
+                raise AssertionError(f"文档未就绪: {stats}")
+
+            ref = client.post("/api/graph/capabilities/enqueue_l0",
+                              json={"kinds": ["doc"]})
+            assert ref.status_code == 202
+            job = _wait_job_done(client, ref.json()["job"]["job_id"])
+            assert job["status"] == "done", job["error"]
+
+            view = client.post("/api/graph/capabilities/l0_view",
+                               json={"kinds": ["doc"]}).json()["result"]
+            assert len(view["nodes"]) == 2  # provider 不是空回调
+            assert view["edges"] and view["edges"][0]["type"] == "RELATED"

@@ -77,6 +77,10 @@ def _stores(kind: str) -> list:
 
 _SORT_KEYS = {"added": "added_ts", "updated": "updated_ts", "title": "title"}
 
+#: 单店单次 fan-out 的行数上限;≥ graph L0 的 per-kind 取数(2000),抬帽
+#: 必须连带核对 L0(deploy 资源目录桥),否则 L0 会被静默截断成残图
+_MAX_PER_STORE = 2000
+
 
 @capability(registry, name="list_sources",
             description="跨类型列出资料库资源摘要(统一资源流;kind 空=全部)")
@@ -86,7 +90,8 @@ def list_sources(kind: str = "", status: str = "", tag: str = "", query: str = "
     merged: list[dict] = []
     for store in _stores(kind):
         merged.extend(store.summaries(status=status.strip(), tag=tag.strip(),
-                                      query=query.strip(), limit=min(limit, 500)))
+                                      query=query.strip(),
+                                      limit=min(limit, _MAX_PER_STORE)))
     key = _SORT_KEYS.get(sort, "added_ts")
     merged.sort(key=lambda r: str(r.get(key) or ""), reverse=desc)
     return merged[:limit]

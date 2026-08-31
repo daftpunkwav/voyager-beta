@@ -1,6 +1,6 @@
 """领域能力 → agent AgentTool 桥(§5.4)。
 
-名称 <domain>__<capability>;元数据透传(cost → write 档,reversible →
+名称 <domain>__<capability>;元数据透传(write、reversible →
 irreversible);execute() 走 capability 框架完整守卫链(鉴权/配额/审计),
 actor 为 agent 主身。每次调用按当前链 trace 新建 ActorContext(§7.8),
 使 agent 的能力调用与触发的 user.message 同 trace,审计可整链回放。
@@ -46,6 +46,6 @@ def make_domain_tools(
                 description=f"[{m.domain}] {cap.description}",
                 handler=handler,
                 schema=dataclass_to_json_schema(cap.input_model) if cap.input_model else {},
-                dimension="app", write=cap.cost > 0, irreversible=not cap.reversible,
+                dimension="app", write=cap.write, irreversible=not cap.reversible,
             )
     return tools

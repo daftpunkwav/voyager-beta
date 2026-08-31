@@ -103,4 +103,6 @@ def wire(
         start=pruner.start,
         stop=pruner.stop,
         close=close,
+        # 附件只读路由:wire 已 init_store,自建自交,装配根零领域知识
+        extra_router=assets.build_assets_router(),
     )

@@ -16,6 +16,7 @@ from platform_secrets import SecretStore
 from platform_settings import SettingsStore
 
 from .capabilities import SourcesDeps, init_all, registry
+from .files import build_files_router
 from .modules.doc.store import DocStore
 from .modules.doc.worker import DocWorker
 from .modules.repo.store import RepoStore
@@ -76,4 +77,6 @@ def wire(
         start=start,
         stop=stop,
         close=close,
+        # 文档原文件只读路由:wire 局部 doc_store 自建自交,装配根不读 STORES
+        extra_router=build_files_router(doc_store),
     )

@@ -10,8 +10,12 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from platform_capability.registry import Registry
+
+if TYPE_CHECKING:  # fastapi 是可选依赖(仅挂载方需要),运行时不导入
+    from fastapi import APIRouter
 
 
 @dataclass
@@ -21,7 +25,9 @@ class Wiring:
     - registry:能力注册表(挂 REST / 生成 MCP / 桥接 agent 工具的唯一来源);
     - probe:健康探测(可同步可异步;None 表示只做被动感知);
     - start/stop:后台生命周期(worker、scheduler 等),装配根 lifespan 调用;
-    - close:关闭自有资源(数据库连接等);外部传入的共享资源不在此关闭。
+    - close:关闭自有资源(数据库连接等);外部传入的共享资源不在此关闭;
+    - extra_router:领域自有路由(如文件只读下载)。wire 自己建好交给装配根
+      透传给 gateway,装配根不必触碰领域内部 store(§13.1 走协议不读表)。
     """
 
     registry: Registry
@@ -29,3 +35,4 @@ class Wiring:
     start: Callable[[], Awaitable[None]] | None = None
     stop: Callable[[], Awaitable[None]] | None = None
     close: Callable[[], None] | None = None
+    extra_router: "APIRouter | None" = None
