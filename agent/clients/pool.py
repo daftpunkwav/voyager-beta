@@ -4,8 +4,8 @@
 **禁止**再用 MCP client 把 services/*/mcp_server 灌一遍;本池只装用户
 在设置页添加、批准后的 stdio/URL MCP server(phase-11b)。空池是合法稳态。
 
-职责边界:校验/连接/挂载在此;配置持久化走 agent.mcp.servers 设置项,
-写入由 capabilities.py 的 mcp 能力传入 actor(落审计)经本池落库。
+职责边界:校验/连接在此;挂载逻辑在 mount.py。配置持久化走 agent.mcp.servers
+设置项,写入由 capabilities/mcp.py 的能力传入 actor(落审计)经本池落库。
 测试注入 connect=... 用 Fake session,不进程不网;生产用 session.default_connect。
 """
 
@@ -18,8 +18,9 @@ from typing import Any, Awaitable, Callable
 
 from platform_contracts import ErrorSuffix, ServiceError
 
-from agent.clients.session import CALL_TIMEOUT, McpSession, default_connect
-from agent.tools.base import AgentTool, Toolbelt
+from agent.clients.mount import remount, unmount
+from agent.clients.session import McpSession, default_connect
+from agent.tools.base import Toolbelt
 
 #: 设置项 key:外接 MCP 配置列表
 MCP_KEY = "agent.mcp.servers"
@@ -171,71 +172,21 @@ class McpClientPool:
             except Exception:
                 pass
 
-    # ---- 挂载(进 Toolbelt 工具面) ----
-
-    def _tool_name(self, sid: str, remote_name: str) -> str:
-        safe = re.sub(r"[^A-Za-z0-9_]", "_", remote_name) or "tool"
-        return f"mcp__{sid}__{safe}"
-
-    def _build_tool(self, cfg: dict, session: McpSession, remote: dict) -> AgentTool:
-        remote_name = str(remote.get("name") or "")
-        tool_name = self._tool_name(cfg["id"], remote_name)
-
-        async def handler(**kwargs: Any) -> str:
-            try:
-                return await asyncio.wait_for(
-                    session.call_tool(remote_name, kwargs), CALL_TIMEOUT
-                )
-            except Exception as exc:  # 远端失败作为文本结果回给 LLM,不炸工具循环
-                return f"[MCP 失败] {tool_name}: {exc}"
-
-        schema = remote.get("schema") or remote.get("inputSchema") or {
-            "type": "object",
-            "additionalProperties": True,
-        }
-        return AgentTool(
-            name=tool_name,
-            # description 带展示名,模型能区分同名远端工具
-            description=f"[MCP:{cfg['name']}] {remote.get('description') or remote_name}",
-            handler=handler,
-            schema=schema,
-            # 批准已经是进入工具面的门;不与 capability 白名单维(app)搅在一起
-            dimension="none",
-        )
+    # ---- 挂载(进 Toolbelt 工具面;实现在 mount.py) ----
 
     def remount(self, sid: str, approved: list[str]) -> list[str]:
         """按 approved 挂载(["*"] = 全部 preview);先卸旧挂,避免残名。
 
         需要 preview 在场(先 preview());返回本次挂上的工具名。
         """
-        if self._toolbelt is None:
-            return []
-        self.unmount(sid)
         session = self._sessions.get(sid)
         remote_tools = self._previews.get(sid) or []
-        if session is None or not remote_tools:
-            return []
         cfg = self.find_config(sid) or {"id": sid, "name": sid}
-        if approved == ["*"]:
-            selected = list(remote_tools)
-        else:
-            want = set(approved)
-            selected = [t for t in remote_tools if t.get("name") in want]
-        tools = {
-            self._tool_name(sid, str(t.get("name") or "")): self._build_tool(cfg, session, t)
-            for t in selected
-        }
-        self._toolbelt.register(tools)
-        return sorted(tools)
+        return remount(self._toolbelt, cfg, session, remote_tools, approved)
 
     def unmount(self, sid: str) -> list[str]:
         """从根名册卸掉 mcp__<sid>__*;返回实际卸载的名字。"""
-        if self._toolbelt is None:
-            return []
-        prefix = f"mcp__{sid}__"
-        names = [n for n in self._toolbelt.names() if n.startswith(prefix)]
-        self._toolbelt.unregister(names)
-        return names
+        return unmount(self._toolbelt, sid)
 
     # ---- 生命周期 ----
 

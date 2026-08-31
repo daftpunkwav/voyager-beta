@@ -1,6 +1,7 @@
 """agent/clients:服务发现(discovery)+ 外接 MCP 连接池(pool/session)。
 
-pool.py:外接 MCP 连接池(校验/连接/批准/挂载,phase-11b);
+pool.py:外接 MCP 连接池(校验/连接,phase-11b);
+mount.py:把远端 tool 变成 AgentTool 挂进根 Toolbelt(批准/挂载);
 session.py:MCP 会话产品路径(stdio 子进程与 HTTP URL);
 discovery.py:启动时按各服务 service.json 发现模块卡(只读卡,不连接)。
 
