@@ -4,16 +4,15 @@
  * 跳页后对话不中断。chat 路由时整个组件不渲染(主聊天就在那里)。
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { create } from 'zustand';
-import { postChatMessage } from '@/bridge/chatSend';
 import { subscribe } from '@/bridge/stream';
 import { useChatStore } from '@/stores/chatStore';
 import { useChatStream } from '@/hooks/useChatStream';
-import { useLlmAvailable } from '@/hooks/useLlmAvailable';
-import { routes } from '@/utils/routes';
+import { useChatSend } from '@/hooks/useChatSend';
 import { MessageList, ObserveLine, TaskCards } from '@/widgets/chat/MessageList';
+import { ChatLlmMissingTip } from '@/widgets/chat/ChatLlmMissingTip';
 import { AskDialog } from '@/widgets/chat/AskDialog';
 import { ChatControls } from '@/widgets/chat/ChatControls';
 import { NavIcons } from '@/components/icons/NavIcons';
@@ -33,14 +32,10 @@ export const useFloatingStore = create<FloatingState>((set, get) => ({
 export function FloatingChat() {
   const { open, unread, setOpen } = useFloatingStore();
   const navigate = useNavigate();
-  const [draft, setDraft] = useState('');
-  const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const messages = useChatStore((s) => s.messages);
   const connected = useChatStore((s) => s.connected);
-  // 无可用 LLM key 空态(§9.18):与 Chat 页同一探测与禁发逻辑
-  const llm = useLlmAvailable();
-  const llmMissing = llm === 'missing';
+  const { draft, setDraft, sending, llmMissing, send } = useChatSend();
 
   const onNavigate = useCallback(
     (path: string) => {
@@ -48,10 +43,8 @@ export function FloatingChat() {
     },
     [navigate],
   );
-  // 与 chat 页同一接线(历史/上线/SSE);chat 路由时本组件不渲染,二者不叠加
   useChatStream(onNavigate);
 
-  // 未读数:agent.message 到达且面板收起时 +1(打开时不计,展开时清零)
   useEffect(() => {
     return subscribe(['agent.message'], () => {
       if (!useFloatingStore.getState().open) {
@@ -60,8 +53,6 @@ export function FloatingChat() {
     });
   }, []);
 
-  // 打开时滚到底;新消息时若已打开也滚底(两边滚动位置各自独立,坑 3:
-  // 悬浮窗列表是独立容器,不与 chat 页共享 DOM)
   useEffect(() => {
     if (open && listRef.current) {
       listRef.current.scrollTop = listRef.current.scrollHeight;
@@ -76,26 +67,6 @@ export function FloatingChat() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, setOpen]);
-
-  const send = async () => {
-    const content = draft.trim();
-    if (!content || sending || llmMissing) return;
-    setSending(true);
-    setDraft('');
-    try {
-      const seq = await postChatMessage(content);
-      useChatStore.getState().appendLocal({ seq, role: 'user', content });
-    } catch (err) {
-      setDraft(content);
-      useChatStore.getState().appendLocal({
-        seq: -Date.now(),
-        role: 'system',
-        content: err instanceof Error ? err.message : '发送失败:后端不可达',
-      });
-    } finally {
-      setSending(false);
-    }
-  };
 
   if (!open) {
     return (
@@ -123,21 +94,13 @@ export function FloatingChat() {
           收起
         </button>
       </div>
-      {/* 控制面与主页同源(§10.12):仲裁切换 / 急停 / 运行中徽章 */}
       <ChatControls />
       <div className="float-panel__body" ref={listRef}>
         <MessageList />
         <TaskCards />
       </div>
       <ObserveLine />
-      {llmMissing ? (
-        <div className="degrade-tip" role="status">
-          <span>
-            还没有可用的 LLM 提供商:先到 <Link to={routes.settings}>设置 → LLM</Link>{' '}
-            填 api key,再开始对话。
-          </span>
-        </div>
-      ) : null}
+      {llmMissing ? <ChatLlmMissingTip /> : null}
       <div className="float-panel__input">
         <textarea
           rows={2}

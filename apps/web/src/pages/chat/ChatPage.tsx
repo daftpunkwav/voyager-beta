@@ -1,31 +1,25 @@
 /** 对话主页:单时间线(gateway 不建会话表,§6.3)。
  *
- * GET /api/chat/messages 重建历史;POST 经 bridge/chatSend 发送;
+ * GET /api/chat/messages 重建历史;POST 经 useChatSend 发送;
  * SSE 经 hooks/useChatStream 订阅;与常驻悬浮窗共用同一 chatStore(§10.12)。
  * 行为迁自 apps/web/archived/chat/ChatPage.tsx(旧多会话 AgentPage 已下线)。
  */
 
-import { useCallback, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { postChatMessage } from '@/bridge/chatSend';
+import { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useChatStore } from '@/stores/chatStore';
 import { useChatStream } from '@/hooks/useChatStream';
-import { useLlmAvailable } from '@/hooks/useLlmAvailable';
-import { routes } from '@/utils/routes';
+import { useChatSend } from '@/hooks/useChatSend';
 import { MessageList, ObserveLine, StepLine, TaskCards } from '@/widgets/chat/MessageList';
+import { ChatLlmMissingTip } from '@/widgets/chat/ChatLlmMissingTip';
 import { AskDialog } from '@/widgets/chat/AskDialog';
 import { ChatControls } from '@/widgets/chat/ChatControls';
 
 export function ChatPage() {
   const navigate = useNavigate();
-  const [draft, setDraft] = useState('');
-  const [sending, setSending] = useState(false);
   const connected = useChatStore((s) => s.connected);
-  // 无可用 LLM key 空态(§9.18):missing 才禁发送;查询失败不锁死对话
-  const llm = useLlmAvailable();
-  const llmMissing = llm === 'missing';
+  const { draft, setDraft, sending, llmMissing, send } = useChatSend();
 
-  // navigate 指令:agent 带用户跳页(useCallback 稳定引用,避免订阅重建)
   const onNavigate = useCallback(
     (path: string) => {
       navigate(path);
@@ -33,28 +27,6 @@ export function ChatPage() {
     [navigate],
   );
   useChatStream(onNavigate);
-
-  const send = async () => {
-    const content = draft.trim();
-    if (!content || sending || llmMissing) return;
-    setSending(true);
-    setDraft('');
-    try {
-      const seq = await postChatMessage(content);
-      // user.message 不在 SSE 流类型内,按响应 seq 本地回显
-      useChatStore.getState().appendLocal({ seq, role: 'user', content });
-    } catch (err) {
-      setDraft(content);
-      useChatStore.getState().appendLocal({
-        seq: -Date.now(),
-        role: 'system',
-        content: err instanceof Error ? err.message : '发送失败:后端不可达',
-      });
-      useChatStore.setState({ thinking: false });
-    } finally {
-      setSending(false);
-    }
-  };
 
   return (
     <section className="chat-page">
@@ -68,14 +40,7 @@ export function ChatPage() {
       <TaskCards />
       <StepLine />
       <ObserveLine />
-      {llmMissing ? (
-        <div className="degrade-tip" role="status">
-          <span>
-            还没有可用的 LLM 提供商:先到 <Link to={routes.settings}>设置 → LLM</Link>{' '}
-            填 api key,再开始对话。
-          </span>
-        </div>
-      ) : null}
+      {llmMissing ? <ChatLlmMissingTip /> : null}
       <div className="chat-input">
         <textarea
           rows={2}
