@@ -29,6 +29,18 @@ export const NETWORK_MODE_OPTIONS = [
 /** 工作目录(agent.workspace.dir,§9.10):相对仓库根,保存后需重启才换 jail */
 export const WORKDIR_KEY = 'agent.workspace.dir';
 
+/** 主动触达预算(agent.proactive.*,§9.8/phase-18):范围与 SettingDef 一致 */
+export const PROACTIVE_PER_SESSION_KEY = 'agent.proactive.per_session';
+export const PROACTIVE_PER_SESSION_MAX = 20;
+export const PROACTIVE_PER_DAY_KEY = 'agent.proactive.per_day';
+export const PROACTIVE_PER_DAY_MAX = 100;
+export const PROACTIVE_FOLLOW_UP_MAX_KEY = 'agent.proactive.follow_up_max';
+export const PROACTIVE_FOLLOW_UP_MAX = 5;
+export const PROACTIVE_QUIET_START_KEY = 'agent.proactive.quiet_start';
+export const PROACTIVE_QUIET_START_MAX = 23;
+export const PROACTIVE_QUIET_END_KEY = 'agent.proactive.quiet_end';
+export const PROACTIVE_QUIET_END_MAX = 23;
+
 /** 观察自动行动(agent.observe.auto_index,§9.2/phase-12):默认关,只提示不建索引 */
 export const AUTO_INDEX_KEY = 'agent.observe.auto_index';
 

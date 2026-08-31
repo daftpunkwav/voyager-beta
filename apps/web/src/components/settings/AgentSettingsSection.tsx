@@ -2,6 +2,7 @@ import type { Settings } from '@/api/types';
 import { ConductBlock } from './agent/ConductBlock';
 import { LimitsBlock } from './agent/LimitsBlock';
 import { MemoryBlock } from './agent/MemoryBlock';
+import { ProactiveBlock } from './agent/ProactiveBlock';
 import { McpBlock } from './agent/McpBlock';
 import { ObserveBlock } from './agent/ObserveBlock';
 import { SkillsBlock } from './agent/SkillsBlock';
@@ -20,6 +21,7 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
 
       <ConductBlock settings={settings} updateSettings={updateSettings} />
       <LimitsBlock />
+      <ProactiveBlock />
       <ObserveBlock />
       <SkillsBlock />
       <McpBlock />

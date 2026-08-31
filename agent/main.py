@@ -209,7 +209,7 @@ def build_agent(
         quiet_end=int(settings.get("agent.proactive.quiet_end")),
     )
     proactive = ProactiveEngine(
-        bus=bus, llm=llm, memory=memory, scheduler=scheduler, budget=budget
+        bus=bus, llm=llm, memory=memory, scheduler=scheduler, budget=budget, settings=settings
     )
     subagent_registry = SubagentRegistry(data_dir / "subagents")
     master = Master(

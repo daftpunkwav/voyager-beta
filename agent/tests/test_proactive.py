@@ -17,7 +17,17 @@ def _clock(hour: int):
     return lambda: time.mktime((2026, 8, 14, hour, 0, 0, 0, 0, -1))
 
 
-def _engine(tmp_path, *, hour: int = 12, budget: ProactiveBudget | None = None):
+class _FakeSettings:
+    """有 get(key) 的 settings 句柄,供热读测试用。"""
+
+    def __init__(self, values: dict[str, object]) -> None:
+        self._values = values
+
+    def get(self, key: str):
+        return self._values.get(key)
+
+
+def _engine(tmp_path, *, hour: int = 12, budget: ProactiveBudget | None = None, settings=None):
     log = EventLog(tmp_path / "events.db")
     bus = EventBus(log)
     engine = ProactiveEngine(
@@ -27,6 +37,7 @@ def _engine(tmp_path, *, hour: int = 12, budget: ProactiveBudget | None = None):
         scheduler=Scheduler(),
         budget=budget or ProactiveBudget(),
         clock=_clock(hour),
+        settings=settings,
     )
     return engine, log
 
@@ -46,6 +57,17 @@ class TestGreeting:
         assert msgs[0]["kind"] == "greeting"
         assert msgs[0]["reason"] == "你打开了应用"
 
+    async def test_greeting_schedules_followup(self, tmp_path) -> None:
+        """问候成功后挂追问链;用户回复后取消,不应出现 followup 消息。"""
+        engine, log = _engine(tmp_path)
+        await engine.on_user_online()
+        assert engine._followup_timer != ""
+        engine.notify_user_reply()
+        await asyncio.sleep(0.05)
+        msgs = _messages(log)
+        assert len(msgs) == 1 and msgs[0]["kind"] == "greeting"
+        assert all(m["kind"] != "followup" for m in msgs)
+
     async def test_quiet_hours_block(self, tmp_path) -> None:
         engine, log = _engine(tmp_path, hour=2)  # 凌晨 2 点,安静时段内
         assert await engine.on_user_online() is None
@@ -55,6 +77,22 @@ class TestGreeting:
         engine, log = _engine(tmp_path, budget=ProactiveBudget(per_session=1))
         await engine.on_user_online()
         assert await engine.on_user_online() is None  # 第二次被预算拦截
+        assert len(_messages(log)) == 1
+
+    async def test_hot_read_per_session_zero_blocks_greeting(self, tmp_path) -> None:
+        """热读:构造时 per_session=3,但 settings 里改为 0,问候应被拦截。"""
+        settings = _FakeSettings({"agent.proactive.per_session": 0})
+        engine, log = _engine(tmp_path, budget=ProactiveBudget(per_session=3), settings=settings)
+        assert await engine.on_user_online() is None
+        assert _messages(log) == []
+
+    async def test_hot_read_per_session_zero_cancels_followup(self, tmp_path) -> None:
+        """热读:构造时 per_session=1 已通过问候,再把 settings 改成 0,第二次问候被拦截。"""
+        settings = _FakeSettings({"agent.proactive.per_session": 1})
+        engine, log = _engine(tmp_path, budget=ProactiveBudget(per_session=1), settings=settings)
+        await engine.on_user_online()
+        settings._values["agent.proactive.per_session"] = 0
+        assert await engine.on_user_online() is None
         assert len(_messages(log)) == 1
 
 
@@ -75,6 +113,32 @@ class TestFollowUp:
         engine.notify_user_reply()  # 用户回复了:取消追问
         await asyncio.sleep(0.15)
         assert _messages(log) == []
+
+    async def test_follow_up_max_zero_skips_timer(self, tmp_path) -> None:
+        """追问链上限为 0 时,schedule_followup 不挂 timer。"""
+        engine, log = _engine(tmp_path, budget=ProactiveBudget(follow_up_max=0))
+        engine.schedule_followup(delay_s=0.01)
+        assert engine._followup_timer == ""
+        await asyncio.sleep(0.05)
+        assert _messages(log) == []
+
+    async def test_hot_read_follow_up_max_zero_skips_timer(self, tmp_path) -> None:
+        """热读:构造时 follow_up_max=2,但 settings 里改为 0,不挂 timer。"""
+        settings = _FakeSettings({"agent.proactive.follow_up_max": 0})
+        engine, log = _engine(tmp_path, budget=ProactiveBudget(follow_up_max=2), settings=settings)
+        engine.schedule_followup(delay_s=0.01)
+        assert engine._followup_timer == ""
+        await asyncio.sleep(0.05)
+        assert _messages(log) == []
+
+    async def test_reschedule_cancels_previous_timer(self, tmp_path) -> None:
+        """再次 schedule 会取消未触发的旧定时器,避免重复 user.online 双响。"""
+        engine, log = _engine(tmp_path, budget=ProactiveBudget(follow_up_max=1))
+        engine.schedule_followup(delay_s=0.2)
+        engine.schedule_followup(delay_s=0.02)
+        await asyncio.sleep(0.08)
+        msgs = _messages(log)
+        assert len(msgs) == 1 and msgs[0]["kind"] == "followup"
 
 
 class TestReachOut:

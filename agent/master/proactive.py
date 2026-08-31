@@ -29,6 +29,14 @@ class ProactiveBudget:
     quiet_end: int = 7
 
 
+def _to_int(value, default: int) -> int:
+    """把 setting 值转 int;0 是合法开关值,不能当 falsy 丢掉。"""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 class ProactiveEngine:
     def __init__(
         self,
@@ -39,6 +47,7 @@ class ProactiveEngine:
         scheduler: Scheduler,
         budget: ProactiveBudget | None = None,
         clock: Callable[[], float] = time.time,
+        settings=None,  # 可选设置句柄(有 get(key) 即可):预算热读当前值(§9.8)
     ) -> None:
         self._bus = bus
         self._llm = llm
@@ -46,28 +55,45 @@ class ProactiveEngine:
         self._scheduler = scheduler
         self.budget = budget or ProactiveBudget()
         self._clock = clock
+        self._settings = settings
         self._session_sent = 0
         self._day_sent: dict[str, int] = {}
         self._followups_sent = 0
         self._followup_timer = ""
 
+    def _current_budget(self) -> ProactiveBudget:
+        """本次判定用的预算:有 settings 句柄则热读当前值,没有则用构造时快照。"""
+        if self._settings is None:
+            return self.budget
+        return ProactiveBudget(
+            per_session=_to_int(self._settings.get("agent.proactive.per_session"), self.budget.per_session),
+            per_day=_to_int(self._settings.get("agent.proactive.per_day"), self.budget.per_day),
+            follow_up_max=_to_int(self._settings.get("agent.proactive.follow_up_max"), self.budget.follow_up_max),
+            quiet_start=_to_int(self._settings.get("agent.proactive.quiet_start"), self.budget.quiet_start),
+            quiet_end=_to_int(self._settings.get("agent.proactive.quiet_end"), self.budget.quiet_end),
+        )
+
     def can_send(self) -> bool:
         """预算与安静时段检查(§9.8)。"""
+        budget = self._current_budget()
         hour = time.localtime(self._clock()).tm_hour
         quiet = (
-            hour >= self.budget.quiet_start or hour < self.budget.quiet_end
-            if self.budget.quiet_start > self.budget.quiet_end
-            else self.budget.quiet_start <= hour < self.budget.quiet_end
+            hour >= budget.quiet_start or hour < budget.quiet_end
+            if budget.quiet_start > budget.quiet_end
+            else budget.quiet_start <= hour < budget.quiet_end
         )
         if quiet:
             return False
         day = time.strftime("%Y-%m-%d", time.localtime(self._clock()))
-        if self._day_sent.get(day, 0) >= self.budget.per_day:
+        if self._day_sent.get(day, 0) >= budget.per_day:
             return False
-        return self._session_sent < self.budget.per_session
+        return self._session_sent < budget.per_session
 
     async def on_user_online(self, *, trace_id: str = "") -> str | None:
-        """用户上线:根据记忆生成首条问候(§9.8)。被预算拦截则返回 None。"""
+        """用户上线:根据记忆生成首条问候(§9.8)。被预算拦截则返回 None。
+
+        成功发出问候后挂追问链;被预算拦截时则不挂。
+        """
         if not self.can_send():
             return None
         text = await self._compose_greeting()
@@ -77,6 +103,7 @@ class ProactiveEngine:
             reason="你打开了应用",
             trace_id=trace_id,
         )
+        self.schedule_followup(trace_id=trace_id)
         return text
 
     def notify_user_reply(self) -> None:
@@ -87,12 +114,20 @@ class ProactiveEngine:
         self._followups_sent = 0
 
     def schedule_followup(self, *, delay_s: float = 180.0, trace_id: str = "") -> None:
-        """发出一条消息且未获回复后调用:delay 后追问,链上限 follow_up_max。"""
-        if self._followups_sent >= self.budget.follow_up_max:
+        """发出一条消息且未获回复后调用:delay 后追问,链上限 follow_up_max。
+
+        再次调度前取消未触发的旧定时器,避免 user.online 重复时泄漏同名 task。
+        """
+        budget = self._current_budget()
+        if self._followup_timer:
+            self._scheduler.cancel_timer(self._followup_timer)
+            self._followup_timer = ""
+        if self._followups_sent >= budget.follow_up_max:
             return
 
         async def _followup() -> None:
-            if self._followups_sent >= self.budget.follow_up_max or not self.can_send():
+            current_budget = self._current_budget()
+            if self._followups_sent >= current_budget.follow_up_max or not self.can_send():
                 return
             self._followups_sent += 1
             await self._send(
