@@ -4,6 +4,9 @@
 - 仲裁(§9.7):chat 正在跑时来新消息 → 按 agent.arbiter.mode 排队(默认)/并入/引导;
 - 直聊模式(agent.direct_chat,默认关闭):简单问答由 Lucien 直接回复;
 - Lucien 强制 ReAct(决策 §15),人格默认模式仅对派遣生效。
+
+本文件只保留用户对话回合、仲裁与公开常量;派单实现拆到 dispatch.py,
+consider 实现拆到 observe.py。
 """
 
 from __future__ import annotations
@@ -20,12 +23,11 @@ from agent.llm import LLMClient
 from agent.master.arbiter import Arbiter, ArbiterMode
 from agent.master.digest import DigestStore
 from agent.master.settings_store_protocol import SettingsReader
-from agent.personas import PERSONAS, resolve_persona
-from agent.policy import NetworkPolicy, PolicyEngine, narrow_network
+from agent.personas import PERSONAS
+from agent.policy import PolicyEngine
 from agent.runtime.events import AGENT_MAIN
 from agent.runtime.state import RunStatus
 from agent.subagent import Mode, ModeLimits, Spawner, SubagentInstance, TaskBook
-from agent.tools.base import Toolbelt
 
 log = logging.getLogger("agent.master")
 
@@ -178,108 +180,36 @@ class Master:
         name: str = "",
         constraints: str = "",
     ) -> SubagentInstance:
-        """派单(§9.4):任务型 subagent 后台执行,完成/失败主动通报。
+        """派单(§9.4)薄包装:实现拆在 dispatch.py,保持 Master 为外部唯一入口。"""
+        from agent.master.dispatch import dispatch_task
 
-        persona 先查内置预设;查不到再查自建 subagent 注册表(§9.4.4,
-        对 master 与预设同构:套用其 mode 与 allowed_tools 白名单)。
-        """
-        preset = resolve_persona(persona) if persona else None
-        custom = self._load_custom(persona) if persona and preset is None else None
-        if custom is not None:
-            if mode is None:
-                mode = custom.mode
-            if allowed_tools is None:
-                allowed_tools = custom.allowed_tools
-            constraints = f"{constraints}\n{custom.description}".strip()
-        elif preset is not None and preset.key == "orchestrator":
-            mode = Mode.REACT.value  # 统筹者强制 ReAct(决策 §15)
-        if allowed_tools is None and preset is not None:
-            allowed_tools = preset.tool_allow
-        limits = limits_from_settings(
+        return await dispatch_task(
+            self,
+            self._spawner,
             self._settings,
-            max_rounds=custom.max_rounds if custom is not None else None,
-            max_tool_calls=custom.max_tool_calls if custom is not None else None,
-        )
-        task = TaskBook(
-            goal=goal,
-            constraints=constraints,
-            mode=Mode(mode) if mode else None,
+            self._policy,
+            self._subagents,
+            self._hooks,
+            goal,
+            persona=persona,
+            mode=mode,
             allowed_tools=allowed_tools,
-            limits=limits,
+            name=name,
+            constraints=constraints,
         )
-        spawn_key = preset.key if preset is not None else persona
-        inst = self._spawner.spawn(task, persona=spawn_key, name=name or goal[:16])
-        if custom is not None and custom.network_mode:
-            inst.toolbelt = self._narrowed_toolbelt(inst.toolbelt, custom.network_mode)
-        self._digests.upsert(inst)
-        if self._hooks is not None:
-            await self._hooks.fire("on_subagent_start", subagent=inst.id, goal=goal)
-
-        async def _run() -> None:
-            try:
-                result = await self._spawner.start(inst)
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:  # noqa: BLE001  # run_turn 已落状态;这里只通报
-                await self._reply(f"[失败] {inst.name}:{type(exc).__name__}: {exc}")
-            else:
-                await self._reply(f"[完成] {inst.name}:{result[:200]}")
-            finally:
-                self._digests.upsert(inst)
-                if self._hooks is not None:
-                    await self._hooks.fire("on_subagent_end", subagent=inst.id)
-
-        task = asyncio.create_task(_run())
-        self._bg.add(task)
-        task.add_done_callback(self._bg.discard)
-        return inst
-
-    def _narrowed_toolbelt(self, belt: Toolbelt, requested_mode: str) -> Toolbelt:
-        """自建 subagent 指定网络档位时的实例专属工具带(§9.9「派出再裁,只能更严」)。
-
-        同一(已裁剪)工具表换一份新 PolicyEngine:fs/app 复用全局,网络档位取
-        narrow_network(全局, 自建),域名用全局 agent.network.domains。
-        拷贝不带 settings 句柄——任务中途全局放宽不回灌到已派出实例。
-        """
-        global_mode = str(self._settings.get("agent.network.mode") or "")
-        domains = tuple(self._settings.get("agent.network.domains") or ())
-        engine = PolicyEngine(
-            network=NetworkPolicy(
-                mode=narrow_network(global_mode, requested_mode), domains=domains
-            ),
-            fs=self._policy.fs if self._policy is not None else None,
-            app=self._policy.app if self._policy is not None else None,
-        )
-        return belt.with_policy(engine)
-
-    def _load_custom(self, name: str):
-        """按名取自建 subagent 定义;未注册返回 None(按普通无名任务处理)。"""
-        from platform_contracts import ServiceError
-
-        if self._subagents is None:
-            return None
-        try:
-            return self._subagents.load(name)
-        except ServiceError:
-            return None
 
     async def consider(self, suggestion: str, *, source_event: str = "") -> None:
-        """observe 的"考虑事项"入口:留痕 + 发 agent.observe(phase-12);开 auto_index 才自动行动。"""
-        if self._memory is not None:
-            self._memory.episodic.log("consider", suggestion, {"source": source_event})
-        acted = False
-        if self._settings.get("agent.observe.auto_index") and "索引" in suggestion:
-            await self.dispatch_task(suggestion, persona="graph_guide", name="auto-index")
-            acted = True
-        if self._bus is not None:
-            # agent.observe ≠ agent.message:观察提示只入 Chat 观察行,不冒充对话
-            await self._bus.publish(
-                Event(
-                    type="agent.observe",
-                    actor=AGENT_MAIN,
-                    payload={"content": suggestion, "source": source_event, "acted": acted},
-                )
-            )
+        """observe 的"考虑事项"入口薄包装:实现拆在 observe.py。"""
+        from agent.master.observe import consider
+
+        await consider(
+            self,
+            self._settings,
+            self._bus,
+            self._memory,
+            suggestion,
+            source_event=source_event,
+        )
 
     async def _reply(self, text: str, *, trace_id: str = "") -> None:
         if self._bus is not None:
@@ -295,3 +225,13 @@ class Master:
     @property
     def chat(self) -> SubagentInstance | None:
         return self._chat
+
+    @property
+    def digests(self) -> DigestStore:
+        """让拆出模块能读写摘要卡片(不暴露私有细节)。"""
+        return self._digests
+
+    @property
+    def background(self) -> set[asyncio.Task]:
+        """让拆出模块能注册后台任务并自动清理。"""
+        return self._bg
