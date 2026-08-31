@@ -66,8 +66,14 @@ def build_agent_registry(deps: CapabilityDeps) -> Registry:
                 for d in deps.subagents.list()
             ],
             "running": [
-                {"id": i.id, "name": i.name, "status": i.status.value,
-                 "goal": i.task.goal, "started_ts": i.state.started_ts}
+                {
+                    "id": i.id, "name": i.name, "status": i.status.value,
+                    "goal": i.task.goal, "started_ts": i.state.started_ts,
+                    "last_step": (
+                        (i.state.steps[-1].summary or "")[:120]
+                        if i.state.steps else ""
+                    ),
+                }
                 for i in deps.spawner.instances.values()
             ],
         }

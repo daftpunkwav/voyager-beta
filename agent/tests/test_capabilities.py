@@ -112,6 +112,35 @@ class TestSurface:
         assert set(out) == {"definitions", "running"}
         assert isinstance(out["definitions"], list)
 
+    async def test_list_subagents_running_has_last_step(self, app, tmp_path) -> None:
+        """phase-20:running 条目含 last_step;有工具步骤时非空。"""
+        from agent.llm import FakeLLM, LLMReply, ToolCall
+
+        app2 = build_agent(
+            data_dir=tmp_path / "rd2",
+            workspace_dir=tmp_path / "ws2",
+            llm=FakeLLM([
+                LLMReply(tool_calls=(ToolCall("1", "list_dir", {"path": "."}),)),
+                LLMReply(text="完成。"),
+            ]),
+        )
+        try:
+            await app2.master.handle_user_message("看看目录")
+            await asyncio.sleep(0.1)
+            out = await execute(app2.registry, "list_subagents", USER_CTX, {})
+            running = out["running"]
+            assert running
+            for r in running:
+                assert "last_step" in r
+                assert r["last_step"] is not None
+            chat = next((r for r in running if r["name"] == "chat"), None)
+            assert chat is not None
+            # 步骤序列里有 list_dir;最终 last_step 可能是最终回复,只要包含 list_dir 或正常文本均可
+            assert chat["last_step"]
+            assert len(chat["last_step"]) <= 120
+        finally:
+            app2.memory.close()
+
 
 class TestMemorySurface:
     """记忆查看/清空(阶段 08):设置页数据源,不改 recall 的检索语义。"""

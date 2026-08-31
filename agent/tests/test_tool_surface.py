@@ -176,6 +176,36 @@ class TestStepEvents:
         assert all(len(s.get("summary", "")) <= 120 for s in steps)
         app.memory.close()
 
+    async def test_step_refreshes_digest_store(self, tmp_path) -> None:
+        """phase-20:工具步骤后 DigestStore 能 render 出最近步骤,且截断 120 字。"""
+        llm = FakeLLM([
+            LLMReply(tool_calls=(ToolCall("1", "list_dir", {"path": "."}),)),
+            LLMReply(text="看完了。"),
+        ])
+        app = _app(tmp_path, llm)
+        await app.master.handle_user_message("看看工作目录")
+        await _settle(app)
+        # 步骤序列里 list_dir 已写入;DigestStore 在每一步都 upsert,因此最终 last_step
+        # 是最后的文本回复。通过实例状态直接断言 list_dir 步骤存在,并验证 render 非空。
+        chat = app.master.chat
+        assert chat is not None
+        assert any(s.name == "list_dir" for s in chat.state.steps)
+        rendered = app.master._digests.render()
+        assert "chat" in rendered
+        assert "| 最近:" in rendered
+        app.memory.close()
+
+    async def test_digest_render_omits_empty_last_step(self, tmp_path) -> None:
+        """phase-20:没有步骤时 render 不拼空「最近」。"""
+        app = _app(tmp_path, FakeLLM(default="收到。"))
+        inst = await app.master.dispatch_task("无工具任务", name="noop")
+        await asyncio.sleep(0.05)
+        rendered = app.master._digests.render()
+        assert "noop" in rendered
+        # 无步骤时 last_step 为空,不应出现「| 最近: 」空尾巴
+        assert not rendered.strip().endswith("| 最近:")
+        app.memory.close()
+
 
 class TestPagePreactivate:
     """phase-09:页面 → 预激活域的小映射(扩到 notes/graph/sources)。"""

@@ -78,6 +78,8 @@ class SubagentInstance:
     build_system: Callable[[TaskBook, str], str] | None = None
     # Spawner 注入的 system 重算函数(phase-15):每回合 run_turn 现调,
     # 风格/画像/页面/digest/skill 索引改动下一句即生效;不持有 builder 引用避免环导入
+    sync_digest: Callable[..., None] | None = None
+    # 步骤发生时同步刷新 DigestStore(phase-20);duck type,不 import digest.py
 
     @property
     def status(self) -> RunStatus:
@@ -169,3 +171,6 @@ class SubagentInstance:
             kind=kind,
             summary=(summary or "")[:120],
         )
+        # 同步刷新 DigestStore(phase-20):master 全局层 render 保持最新。
+        if self.sync_digest is not None:
+            self.sync_digest(self)

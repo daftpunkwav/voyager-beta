@@ -74,6 +74,11 @@ beforeEach(() => {
   useChatStore.setState({ messages: [], question: null, thinking: false, connected: true });
 });
 
+/** phase-20 辅助:带 last_step 的运行中实例 */
+function runningWith(last_step?: string) {
+  return [{ id: 'run-1', name: 'indexer', status: 'running', goal: '建索引', started_ts: 1, last_step }];
+}
+
 /** 渲染并等初载完成(人格区出现即 loading 已结束) */
 async function renderPage() {
   render(<TeamPage />);
@@ -191,6 +196,26 @@ describe('造人表单(phase-07)', () => {
         expect.objectContaining({ name: 'scout' }),
       ),
     );
+  });
+});
+
+describe('实例当前步骤(phase-20)', () => {
+  it('有 last_step 时显示「当前:…」', async () => {
+    running = runningWith('正在 list_dir');
+    await renderPage();
+    expect(screen.getByText(/当前:正在 list_dir/)).toBeTruthy();
+  });
+
+  it('无 last_step 时不出现「当前:」行', async () => {
+    running = runningWith('');
+    await renderPage();
+    expect(screen.queryByText(/当前:/)).toBeNull();
+  });
+
+  it('last_step 缺字段时也不出现「当前:」行', async () => {
+    running = [{ id: 'run-1', name: 'indexer', status: 'running', goal: '建索引', started_ts: 1 }];
+    await renderPage();
+    expect(screen.queryByText(/当前:/)).toBeNull();
   });
 });
 

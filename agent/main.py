@@ -204,6 +204,7 @@ def build_agent(
         checkpoints=checkpoints,
         build_system=_build_system,
         pages=pages,  # 对话实例按当前页面预激活工具(phase-06)
+        sync_digest=digests.upsert,  # 步骤时刷新 DigestStore(phase-20)
     )
     budget = ProactiveBudget(
         per_session=int(settings.get("agent.proactive.per_session")),

@@ -52,6 +52,7 @@ interface RunningSubagent {
   status: string;
   goal: string;
   started_ts: number;
+  last_step?: string;
 }
 
 /** list_subagents.definitions 条目;allowed_tools 为 null 表示不裁剪(全部工具);
@@ -607,6 +608,11 @@ export function TeamPage() {
                     )}
                   </div>
                   <span className="inst-row__goal">{r.goal}</span>
+                  {r.last_step && (
+                    <span className="inst-row__step" title={r.last_step}>
+                      当前:{r.last_step}
+                    </span>
+                  )}
                   <span className="muted small">
                     {r.id} · {relativeTime(r.started_ts)}
                     {r.name === 'chat' || r.id === 'chat'

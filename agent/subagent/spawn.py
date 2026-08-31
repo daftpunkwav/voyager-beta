@@ -28,6 +28,7 @@ class Spawner:
         checkpoints: CheckpointStore | None = None,
         build_system: BuildSystemFn | None = None,
         pages=None,  # PageContextRegistry:对话实例按当前页面预激活工具(phase-06)
+        sync_digest=None,  # 步骤发生时同步刷新 DigestStore(phase-20);duck type
     ) -> None:
         self._llm = llm
         self._toolbelt = toolbelt
@@ -36,6 +37,7 @@ class Spawner:
         self._checkpoints = checkpoints
         self._build_system = build_system or (lambda task, persona: task.goal)
         self._pages = pages
+        self._sync_digest = sync_digest
         self.instances: dict[str, SubagentInstance] = {}
 
     def spawn(
@@ -58,6 +60,7 @@ class Spawner:
             pages=self._pages,
             persona=persona,
             build_system=self._build_system,  # 每回合重算 system(phase-15)
+            sync_digest=self._sync_digest,  # 步骤时刷新 DigestStore(phase-20)
         )
         self.instances[instance.id] = instance
         return instance
