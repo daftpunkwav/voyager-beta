@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useIndexStatus, useTriggerIndex, useDeleteIndex } from '@/hooks/useCodeGraph';
 import { useProjectNotes } from '@/hooks/useNotes';
@@ -14,10 +14,7 @@ import {
 import { EditProjectModal } from '@/components/project/EditProjectModal';
 import { useGraph } from '@/hooks/useGraph';
 import { useUIStore } from '@/stores/uiStore';
-import { getApi } from '@/api/client';
-import type { AgentId, ProjectProgress, SSEEvent } from '@/api/types';
-import { asSSETextDelta } from '@/utils/sse-helpers';
-import { consumeAgentSSEStream } from '@/utils/agentSSEStream';
+import type { AgentId, ProjectProgress } from '@/api/types';
 import { MarkdownRenderer } from '@/components/common/MarkdownRenderer';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -27,7 +24,7 @@ import { formatDate } from '@/utils/date';
 import { categoryLabel } from '@/utils/labels';
 import { AGENT_CATALOG } from '@/constants/agentCatalog';
 import { GLASS_INNER, GLASS_OUTER } from '@/constants/glassTokens';
-import { callCapability } from '@/bridge/client';
+import { sendUserTurn } from '@/bridge/chatSend';
 import { routes } from '@/utils/routes';
 import { rememberSourceDetail } from './provider';
 import {
@@ -180,8 +177,8 @@ function welcomeAiLine(projectName: string): ProjectAiLine {
     id: 'welcome',
     role: 'assistant',
     content:
-      `我是项目分析助手。选择上方专家后点击「开始分析」，或在右侧「AI 学习助手」点「调用」，即可针对 **${projectName}** 生成分析。\n\n` +
-      'Iris 为侦察速览；思考过程默认收起，可点击展开。追问请到 Agent 对话页。',
+      `我是项目分析助手。选择上方专家后点击「开始分析」，即可针对 **${projectName}** 发起分析。\n\n` +
+      'Iris 为侦察速览；分析请求会发到主对话，打开悬浮窗即可看到回复。',
   };
 }
 
@@ -216,12 +213,8 @@ export function ProjectDetailPage() {
   const [aiLines, setAiLines] = useState<ProjectAiLine[]>(() => [
     welcomeAiLine('当前项目'),
   ]);
-  const [aiContent, setAiContent] = useState('');
-  const [aiThinking, setAiThinking] = useState('');
-  const [aiStreaming, setAiStreaming] = useState(false);
   const [fontSize, setFontSize] = useState(14);
   const [noteGenerating, setNoteGenerating] = useState(false);
-  const aiAbortRef = useRef<AbortController | null>(null);
 
   const {
     data: readmeData,
@@ -238,32 +231,9 @@ export function ProjectDetailPage() {
     }
   }, [isError, navigate, addToast]);
 
-  // 离开 ai 标签 / 卸载页面时中断流，避免陈旧结果与资源浪费
-  useEffect(() => {
-    if (tab !== 'ai' && aiAbortRef.current) {
-      aiAbortRef.current.abort();
-      aiAbortRef.current = null;
-      setAiStreaming(false);
-      setAiContent('');
-      setAiThinking('');
-    }
-  }, [tab]);
-
-  useEffect(
-    () => () => {
-      aiAbortRef.current?.abort();
-    },
-    [],
-  );
-
   // 切换项目时重置消息流
   useEffect(() => {
     if (!id) return;
-    aiAbortRef.current?.abort();
-    aiAbortRef.current = null;
-    setAiStreaming(false);
-    setAiContent('');
-    setAiThinking('');
     setAiLines([welcomeAiLine('当前项目')]);
   }, [id]);
 
@@ -302,7 +272,7 @@ export function ProjectDetailPage() {
   const { repo } = splitRepoName(project?.name ?? '');
   const scribeName = repo || project?.name || '';
 
-  /** 页内调用指定专家 Agent 分析当前项目（消息流 + SSE） */
+  /** 页内调用指定专家 Agent 分析当前项目；请求发到主时间线,不在本页假流。 */
   const runAgent = async (agent: AgentId) => {
     if (!id) return;
     const resolved = (agent === 'orchestrator' || agent === 'hub' || agent === 'lucien'
@@ -311,94 +281,32 @@ export function ProjectDetailPage() {
     const meta =
       DETAIL_AGENTS.find((a) => a.id === resolved) ?? DETAIL_AGENTS[0];
     const agentName = meta?.name ?? 'Agent';
-    const agentTagline = meta?.tagline ?? '分析';
     const projectLabel = project?.name ?? id;
     setActiveAgent(resolved);
     setTab('ai');
-    setAiContent('');
-    setAiThinking('');
     setAiLines((prev) => [
       ...prev,
       {
         id: `u_${Date.now()}`,
         role: 'user',
-        content: `请用 ${agentName}（${agentTagline}）分析本项目：${projectLabel}`,
+        content: `请以${agentName}分析仓库 ${projectLabel}（id=${id}）`,
       },
-    ]);
-    setAiStreaming(true);
-    aiAbortRef.current?.abort();
-    const ac = new AbortController();
-    aiAbortRef.current = ac;
-    const stream = getApi().analyzeProject(id, resolved, ac.signal);
-    try {
-      const result = await consumeAgentSSEStream(
-        stream as AsyncGenerator<SSEEvent>,
-        {
-          onTextDelta: (_p, full) => setAiContent(full),
-          onThinking: (_p, full) => setAiThinking(full),
-          onError: (msg) => addToast({ type: 'error', message: msg }),
-        },
-        { signal: ac.signal },
-      );
-      if (ac.signal.aborted) return;
-
-      const assistantText = result.text.trim();
-      if (assistantText) {
-        setAiLines((prev) => [
-          ...prev,
-          {
-            id: `a_${Date.now()}`,
-            role: 'assistant',
-            content: assistantText,
-            thinking: result.thinking || undefined,
-            agentId: resolved,
-          },
-        ]);
-      } else if (!result.sawError) {
-        const hint = result.thinking?.trim()
-          ? '模型只返回了思考/工具状态，未输出正文。请重试，或换 Iris 快速分析。'
-          : '未生成分析内容。请确认设置页 LLM 已配置且测试通过，然后重试。';
-        addToast({ type: 'warning', message: hint });
-        setAiLines((prev) => [
-          ...prev,
-          {
-            id: `a_${Date.now()}`,
-            role: 'assistant',
-            content: hint,
-            thinking: result.thinking || undefined,
-            agentId: resolved,
-          },
-        ]);
-      }
-    } catch (err) {
-      if (!ac.signal.aborted) {
-        const message = err instanceof Error ? err.message : '分析失败';
-        addToast({ type: 'error', message });
-      }
-    } finally {
-      if (aiAbortRef.current === ac) {
-        aiAbortRef.current = null;
-        setAiStreaming(false);
-        setAiContent('');
-        setAiThinking('');
-      }
-    }
-  };
-
-  const abortAgent = () => {
-    aiAbortRef.current?.abort();
-    aiAbortRef.current = null;
-    setAiStreaming(false);
-    setAiContent('');
-    setAiThinking('');
-    setAiLines((prev) => [
-      ...prev,
       {
         id: `sys_${Date.now()}`,
         role: 'assistant',
-        content: '已中止本次分析。可更换专家后重新开始。',
+        content: '已发到主对话，请打开悬浮窗查看。',
       },
     ]);
+    try {
+      await sendUserTurn(`请以${agentName}分析仓库 ${projectLabel}（id=${id}）`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '发送失败';
+      addToast({ type: 'error', message });
+      setAiLines((prev) => [
+        ...prev,
+        { id: `err_${Date.now()}`, role: 'assistant', content: `发送失败：${message}` },
+      ]);
+    }
   };
 
   const handleNewNote = () => {
@@ -425,30 +333,14 @@ export function ProjectDetailPage() {
     if (!project) return;
     setNoteGenerating(true);
     try {
-      let buf = '';
-      const stream = getApi().generateNote(project.id, {
-        mode: 'project',
-        topic: project.name,
-      });
-      for await (const event of stream) {
-        if (event.event === 'text_delta') {
-          buf += asSSETextDelta(event.data).content;
-        }
-      }
-      if (buf.trim()) {
-        const title =
-          buf.split('\n')[0]?.replace(/^#\s*/, '').trim() ||
-          `${project.name} 学习笔记`;
-        const created = await callCapability<{ id: string }>('notes', 'create_note', {
-          title: title.slice(0, 80),
-          content: buf,
-          source_id: project.id,
-        });
-        addToast({ type: 'success', message: '已生成笔记，正在打开编辑器' });
-        navigate(`/notes?note=${created.id}&project=${project.id}`);
-      } else {
-        addToast({ type: 'warning', message: '未生成内容，请检查 LLM 配置' });
-      }
+      await sendUserTurn(
+        `请为仓库 ${project.name}（id=${project.id}）写学习笔记并用 create_note 落库，不要只在对话里贴全文。`
+      );
+      setAiLines((prev) => [
+        ...prev,
+        { id: `sys_${Date.now()}`, role: 'assistant', content: '已请 Agent 生成笔记并落库，请打开悬浮窗查看。' },
+      ]);
+      setTab('ai');
     } catch (err) {
       const message = err instanceof Error ? err.message : '生成笔记失败';
       addToast({ type: 'error', message });
@@ -498,7 +390,7 @@ export function ProjectDetailPage() {
             <button
               type="button"
               className="btn btn-primary"
-              disabled={aiStreaming}
+              disabled={noteGenerating}
               onClick={() => void runAgent(recommendedAgent)}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={14} height={14}>
@@ -690,12 +582,12 @@ export function ProjectDetailPage() {
             agents={DETAIL_AGENTS}
             activeAgent={activeAgent}
             lines={aiLines}
-            streaming={aiStreaming}
-            streamContent={aiContent}
-            streamThinking={aiThinking}
+            streaming={false}
+            streamContent=""
+            streamThinking=""
             onSelectAgent={(agentId) => setActiveAgent(agentId)}
             onRun={() => void runAgent(activeAgent)}
-            onAbort={abortAgent}
+            onAbort={() => {}}
           />
         )}
 
@@ -819,7 +711,7 @@ export function ProjectDetailPage() {
                 key={a.id}
                 type="button"
                 className={`pd-agent ${a.id === recommendedAgent ? 'recommended' : ''} ${activeAgent === a.id && tab === 'ai' ? 'is-active' : ''}`}
-                disabled={aiStreaming}
+                disabled={noteGenerating}
                 onClick={() => void runAgent(a.id as AgentId)}
               >
                 <div className="pd-agent-body">
@@ -829,10 +721,8 @@ export function ProjectDetailPage() {
                   <div className="pd-agent-name">{a.name}</div>
                   <div className="pd-agent-desc">{a.tagline}</div>
                 </div>
-                <span
-                  className={`pd-agent-call${aiStreaming && activeAgent === a.id ? ' is-busy' : ''}`}
-                >
-                  {aiStreaming && activeAgent === a.id ? '分析中' : '调用'}
+                <span className="pd-agent-call">
+                  调用
                 </span>
               </button>
             ))}

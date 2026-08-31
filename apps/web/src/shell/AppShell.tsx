@@ -4,8 +4,8 @@
  *
  * 关键修复(vs. 之前版本):移除给 .app 加 .agent-shell 的逻辑。
  * 旧实现让 .app 被 4 列 grid 覆盖,主列只剩 280px,导致 Topbar 压缩到 280px
- * 且滚出视口(y=-805)。现在 .app 永远保持 2 列布局(Sidebar + main),
- * AgentPage 内部用 .chat-layout 自管理 3 栏布局。 */
+ * 且滚出视口(y=-805)。现在 .app 永远保持 2 列布局(Sidebar + main);
+ * 旧多会话 AgentPage 已归档到 apps/web/archived/agent。 */
 
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar, type SidebarPageKey } from '@/components/layout/Sidebar';

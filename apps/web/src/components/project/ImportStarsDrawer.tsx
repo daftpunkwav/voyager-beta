@@ -206,13 +206,13 @@ export function ImportStarsDrawer({ open, onClose }: ImportStarsDrawerProps) {
       open={open}
       onClose={onClose}
       title="同步 GitHub Stars"
-      subtitle="左侧筛选并勾选仓库；右侧导入助手可自动勾选并说明推荐"
+      subtitle="左侧筛选并勾选仓库；右侧导入助手把推荐发到主对话"
       agentPanel={
         agentAvailable ? (
           <EmbedAgentChat
             mode="import"
             title="导入助手"
-            subtitle="智能勾选 · 说明清单"
+            subtitle="推荐发到主对话 · 请左侧手动勾选"
             agentInitial="C"
             agentClassName="agent-organizer"
             importContext={{

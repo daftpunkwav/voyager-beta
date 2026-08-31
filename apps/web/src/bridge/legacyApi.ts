@@ -422,10 +422,6 @@ class AgentApi {
   /** SSE — 走新事件流 */
   async *chatAgent(): AsyncGenerator<SSEEvent> { /* deprecated:走 /api/chat/stream */ return undefined as never; }
   async *answerQuestion(): AsyncGenerator<SSEEvent> { return undefined as never; }
-  async *analyzeProject(): AsyncGenerator<SSEEvent> { return undefined as never; }
-  async *generateNote(): AsyncGenerator<SSEEvent> { return undefined as never; }
-  async *importAssistChat(): AsyncGenerator<SSEEvent> { return undefined as never; }
-  async *graphGuideChat(): AsyncGenerator<SSEEvent> { return undefined as never; }
 }
 
 // ==================== IApiClient 主类 ====================
@@ -544,10 +540,6 @@ export class LegacyApiClient {
   getPermissions = this.agent.getPermissions.bind(this.agent);
   chatAgent = this.agent.chatAgent.bind(this.agent);
   answerQuestion = this.agent.answerQuestion.bind(this.agent);
-  analyzeProject = this.agent.analyzeProject.bind(this.agent);
-  generateNote = this.agent.generateNote.bind(this.agent);
-  importAssistChat = this.agent.importAssistChat.bind(this.agent);
-  graphGuideChat = this.agent.graphGuideChat.bind(this.agent);
   getContextWindow = this.agent.getContextWindow.bind(this.agent);
 }
 

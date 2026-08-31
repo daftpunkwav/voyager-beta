@@ -65,10 +65,8 @@ export interface StarRepo {
   already_imported?: boolean;
 }
 
-/** select_repos SSE 事件载荷(导入助手勾选操控)。
- *  运行时佐证:agentStore processSSEStream select_repos 分支读 repo_keys/action/reason/count;
- *  EmbedAgentChat.applySelectRepos 与 ImportStarsDrawer/ImportUrlsModal.applyAgentSelection
- *  按 action 'set' | 'add' | 'remove' 消费。 */
+/** select_repos SSE 事件载荷(导入助手勾选操控,旧多会话 agentStore 已归档)。
+ *  Embed 不再自动勾选;ImportStarsDrawer/ImportUrlsModal 仍保留 applyAgentSelection 签名。 */
 export interface SelectReposEvent {
   repo_keys: string[];
   action: 'set' | 'add' | 'remove';
@@ -577,9 +575,9 @@ export interface AgentSession {
   updated_ts: number;
   source?: 'chat' | 'analyze' | 'import' | 'graph';
   status?: 'active' | 'archived';
-  /** 会话列表 UI 未读标记(AgentPage 渲染未读圆点;数据层暂无来源) */
+  /** 会话列表 UI 未读标记(旧多会话已归档) */
   unread?: boolean;
-  /** ISO 形态更新时间(AgentPage formatRelativeTime(s.updated_at)) */
+  /** ISO 形态更新时间(旧多会话已归档) */
   updated_at?: string;
 }
 
@@ -880,20 +878,17 @@ export interface SSEAgentSwitch {
 
 export interface SSESubagentStart {
   type: 'subagent_start';
-  /** 运行时为 snake_case agent_id(agentStore L618 读取) */
+  /** 运行时为 snake_case agent_id(旧多会话 agentStore 已归档) */
   agent_id: AgentId;
   task?: string;
-  /** agentStore L629 读取 */
   reason?: string;
 }
 
 export interface SSESubagentDone {
   type: 'subagent_done';
-  /** 运行时为 snake_case agent_id(agentStore L656 读取) */
+  /** 运行时为 snake_case agent_id(旧多会话 agentStore 已归档) */
   agent_id: AgentId;
-  /** agentStore L658-662 允许 'question' */
   status: 'ok' | 'question' | 'error';
-  /** agentStore L664 读取 */
   thinking?: string;
   output?: string;
 }

@@ -211,14 +211,14 @@ export function ImportUrlsModal({ open, onClose }: ImportUrlsModalProps) {
       open={open}
       onClose={onClose}
       title="导入项目"
-      subtitle="粘贴地址或搜索筛选；右侧助手可自动勾选并说明"
+      subtitle="粘贴地址或搜索筛选；右侧助手把推荐发到主对话"
       size="large"
       agentPanel={
         agentAvailable ? (
           <EmbedAgentChat
             mode="import"
             title="导入助手"
-            subtitle="智能勾选 · Stars/库内对比"
+            subtitle="推荐发到主对话 · 请左侧手动勾选"
             agentInitial="S"
             agentClassName="agent-recon"
             importContext={{

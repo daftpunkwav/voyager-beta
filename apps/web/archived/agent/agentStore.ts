@@ -30,7 +30,7 @@ import { displaySwitchReason } from '@/utils/agentSwitchDisplay';
 import { snapshotSubagents, snapshotToolCalls } from '@/utils/runTrace';
 import { parseActionResult } from '@/utils/actionResult';
 import { canonicalPersonaId } from '@/constants/personas';
-import { HANDLERS, type SseHandlerCtx } from './agentStore/sseHandlers';
+import { HANDLERS, type SseHandlerCtx } from './sseHandlers';
 
 interface ToolCallEntry {
   name: string;
