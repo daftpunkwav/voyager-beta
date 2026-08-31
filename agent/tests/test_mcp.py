@@ -282,6 +282,42 @@ class TestRestart:
             app.memory.close()
             shared.close()
 
+    async def test_start_rejects_invalid_config_without_connect(self, tmp_path) -> None:
+        """phase-13:settings 被直写进来的脏配置(file: url / 空 command),
+        start 先 validate 不进 connect;合法条目不受影响。"""
+        from platform_settings import SettingsStore
+
+        shared = SettingsStore(tmp_path / "shared.db")
+        sessions: dict[str, FakeSession] = {}
+        app = build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=FakeLLM(),
+            settings_store=shared, mcp_connect=fake_connect(sessions),
+        )
+        await shared.set("agent.mcp.servers", [
+            {"id": "dirty-url", "name": "du", "kind": "url",
+             "url": "file:///etc/passwd", "command": "", "args": [],
+             "approval": "package", "approved": ["*"], "enabled": True},
+            {"id": "dirty-cmd", "name": "dc", "kind": "stdio", "command": "",
+             "args": [], "url": "", "approval": "package", "approved": ["*"],
+             "enabled": True},
+            {"id": "ok", "name": "ok", "kind": "stdio", "command": "npx",
+             "args": [], "url": "", "approval": "package", "approved": ["*"],
+             "enabled": True},
+        ], LOCAL_USER)
+        try:
+            await app.mcp.start()
+            assert "dirty-url" not in sessions  # 脏配置不 connect
+            assert "dirty-cmd" not in sessions
+            assert "ok" in sessions  # 合法条目照常挂载
+            state = {s["id"]: s for s in app.mcp.list_state()}
+            assert "file" in state["dirty-url"]["error"]
+            assert state["dirty-cmd"]["error"]
+            assert not [n for n in app.spawner._toolbelt.names()
+                        if n.startswith("mcp__dirty-")]
+        finally:
+            app.close()
+            shared.close()
+
 
 class TestDefaultEmpty:
     async def test_default_pool_empty_no_domain_bridge(self, tmp_path) -> None:

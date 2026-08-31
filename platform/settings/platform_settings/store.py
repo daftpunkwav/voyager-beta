@@ -1,4 +1,4 @@
-"""设置项存取:SQLite 持久化 + 校验 + secret 写保护 + 变更事件(§7.9 / §8.8)。"""
+"""设置项存取:SQLite 持久化 + 校验 + secret/user_only 写保护 + 变更事件(§7.9 / §8.8)。"""
 
 from __future__ import annotations
 
@@ -77,15 +77,23 @@ class SettingsStore:
         return json.loads(row[0]) if row else d.default
 
     async def set(self, key: str, value: Any, actor: ActorRef) -> None:
-        """写设置:校验 → secret 写保护(仅 user,§8.8)→ 落库 → 发变更事件。"""
+        """写设置:校验 → 写保护(secret 隐藏值 / user_only 仅用户,§8.8)→ 落库 → 发变更事件。"""
         d = self._def(key)
-        if d.secret and actor.kind is not ActorKind.USER:
-            raise ServiceError(
-                _DOMAIN,
-                ErrorSuffix.FORBIDDEN,
-                f"secret 设置项仅用户本人可写: {key}",
-                hint="请在设置页手动填写",
-            )
+        if actor.kind is not ActorKind.USER:
+            if d.secret:
+                raise ServiceError(
+                    _DOMAIN,
+                    ErrorSuffix.FORBIDDEN,
+                    f"secret 设置项仅用户本人可写: {key}",
+                    hint="请在设置页手动填写",
+                )
+            if d.user_only:
+                raise ServiceError(
+                    _DOMAIN,
+                    ErrorSuffix.FORBIDDEN,
+                    f"该设置项仅用户可改: {key}",
+                    hint="涉及网络/工作目录/外接服务的安全边界,请在设置页修改",
+                )
         value = validate(d, value)
 
         def _write() -> None:

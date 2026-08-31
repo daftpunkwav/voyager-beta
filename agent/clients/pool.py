@@ -128,12 +128,19 @@ class McpClientPool:
     async def preview(self, sid: str) -> list[dict]:
         """连接(如未连)并 tools/list,返回远端工具清单。
 
-        失败抛 AGENT.UNAVAILABLE(消息可读),错误同时记在条目状态里;
+        连接前先 validate_server_config:脏配置(直写 settings 绕过 add 校验的
+        残留)记条目 error 并拒绝,不进 connect(phase-13)。其余失败抛
+        AGENT.UNAVAILABLE(消息可读),错误同时记在条目状态里;
         配置不受影响,用户修好环境后可再次预览。
         """
         cfg = self.find_config(sid)
         if cfg is None:
             raise ServiceError("agent", ErrorSuffix.NOT_FOUND, f"没有这台外接 MCP: {sid}")
+        try:
+            validate_server_config(cfg)
+        except ServiceError as exc:
+            self._errors[sid] = str(exc)
+            raise
         try:
             if sid not in self._sessions:
                 self._sessions[sid] = await asyncio.wait_for(

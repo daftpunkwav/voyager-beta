@@ -58,6 +58,25 @@ class TestToolRetry:
         assert "[工具失败]" in out
         assert counter["calls"] == 1
 
+    async def test_spawn_subagent_is_write_never_retried(self, tmp_path) -> None:
+        """spawn_subagent 有副作用(创建运行实例):标 write,失败只进 1 次
+        handler,不按只读重试双开实例(phase-13)。"""
+        from agent.tools.spawn_subagent import spawn_tool
+
+        calls = {"n": 0}
+
+        async def failing_dispatch(*args, **kwargs):
+            calls["n"] += 1
+            raise RuntimeError("boom")
+
+        tool = spawn_tool(failing_dispatch)["spawn_subagent"]
+        assert tool.write is True
+        root = ensure_workdir(tmp_path / "ws")
+        belt = _belt(root, {"spawn_subagent": tool})
+        out = await belt.call(ToolCall("t1", "spawn_subagent", {"goal": "x"}))
+        assert "[工具失败]" in out
+        assert calls["n"] == 1
+
 
 class TestToolBreaker:
     async def test_opens_after_consecutive_failures(self, tmp_path) -> None:

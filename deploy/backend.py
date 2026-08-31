@@ -35,7 +35,8 @@ def _resolve_workspace(
 ) -> Path:
     """工作目录解析(§9.10):显式入参(测试注入口)优先;否则读 agent.workspace.dir,
     相对路径以仓库根为基准,空/缺省回落 ROOT/workspace。settings 库中的值禁止
-    含 `..` 段(防越出仓库根);改目录后需重启才换 jail(fs 工具与资源库启动装配)。"""
+    越出仓库根(含 `..` 段与任意绝对路径);改目录后需重启才换 jail(fs 工具与
+    资源库启动装配)。"""
     if workspace_dir is not None:
         return Path(workspace_dir)
     raw = str(settings_store.get("agent.workspace.dir") or "").strip()
@@ -48,6 +49,14 @@ def _resolve_workspace(
             f"agent.workspace.dir 禁止包含 .. 段: {raw}",
         )
     path = Path(raw)
+    resolved = (path if path.is_absolute() else ROOT / path).resolve()
+    # resolve 后必须仍落在仓库根之内:`C:\`、`/`、其它盘、软链出去的都拒
+    if not resolved.is_relative_to(ROOT.resolve()):
+        raise ServiceError(
+            "agent",
+            ErrorSuffix.INVALID_INPUT,
+            f"agent.workspace.dir 必须落在仓库根之内: {raw}",
+        )
     return path if path.is_absolute() else ROOT / path
 
 

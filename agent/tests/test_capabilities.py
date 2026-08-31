@@ -35,6 +35,31 @@ class TestSettingsParity:
         assert result["ok"] is True
         assert app.settings.get("agent.style") == "毒舌"
 
+    async def test_agent_cannot_write_sensitive_settings(self, app) -> None:
+        """phase-13:网络/MCP/工作目录是扩权边界,user_only 仅用户可写。"""
+        for key, value in [
+            ("agent.network.mode", "all"),
+            ("agent.network.domains", ["evil.com"]),
+            ("agent.mcp.servers", [{"id": "evil", "kind": "url", "url": "https://evil.com"}]),
+            ("agent.workspace.dir", "C:\\Windows"),
+        ]:
+            with pytest.raises(ServiceError) as exc:
+                await execute(app.registry, "set_setting", AGENT_CTX,
+                              {"key": key, "value": value})
+            assert exc.value.body.code == "SETTINGS.FORBIDDEN", key
+        assert app.settings.get("agent.network.mode") == "whitelist"  # 值不变
+        assert app.settings.get("agent.mcp.servers") == []
+        assert app.settings.get("agent.workspace.dir") == "workspace"
+
+    async def test_user_can_write_sensitive_settings_and_schema_shows_value(self, app) -> None:
+        """USER 仍能写(设置页路径),schema 照常回显当前值(user_only ≠ secret)。"""
+        await execute(app.registry, "set_setting", USER_CTX,
+                      {"key": "agent.network.mode", "value": "all"})
+        assert app.settings.get("agent.network.mode") == "all"
+        schema = {s["key"]: s for s in await execute(app.registry, "get_settings", USER_CTX, {})}
+        assert schema["agent.network.mode"]["value"] == "all"
+        assert schema["agent.network.mode"]["secret"] is False
+
     async def test_unknown_setting_rejected(self, app) -> None:
         with pytest.raises(ServiceError):
             await execute(

@@ -1,7 +1,9 @@
-"""agent 自身设置项(§8.8):用户能改的 agent 也能改(secret 除外,框架层强制)。
+"""agent 自身设置项(§8.8):用户能改的 agent 也能改(secret / user_only 除外,框架层强制)。
 
-轮数上限(§9.19)、仲裁模式(§9.7)、触达预算(§9.8)、网络/工作目录(§9.9/§9.10)、
-记忆保留(§9.11)、观察开关(§9.2)——全部非 secret,用户与 agent 同权修改,入审计。
+轮数上限(§9.19)、仲裁模式(§9.7)、触达预算(§9.8)、记忆保留(§9.11)、
+观察开关(§9.2)——非 secret 且非 user_only,用户与 agent 同权修改,入审计。
+网络/工作目录/外接 MCP(§9.9/§9.10/§9.13)是安全边界,标 user_only:
+仅用户可写(提示注入经 agent 写不进),但值照常回显(设置页要显示当前档位)。
 """
 
 from platform_settings import SettingDef, SettingType
@@ -29,12 +31,14 @@ DEFS = [
     SettingDef(key="agent.proactive.quiet_end", module="agent", type=SettingType.INT,
                default=7, min=0, max=23, description="安静时段结束(小时)"),
     SettingDef(key="agent.workspace.dir", module="agent", type=SettingType.STR,
-               default="workspace", description="agent 默认工作目录(§9.10)"),
+               default="workspace", user_only=True,
+               description="agent 默认工作目录(§9.10;仅用户可改)"),
     SettingDef(key="agent.network.mode", module="agent", type=SettingType.CHOICE,
-               default="whitelist", choices=("off", "whitelist", "all"),
-               description="网络权限模式(§9.9)"),
+               default="whitelist", choices=("off", "whitelist", "all"), user_only=True,
+               description="网络权限模式(§9.9;仅用户可改)"),
     SettingDef(key="agent.network.domains", module="agent", type=SettingType.JSON,
-               default=["github.com", "arxiv.org"], description="网络白名单域名"),
+               default=["github.com", "arxiv.org"], user_only=True,
+               description="网络白名单域名(仅用户可改)"),
     SettingDef(key="agent.subagents.max_concurrent", module="agent", type=SettingType.INT,
                default=3, min=1, max=16, description="subagent 并发上限"),
     SettingDef(key="agent.memory.retention_days", module="agent", type=SettingType.INT,
@@ -45,6 +49,8 @@ DEFS = [
     # 外接 MCP(phase-11b,§9.13):用户在设置页添加的 stdio/URL server 列表。
     # 一条记录:{id,name,kind,command,args,url,approval,approved,enabled};
     # 远端 schema / 本机绝对路径不进这条 JSON,连接细节在运行态。
+    # user_only:提示注入改不了 server 列表(phase-13)。
     SettingDef(key="agent.mcp.servers", module="agent", type=SettingType.JSON,
-               default=[], description="外接 MCP server 配置与批准记录(§9.13)"),
+               default=[], user_only=True,
+               description="外接 MCP server 配置与批准记录(§9.13;仅用户可改)"),
 ]

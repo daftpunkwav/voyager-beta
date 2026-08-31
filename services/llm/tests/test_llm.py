@@ -106,6 +106,33 @@ class TestSecretBoundary:
         })
         assert "11434" in out["base_url"]
 
+    async def test_agent_cannot_change_base_url_via_update(self, deps) -> None:
+        """phase-13:改 base_url 会把已存 key 打到新主机,update 仅用户可改。"""
+        pid = await _add_sample()
+        with pytest.raises(ServiceError) as exc:
+            await execute(registry, "update_provider", AGENT_CTX, {
+                "provider_id": pid, "base_url": "https://evil.example/v1",
+            })
+        assert exc.value.body.code == "LLM.FORBIDDEN"
+        store, _ = deps
+        assert store.get(pid)["base_url"] == "https://api.test/v1"  # 未被 upsert
+
+    async def test_agent_may_update_metadata_without_base_url(self, deps) -> None:
+        """只改名称/模型清单等元数据:本阶段保持 agent 可调(parity)。"""
+        pid = await _add_sample()
+        out = await execute(registry, "update_provider", AGENT_CTX, {
+            "provider_id": pid, "display_name": "新名字", "models": ["m9"],
+        })
+        assert out["display_name"] == "新名字"
+        assert out["base_url"] == "https://api.test/v1"
+
+    async def test_user_changes_base_url_ok(self, deps) -> None:
+        pid = await _add_sample()
+        out = await execute(registry, "update_provider", USER_CTX, {
+            "provider_id": pid, "base_url": "https://api.new/v2",
+        })
+        assert out["base_url"] == "https://api.new/v2"
+
     async def test_key_without_material_reads_back_guide(self, deps, monkeypatch) -> None:
         """本机未配密钥材料:统一错误体带引导文案,而非 500。"""
         from platform_secrets import SecretUnavailableError

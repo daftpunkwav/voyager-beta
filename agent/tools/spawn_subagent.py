@@ -34,5 +34,7 @@ def spawn_tool(dispatch: DispatchFn) -> dict[str, AgentTool]:
                 },
                 "required": ["goal"],
             },
+            # 有副作用(创建运行实例):失败禁重试,防双实例(§9.17 写类不重试)
+            write=True,
         )
     }

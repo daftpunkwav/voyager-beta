@@ -153,6 +153,13 @@ def update_provider(
     deps = _require_deps()
     current = _require_provider(provider_id)
     if base_url is not None:
+        # 改 base_url 会让下次 complete 把已存 key 打到新主机:仅用户本人(phase-13)
+        if _actor is None or _actor.kind is not ActorKind.USER:
+            raise ServiceError(
+                _DOMAIN, ErrorSuffix.FORBIDDEN,
+                "base_url 仅用户本人可改",
+                hint="agent 可更新名称/模型清单等元数据;改接口地址请在设置页操作",
+            )
         base_url = _validate_base_url(base_url, _actor)
     if api_format is not None and not valid_format(api_format):
         raise ServiceError(

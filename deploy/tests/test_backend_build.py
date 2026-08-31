@@ -1,13 +1,14 @@
 """聚合装配测试:build() 起全系统,/health 六域 up,能力经聚合入口可用。"""
 
 import asyncio
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 from platform_contracts import LOCAL_USER, ServiceError
+from platform_settings import SettingsStore
 
 from deploy.backend import ROOT, _resolve_workspace, build
-from platform_settings import SettingsStore
 
 DOMAINS = {"llm", "sources", "notes", "graph", "settings", "agent"}
 
@@ -47,7 +48,7 @@ def test_domain_tools_reach_agent(tmp_path) -> None:
 
 class TestWorkspaceResolution:
     """工作目录解析(phase-10,§9.10):显式入参优先,否则读 agent.workspace.dir,
-    相对路径拼仓库根,含 .. 段拒绝。"""
+    相对路径拼仓库根;`..` 段与越出仓库根的绝对路径拒绝(phase-13 防越狱)。"""
 
     def _store(self, tmp_path, raw) -> SettingsStore:
         store = SettingsStore(tmp_path / "settings.db")
@@ -75,3 +76,24 @@ class TestWorkspaceResolution:
         with pytest.raises(ServiceError) as exc:
             _resolve_workspace(None, store)
         assert exc.value.body.code == "AGENT.INVALID_INPUT"
+
+    def test_absolute_root_rejected(self, tmp_path) -> None:
+        """绝对盘根(C:\\ 或 /)拒绝,不静默回落默认目录。"""
+        store = self._store(tmp_path, str(Path(ROOT.anchor)))
+        with pytest.raises(ServiceError) as exc:
+            _resolve_workspace(None, store)
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+
+    def test_absolute_outside_root_rejected(self, tmp_path) -> None:
+        """同盘仓库外路径(D:\\evil)同样拒绝。"""
+        outside = Path(ROOT.anchor) / "evil-ws"
+        store = self._store(tmp_path, str(outside))
+        with pytest.raises(ServiceError) as exc:
+            _resolve_workspace(None, store)
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+
+    def test_absolute_inside_root_allowed(self, tmp_path) -> None:
+        """仓库根之下的绝对路径放行(不是一刀切禁绝对路径)。"""
+        inside = ROOT / "in-repo-ws"
+        store = self._store(tmp_path, str(inside))
+        assert _resolve_workspace(None, store) == inside

@@ -25,7 +25,8 @@ class SettingType(str, Enum):
 
 @dataclass(frozen=True)
 class SettingDef:
-    """设置项声明(§7.9)。secret=True 的值永不进 list_schema / 事件 payload。"""
+    """设置项声明(§7.9)。secret=True 的值永不进 list_schema / 事件 payload;
+    user_only=True 的项仅用户可写(防 agent 经设置扩权),但值照常回显。"""
 
     key: str
     module: str
@@ -33,6 +34,7 @@ class SettingDef:
     default: Any = None
     description: str = ""
     secret: bool = False
+    user_only: bool = False
     choices: tuple[Any, ...] = ()
     min: float | None = None
     max: float | None = None
