@@ -21,6 +21,33 @@ def app(tmp_path):
     app.memory.close()
 
 
+class TestRegistrySurface:
+    async def test_capability_names_frozen(self, app) -> None:
+        assert app.registry.names() == [
+            "add_mcp_server",
+            "answer_question",
+            "approve_mcp_tools",
+            "cancel_run",
+            "clear_memory",
+            "delete_profile",
+            "get_memory",
+            "get_settings",
+            "list_mcp_servers",
+            "list_personas",
+            "list_skills",
+            "list_subagents",
+            "list_tools",
+            "preview_mcp_tools",
+            "read_skill",
+            "recall_memory",
+            "register_subagent",
+            "remove_mcp_server",
+            "report_page_context",
+            "set_profile",
+            "set_setting",
+        ]
+
+
 class TestSettingsParity:
     async def test_get_settings_lists_schema(self, app) -> None:
         schema = await execute(app.registry, "get_settings", USER_CTX, {})
