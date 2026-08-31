@@ -62,7 +62,7 @@ describe('uiStore(主题/侧栏/字体/toast)', () => {
   });
 });
 
-describe('bridge/legacyApi(兼容层 84 方法 → callCapability)', () => {
+describe('bridge/legacyApi(兼容层 74 方法 → callCapability)', () => {
   it('ERROR_CODES 本地码全部存在', () => {
     const expected = [
       'UNAVAILABLE',
@@ -108,7 +108,7 @@ describe('bridge/legacyApi(兼容层 84 方法 → callCapability)', () => {
 
   it('单例具备 7 个域类(auth/projects/notes/graph/settings/overview/agent)', () => {
     const api = getLegacyApi() as unknown as Record<string, unknown>;
-    // LegacyApiClient 暴露 7 个域对象(命名沿用旧 IApiClient 域类名) + 顶层 84 方法
+    // LegacyApiClient 暴露 7 个域对象(命名沿用旧 IApiClient 域类名) + 顶层 74 方法
     expect(typeof api.auth).toBe('object');
     expect(typeof api.projects).toBe('object');
     expect(typeof api.notes).toBe('object');

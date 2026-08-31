@@ -1,4 +1,4 @@
-/** 数据门面实现层(不由业务代码直接引用)— 84 个方法内部全部走 callCapability,
+/** 数据门面实现层(不由业务代码直接引用)— 74 个方法内部全部走 callCapability,
  * 保留旧调用形态(命名中性,domain 归类为 agent / source / note / graph / setting / usage / system)。
  *
  * 设计目的:让已迁移的旧 page / hooks / components 在不修改源码的情况下,
@@ -127,18 +127,9 @@ const METHOD_MAP: Record<string, { domain: string; name: string; argMap?: Record
 
   // ---- agent(状态 / profile / memory) ----
   // 会话 CRUD 已废弃(单时间线,§6.3):见 AgentApi 内的显式抛错,不再静默映射
-  getAgentProfiles: { domain: 'agent', name: 'list_personas' },
-  getUserProfile: { domain: 'agent', name: 'recall_memory' },
-  updateUserProfile: { domain: 'agent', name: 'recall_memory' /* 降级 */ },
-  clearUserMemory: { domain: 'agent', name: 'recall_memory' /* 降级 */ },
-  acceptMemoryProposal: { domain: 'agent', name: 'recall_memory' /* 降级 */ },
-  rejectMemoryProposal: { domain: 'agent', name: 'recall_memory' /* 降级 */ },
-  getPermissions: { domain: 'agent', name: 'list_tools' },
-  getContextWindow: { domain: 'agent', name: 'list_tools' /* 降级 */ },
 
   // ---- overview(用 activity + sources 聚合) ----
   listTrending: { domain: 'sources', name: 'search_remote_repos' /* 降级 */ },
-  listActivities: { domain: 'agent', name: 'recall_memory' /* 降级:从事件流聚合 */ },
   listRecommendedProjects: { domain: 'sources', name: 'list_repos' /* 降级 */ },
   listOverviewRecentNotes: { domain: 'notes', name: 'list_notes' },
 };
@@ -411,14 +402,6 @@ class AgentApi {
   createAgentSession() { deprecatedSessionApi('createAgentSession'); }
   deleteAgentSession(_id: string) { deprecatedSessionApi('deleteAgentSession'); }
   updateAgentSession(_id: string, _d: unknown) { deprecatedSessionApi('updateAgentSession'); }
-  getAgentProfiles() { return call('getAgentProfiles'); }
-  getUserProfile() { return call('getUserProfile'); }
-  updateUserProfile(d: unknown) { return call('updateUserProfile', d as Record<string, unknown>); }
-  clearUserMemory() { return call('clearUserMemory'); }
-  acceptMemoryProposal(_id: string) { return call('acceptMemoryProposal'); }
-  rejectMemoryProposal(_id: string) { return call('rejectMemoryProposal'); }
-  getPermissions() { return call('getPermissions'); }
-  getContextWindow(_sessionId?: string) { return call('getContextWindow'); }
   /** SSE — 走新事件流 */
   async *chatAgent(): AsyncGenerator<SSEEvent> { /* deprecated:走 /api/chat/stream */ return undefined as never; }
   async *answerQuestion(): AsyncGenerator<SSEEvent> { return undefined as never; }
@@ -531,16 +514,8 @@ export class LegacyApiClient {
   createAgentSession = this.agent.createAgentSession.bind(this.agent);
   deleteAgentSession = this.agent.deleteAgentSession.bind(this.agent);
   updateAgentSession = this.agent.updateAgentSession.bind(this.agent);
-  getAgentProfiles = this.agent.getAgentProfiles.bind(this.agent);
-  getUserProfile = this.agent.getUserProfile.bind(this.agent);
-  updateUserProfile = this.agent.updateUserProfile.bind(this.agent);
-  clearUserMemory = this.agent.clearUserMemory.bind(this.agent);
-  acceptMemoryProposal = this.agent.acceptMemoryProposal.bind(this.agent);
-  rejectMemoryProposal = this.agent.rejectMemoryProposal.bind(this.agent);
-  getPermissions = this.agent.getPermissions.bind(this.agent);
   chatAgent = this.agent.chatAgent.bind(this.agent);
   answerQuestion = this.agent.answerQuestion.bind(this.agent);
-  getContextWindow = this.agent.getContextWindow.bind(this.agent);
 }
 
 let _api: LegacyApiClient | null = null;

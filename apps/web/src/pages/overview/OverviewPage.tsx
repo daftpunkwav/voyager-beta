@@ -8,8 +8,6 @@ import {
 } from '@/hooks/useProjects';
 import { useOverviewRecentNotes, useRecommendedProjects } from '@/hooks/useOverview';
 import { useTrendingSpotlight } from '@/hooks/useTrendingSpotlight';
-import { useQuery } from '@tanstack/react-query';
-import { getApi } from '@/api/client';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { formatRelativeTime, formatDateTime } from '@/utils/date';
 import { formatNumber, langCssClass, REPO_AVATAR_GRADIENTS, splitRepoName } from '@/utils/format';
@@ -41,11 +39,6 @@ export function OverviewPage() {
   const { data: activities } = useActivities();
   const [period, setPeriod] = useState<TrendingPeriod>('weekly');
   const { data: trending = [] } = useTrending(period);
-
-  const { data: profile } = useQuery({
-    queryKey: ['userProfile'],
-    queryFn: async () => (await getApi().getUserProfile()).data,
-  });
 
   const trendingGridRef = useRef<HTMLDivElement>(null);
   const recentNotesPanelRef = useRef<HTMLDivElement>(null);
@@ -262,8 +255,7 @@ export function OverviewPage() {
               </div>
               <div className="summary-body">
                 <p>
-                  {profile?.history_summary ??
-                    `${username}，本周继续保持学习节奏，Agent 将为你生成个性化周报。`}
+                  {`${username}，本周继续保持学习节奏，Agent 将为你生成个性化周报。`}
                 </p>
               </div>
             </section>
