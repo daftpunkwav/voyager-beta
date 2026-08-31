@@ -25,7 +25,7 @@ from agent.master import Arbiter, DigestStore, Master, ProactiveBudget, Proactiv
 from agent.memory import Memory
 from agent.observe import Observer
 from agent.personas import resolve_persona
-from agent.policy import FsPolicy, NetworkPolicy, PolicyEngine
+from agent.policy import AppPolicy, FsPolicy, NetworkPolicy, PolicyEngine
 from agent.runtime import EventLoop, Meter, RuntimeEvents, Scheduler
 from agent.runtime.state import CheckpointStore, reclaim_alive
 from agent.settings import DEFS as AGENT_SETTING_DEFS
@@ -124,7 +124,11 @@ def build_agent(
             domains=tuple(settings.get("agent.network.domains")),
         ),
         fs=FsPolicy(roots=(str(workspace),)),
-        settings=settings,  # 网络判定热读设置(§9.9):改档位/白名单不重启即生效
+        app=AppPolicy(
+            allowed=frozenset(settings.get("agent.app.allowed")),
+            denied=frozenset(settings.get("agent.app.denied")),
+        ),
+        settings=settings,  # 网络/app 判定热读设置(§9.9):改档位/白名单不重启即生效
     )
     meter = Meter()
     events = RuntimeEvents(bus)

@@ -156,12 +156,17 @@ class Toolbelt:
         tool = self._tools.get(call.name)
         if tool is None:
             return f"[未知工具] {call.name}(可能未授予本 subagent)"
-        target = str(
-            call.arguments.get("path")
-            or call.arguments.get("url")
-            or call.arguments.get("command")
-            or tool.name
-        )
+        # app 维 target 必须是工具名(phase-19):桥工具参数里常有 url/path,
+        # 拿它们去对 `notes__create_note` 白名单会永远失配。
+        if tool.dimension == "app":
+            target = tool.name
+        else:
+            target = str(
+                call.arguments.get("path")
+                or call.arguments.get("url")
+                or call.arguments.get("command")
+                or tool.name
+            )
         decision = self._policy.decide(
             Action(
                 dimension=tool.dimension,

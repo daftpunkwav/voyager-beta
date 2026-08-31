@@ -113,6 +113,35 @@ class TestConfirmFlow:
         assert "[未知工具]" in out
 
 
+class TestAppPolicyTarget:
+    async def test_app_dimension_uses_tool_name_not_url(self) -> None:
+        """app 维判定用工具名做 target,带 url 参数的桥工具仍按工具名命中(phase-19)。"""
+        from agent.llm import ToolCall
+        from agent.policy import AppPolicy, PolicyEngine
+        from agent.tools import AgentTool, Toolbelt
+
+        async def handler(url: str = "") -> dict:
+            return {"ok": True, "url": url}
+
+        tool = AgentTool(
+            name="notes__create_note", description="写笔记", handler=handler,
+            schema={"url": {"type": "string"}}, dimension="app", write=True,
+        )
+        allowed = Toolbelt(
+            {"notes__create_note": tool},
+            PolicyEngine(app=AppPolicy(allowed=frozenset({"notes__create_note"}))),
+        )
+        out = await allowed.call(ToolCall("1", "notes__create_note", {"url": "https://evil.com"}))
+        assert "ok" in out
+
+        denied = Toolbelt(
+            {"notes__create_note": tool},
+            PolicyEngine(app=AppPolicy(allowed=frozenset({"*"}), denied=frozenset({"notes__create_note"}))),
+        )
+        out = await denied.call(ToolCall("2", "notes__create_note", {"url": "https://github.com"}))
+        assert "[已拒绝]" in out
+
+
 class TestShellGuard:
     async def test_destructive_commands_blocked(self) -> None:
         """整机级破坏命令在执行前被硬拦截(即使 L2 确认通道缺失)。"""

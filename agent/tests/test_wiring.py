@@ -34,6 +34,8 @@ class TestSharedSettings:
         assert app.settings is shared  # 直接复用,不新建
         keys = {d["key"] for d in shared.list_schema()}
         assert "agent.style" in keys  # agent.* 已注册进共享 store
+        assert "agent.app.allowed" in keys
+        assert "agent.app.denied" in keys
         app.memory.close()
 
     def test_close_does_not_close_shared_store(self, tmp_path) -> None:

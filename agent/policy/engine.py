@@ -111,6 +111,23 @@ class PolicyEngine:
             domains=tuple(self._settings.get("agent.network.domains") or ()),
         )
 
+    def _app_policy(self) -> AppPolicy:
+        """本次判定用的应用内白名单:有 settings 句柄则热读当前值,否则用构造快照。
+        非法值(非字符串列表)整份回落快照,不把坏设置当成全拒把 Agent 打残。
+        """
+        if self._settings is None:
+            return self.app
+        try:
+            allowed_raw = self._settings.get("agent.app.allowed")
+            denied_raw = self._settings.get("agent.app.denied")
+            allowed = list(allowed_raw) if isinstance(allowed_raw, (list, tuple, set)) else None
+            denied = list(denied_raw) if isinstance(denied_raw, (list, tuple, set)) else None
+            if allowed is None or denied is None or not all(isinstance(x, str) for x in allowed + denied):
+                return self.app
+            return AppPolicy(allowed=frozenset(allowed), denied=frozenset(denied))
+        except Exception:  # noqa: BLE001  # settings 异常时保守回落快照
+            return self.app
+
     def _decide_network(self, action: Action) -> Decision:
         net = self._network_policy()
         if net.mode == NET_OFF:
@@ -143,11 +160,22 @@ class PolicyEngine:
             False, reason=f"路径在工作目录之外: {target}(fs jail,§9.9/§9.10)"
         )
 
+    @staticmethod
+    def _matches_policy(name: str, entries: frozenset[str]) -> bool:
+        """命中规则:精确相等、`*` 通配、或以 `*` 结尾的前缀(如 `notes__*`)。"""
+        if "*" in entries:
+            return True
+        if name in entries:
+            return True
+        prefixes = [e[:-1] for e in entries if e.endswith("*") and len(e) > 1]
+        return any(name.startswith(p) for p in prefixes)
+
     def _decide_app(self, action: Action) -> Decision:
         name = action.target
-        if name in self.app.denied:
+        app = self._app_policy()
+        if self._matches_policy(name, app.denied):
             return Decision(False, reason=f"能力被显式禁用: {name}")
-        if "*" not in self.app.allowed and name not in self.app.allowed:
+        if not self._matches_policy(name, app.allowed):
             return Decision(False, reason=f"能力不在白名单: {name}")
         if action.irreversible:
             return Decision(True, Level.L2_CONFIRM, "不可逆能力需确认")

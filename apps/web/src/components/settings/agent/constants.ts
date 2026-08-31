@@ -44,6 +44,10 @@ export const PROACTIVE_QUIET_END_MAX = 23;
 /** 观察自动行动(agent.observe.auto_index,§9.2/phase-12):默认关,只提示不建索引 */
 export const AUTO_INDEX_KEY = 'agent.observe.auto_index';
 
+/** 应用内能力白名单(agent.app.*,§9.9/phase-19):仅用户可改,热读后影响桥工具 */
+export const APP_ALLOWED_KEY = 'agent.app.allowed';
+export const APP_DENIED_KEY = 'agent.app.denied';
+
 /** 记忆区中文名(确认框标题与 toast 用) */
 export const ZONE_LABELS: Record<'profile' | 'episodic' | 'semantic' | 'working' | 'all', string> = {
   profile: '用户画像',

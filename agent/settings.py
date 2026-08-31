@@ -2,7 +2,7 @@
 
 轮数上限(§9.19)、仲裁模式(§9.7)、触达预算(§9.8)、记忆保留(§9.11)、
 观察开关(§9.2)——非 secret 且非 user_only,用户与 agent 同权修改,入审计。
-网络/工作目录/外接 MCP(§9.9/§9.10/§9.13)是安全边界,标 user_only:
+网络/工作目录/外接 MCP/应用内能力白名单(§9.9/§9.10/§9.13)是安全边界,标 user_only:
 仅用户可写(提示注入经 agent 写不进),但值照常回显(设置页要显示当前档位)。
 """
 
@@ -53,4 +53,13 @@ DEFS = [
     SettingDef(key="agent.mcp.servers", module="agent", type=SettingType.JSON,
                default=[], user_only=True,
                description="外接 MCP server 配置与批准记录(§9.13;仅用户可改)"),
+    # 应用内 capability 白名单(phase-19,§9.9):仅用户可改,热读后立即影响桥工具调用。
+    # 名称形如 `notes__create_note`、`graph__search`;`*` 表示全部;`notes__*` 表示前缀。
+    # 空允许名单会拒绝所有 app 维工具,UI 必须拦空,后端保持语义不变。
+    SettingDef(key="agent.app.allowed", module="agent", type=SettingType.JSON,
+               default=["*"], user_only=True,
+               description="应用内能力白名单(§9.9;仅用户可改)"),
+    SettingDef(key="agent.app.denied", module="agent", type=SettingType.JSON,
+               default=[], user_only=True,
+               description="应用内能力拒绝名单(§9.9;拒绝优先;仅用户可改)"),
 ]

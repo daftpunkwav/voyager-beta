@@ -1,4 +1,5 @@
 import type { Settings } from '@/api/types';
+import { AppPolicyBlock } from './agent/AppPolicyBlock';
 import { ConductBlock } from './agent/ConductBlock';
 import { LimitsBlock } from './agent/LimitsBlock';
 import { MemoryBlock } from './agent/MemoryBlock';
@@ -21,6 +22,7 @@ export function AgentSettingsSection({ settings, updateSettings }: AgentSettings
 
       <ConductBlock settings={settings} updateSettings={updateSettings} />
       <LimitsBlock />
+      <AppPolicyBlock />
       <ProactiveBlock />
       <ObserveBlock />
       <SkillsBlock />

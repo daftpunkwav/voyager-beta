@@ -76,10 +76,26 @@ class TestApp:
         )
         assert not engine.decide(Action(dimension="app", target="danger_op")).allow
 
+    def test_prefix_denied(self) -> None:
+        engine = PolicyEngine(
+            app=AppPolicy(allowed=frozenset({"*"}), denied=frozenset({"notes__*"}))
+        )
+        assert not engine.decide(Action(dimension="app", target="notes__create_note")).allow
+        assert engine.decide(Action(dimension="app", target="graph__search")).allow
+
+    def test_prefix_allowed(self) -> None:
+        engine = PolicyEngine(app=AppPolicy(allowed=frozenset({"notes__*"})))
+        assert engine.decide(Action(dimension="app", target="notes__create_note")).allow
+        assert not engine.decide(Action(dimension="app", target="graph__search")).allow
+
     def test_irreversible_confirm(self) -> None:
         engine = PolicyEngine()
         d = engine.decide(Action(dimension="app", target="delete_note", irreversible=True))
         assert d.allow and d.level == Level.L2_CONFIRM
+
+    def test_empty_allowed_denies_all(self) -> None:
+        engine = PolicyEngine(app=AppPolicy(allowed=frozenset()))
+        assert not engine.decide(Action(dimension="app", target="notes__create_note")).allow
 
 
 class TestShell:
@@ -131,3 +147,38 @@ class TestHotNetworkSettings:
         assert narrow_network("off", "all") == "off"
         assert narrow_network("all", "all") == "all"
         assert narrow_network("whitelist", "whitelist") == "whitelist"
+
+
+class TestHotAppSettings:
+    """应用内能力白名单热读(phase-19):不传 settings 用构造快照,传了现读。"""
+
+    def test_settings_override_allowed(self) -> None:
+        settings = _FakeSettings({"agent.app.allowed": ["notes__create_note"],
+                                  "agent.app.denied": []})
+        engine = PolicyEngine(app=AppPolicy(allowed=frozenset({"*"})), settings=settings)
+        assert engine.decide(Action(dimension="app", target="notes__create_note")).allow
+        assert not engine.decide(Action(dimension="app", target="graph__search")).allow
+
+    def test_settings_denied_beats_wildcard(self) -> None:
+        settings = _FakeSettings({"agent.app.allowed": ["*"],
+                                  "agent.app.denied": ["notes__delete_note"]})
+        engine = PolicyEngine(app=AppPolicy(), settings=settings)
+        assert not engine.decide(Action(dimension="app", target="notes__delete_note")).allow
+        assert engine.decide(Action(dimension="app", target="graph__search")).allow
+
+    def test_settings_prefix_denied(self) -> None:
+        settings = _FakeSettings({"agent.app.allowed": ["*"],
+                                  "agent.app.denied": ["notes__*"]})
+        engine = PolicyEngine(app=AppPolicy(), settings=settings)
+        assert not engine.decide(Action(dimension="app", target="notes__create_note")).allow
+        assert engine.decide(Action(dimension="app", target="graph__search")).allow
+
+    def test_invalid_settings_falls_back_to_snapshot(self) -> None:
+        settings = _FakeSettings({"agent.app.allowed": "not-a-list",
+                                  "agent.app.denied": ["notes__delete_note"]})
+        engine = PolicyEngine(app=AppPolicy(allowed=frozenset({"*"})), settings=settings)
+        assert engine.decide(Action(dimension="app", target="notes__create_note")).allow
+
+    def test_no_settings_keeps_construction_snapshot(self) -> None:
+        engine = PolicyEngine(app=AppPolicy(allowed=frozenset({"*"})))
+        assert engine.decide(Action(dimension="app", target="notes__create_note")).allow
