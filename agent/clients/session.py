@@ -61,7 +61,7 @@ class _McpProtocol:
             {
                 "protocolVersion": PROTOCOL_VERSION,
                 "capabilities": {},
-                "clientInfo": {"name": "voyager-agent", "version": "1.0"},
+                "clientInfo": {"name": "agent", "version": "1.0"},
             },
         )
         await self._notify("notifications/initialized", {})

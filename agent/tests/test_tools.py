@@ -160,5 +160,5 @@ class TestShellGuard:
     async def test_missing_executable_does_not_fall_back_to_shell(self) -> None:
         run_shell = shell_tools()["run_shell"].handler
         # 不用 echo:Unix 上 /bin/echo 真实存在,测不到「不回退 shell」
-        out = await run_shell("__voyager_no_such_cmd_xyz__", timeout=5)
+        out = await run_shell("__no_such_cmd_xyz__", timeout=5)
         assert "[失败]" in out and "找不到可执行文件" in out
