@@ -79,10 +79,10 @@ function runningWith(last_step?: string) {
   return [{ id: 'run-1', name: 'indexer', status: 'running', goal: '建索引', started_ts: 1, last_step }];
 }
 
-/** 渲染并等初载完成(人格区出现即 loading 已结束) */
+/** 渲染并等造人表单就绪(人格标题在 loading 时就在,不能当数据到齐的信号) */
 async function renderPage() {
   render(<TeamPage />);
-  await waitFor(() => expect(screen.getByRole('heading', { name: '人格' })).toBeTruthy());
+  await waitFor(() => expect(screen.getByLabelText('名称')).toBeTruthy());
 }
 
 function fillForm(name: string, description: string) {

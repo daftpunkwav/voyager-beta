@@ -1,7 +1,8 @@
 /** 团队页感知:人格 / 自建 subagent / 运行中实例的计数快照。
- *  数据在 TeamPage 组件 useState 里,provider 读不到 → 学 noteQuote.ts 的
- *  module cache 先例:由 TeamPage 在 list_personas / list_subagents 成功后写入;
- *  加载失败保持 null,不报「0 个人格」的谎言。 */
+ *
+ *  快照由各业务块 mount 成功后分字段 patch;三个字段都到达过才对外报告,
+ *  避免谎报 0。加载失败不传 null,而是该字段未到达 → 整体仍 null。
+ */
 
 import type { PageProbe } from '@/bridge/pageContext';
 
@@ -11,11 +12,52 @@ export interface TeamSnapshot {
   running: number;
 }
 
+/** 各字段是否至少 patch 过一次;三字段都到齐才报告。 */
+interface PatchState {
+  personas?: number;
+  definitions?: number;
+  running?: number;
+}
+
+const patched: PatchState = {};
 let snapshot: TeamSnapshot | null = null;
 
-/** 数据到达时写入;传 null 表示加载失败/离场,保持不报。 */
+function maybeCommit(): void {
+  if (
+    typeof patched.personas === 'number' &&
+    typeof patched.definitions === 'number' &&
+    typeof patched.running === 'number'
+  ) {
+    snapshot = {
+      personas: patched.personas,
+      definitions: patched.definitions,
+      running: patched.running,
+    };
+  }
+}
+
+/** 分字段 patch;三字段都到齐后写入完整快照。 */
+export function patchTeamSnapshot(next: Partial<TeamSnapshot>): void {
+  if (typeof next.personas === 'number') patched.personas = next.personas;
+  if (typeof next.definitions === 'number') patched.definitions = next.definitions;
+  if (typeof next.running === 'number') patched.running = next.running;
+  maybeCommit();
+}
+
+/** 直接写入完整快照(用于测试或需要强制覆盖的场景)。
+ *  传 null 同时清掉分字段进度,避免下次单字段 patch 用残留值立刻提交。 */
 export function rememberTeamSnapshot(next: TeamSnapshot | null): void {
-  snapshot = next;
+  if (next === null) {
+    snapshot = null;
+    delete patched.personas;
+    delete patched.definitions;
+    delete patched.running;
+    return;
+  }
+  patched.personas = next.personas;
+  patched.definitions = next.definitions;
+  patched.running = next.running;
+  snapshot = { ...next };
 }
 
 export function lastTeamSnapshot(): TeamSnapshot | null {

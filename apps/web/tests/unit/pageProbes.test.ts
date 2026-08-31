@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { resolvePageName, resolvePageProbe } from '@/shell/pageProbes';
 import { chatProvider } from '@/pages/chat/provider';
 import { notesProvider, rememberNotesListCount } from '@/pages/notes/provider';
-import { teamProvider, rememberTeamSnapshot } from '@/pages/team/provider';
+import { teamProvider, rememberTeamSnapshot, patchTeamSnapshot } from '@/pages/team/provider';
 import {
   sourceDetailProvider,
   rememberSourceDetail,
@@ -95,6 +95,13 @@ describe('team provider 摘要质量', () => {
     const out = teamProvider.report();
     expect(out?.summary).toBe('团队 · 5 个人格 · 2 个自建 · 1 个运行中');
     expect(out?.counts).toMatchObject({ personas: 5, definitions: 2, running: 1 });
+  });
+
+  it('rememberTeamSnapshot(null) 清分字段,单次 patch 不会立刻提交', () => {
+    rememberTeamSnapshot({ personas: 5, definitions: 2, running: 1 });
+    rememberTeamSnapshot(null);
+    patchTeamSnapshot({ personas: 1 });
+    expect(teamProvider.report()).toBeNull();
   });
 });
 
