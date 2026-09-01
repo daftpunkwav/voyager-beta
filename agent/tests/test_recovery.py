@@ -13,6 +13,7 @@ import sqlite3
 import time
 from pathlib import Path
 
+import httpx
 import pytest
 from platform_contracts import LOCAL_USER, Event
 from platform_eventbus import EventBus, EventLog
@@ -83,6 +84,24 @@ class TestToolRetry:
         )})
         out = await belt.call(ToolCall("1", "slow", {}))
         assert "[工具失败]" in out and "TimeoutError" in out
+        assert counter["calls"] == 1
+
+    async def test_httpx_timeout_not_retried(self, tmp_path) -> None:
+        """URL 型 MCP 超时不重试(phase-46):session.py 的 httpx.AsyncClient
+        超时抛 httpx.TimeoutException,与 stdio MCP(内建 TimeoutError)一致,
+        只进 1 次 handler,一次失败即交熔断/[工具失败] 文本。"""
+        root = ensure_workdir(tmp_path / "ws")
+        counter = {"calls": 0}
+
+        async def slow(**kwargs) -> str:
+            counter["calls"] += 1
+            raise httpx.TimeoutException("timed out")
+
+        belt = _belt(root, {"slow": AgentTool(
+            name="slow", description="测试用 URL MCP 超时工具", handler=slow, dimension="none",
+        )})
+        out = await belt.call(ToolCall("1", "slow", {}))
+        assert "[工具失败]" in out and "TimeoutException" in out
         assert counter["calls"] == 1
 
     async def test_spawn_subagent_is_write_never_retried(self, tmp_path) -> None:

@@ -12,6 +12,8 @@ import json
 import time
 from typing import Any
 
+import httpx
+
 from agent.llm import ToolCall
 from agent.policy import Action, Level
 from agent.runtime.observability import MeterRecord
@@ -37,6 +39,8 @@ async def _invoke_with_recovery(belt: Toolbelt, tool: AgentTool, call: ToolCall)
       belt.call 计 1 次(旧结构 3 次 belt.call × 3 次 handler = 9 次才断);
     - TimeoutError / asyncio.TimeoutError 默认不重试(phase-43):MCP/shell
       超时 × 退避重试只会拖长等待,一次超时即失败,交给熔断/文本结果;
+      httpx.TimeoutException 同样不重试(phase-46):URL 型 MCP 超时
+      (session.py 的 httpx.AsyncClient)与 stdio MCP 一致,一次失败即停;
     - 熔断打开后的 CircuitOpenError 不进重试循环,直接冒泡(invoke_tool
       折成 [熔断] 文本结果);
     - policy 拒绝 / 用户未确认 / pre_tool 拦截在 invoke_tool() 更早返回,不进这里,
@@ -60,7 +64,12 @@ async def _invoke_with_recovery(belt: Toolbelt, tool: AgentTool, call: ToolCall)
         _attempt_with_breaker,
         retries=retries,
         backoff=belt._retry_backoff,
-        no_retry_on=(CircuitOpenError, TimeoutError, asyncio.TimeoutError),
+        no_retry_on=(
+            CircuitOpenError,
+            TimeoutError,
+            asyncio.TimeoutError,
+            httpx.TimeoutException,
+        ),
     )
 
 
