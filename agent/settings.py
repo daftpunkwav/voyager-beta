@@ -81,4 +81,10 @@ DEFS = [
     SettingDef(key="agent.app.denied", module="agent", type=SettingType.JSON,
                default=[], user_only=True,
                description="应用内能力拒绝名单(§9.9;拒绝优先;仅用户可改)"),
+    # token 日配额(phase-60,§9.9 资源维):主对话 LLM 每次 complete 前热读,
+    # 当日(UTC 自然日)input+output 累计达到上限即拒绝真实调用,0=不限。
+    # user_only:资源安全边界,提示注入经 agent 写不进(防自我扩额)。
+    SettingDef(key="agent.resource.daily_tokens", module="agent", type=SettingType.INT,
+               default=0, min=0, max=10_000_000, user_only=True,
+               description="LLM token 日配额(输入+输出合计);0=不限(§9.9;仅用户可改)"),
 ]

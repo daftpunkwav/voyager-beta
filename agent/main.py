@@ -26,7 +26,7 @@ from agent.memory import Memory
 from agent.observe import Observer
 from agent.personas import canonical_persona_key, resolve_persona
 from agent.policy import AppPolicy, FsPolicy, NetworkPolicy, PolicyEngine
-from agent.runtime import EventLoop, Meter, RuntimeEvents, Scheduler
+from agent.runtime import EventLoop, Meter, RuntimeEvents, Scheduler, metered_llm
 from agent.runtime.state import CheckpointStore, reclaim_alive
 from agent.runtime.wire import bind_event_loop
 from agent.settings import DEFS as AGENT_SETTING_DEFS
@@ -136,6 +136,13 @@ def build_agent(
         settings=settings,  # 网络/app/fs(附加只读根)判定热读设置(§9.9):改设置不重启即生效
     )
     meter = Meter()
+    # token 日配额(phase-60,§9.9 资源维):主对话(直聊分支 + ReAct 实例)的
+    # LLM 经计量包装,每次 complete 前热读 agent.resource.daily_tokens,
+    # 当日累计超限不发起真实调用(0=不限)。Arbiter 判官与 proactive 仍用原 llm
+    # (本刀不拦,见 phase 写回);任务型 subagent 与主对话共用 spawner,顺带受拦。
+    chat_llm = metered_llm(
+        llm, meter, quota_fn=lambda: settings.get("agent.resource.daily_tokens") or 0
+    )
     events = RuntimeEvents(bus)
 
     async def _confirm(prompt: str) -> bool:
@@ -220,7 +227,7 @@ def build_agent(
         )
 
     spawner = Spawner(
-        llm=llm,
+        llm=chat_llm,
         toolbelt=toolbelt,
         scheduler=scheduler,
         events=events,
@@ -241,7 +248,7 @@ def build_agent(
     )
     subagent_registry = SubagentRegistry(data_dir / "subagents")
     master = Master(
-        llm=llm,
+        llm=chat_llm,
         bus=bus,
         spawner=spawner,
         arbiter=Arbiter(llm),
