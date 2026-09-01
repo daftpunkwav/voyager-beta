@@ -28,3 +28,4 @@ class CapabilityDeps:
     asker: AskUser
     toolbelt: Any  # Toolbelt(list_tools 数据源,§9.4)
     mcp: Any  # McpClientPool(外接 MCP,phase-11b;配置写经 actor 落审计)
+    meter: Any  # Meter(内存计量,§9.9 资源维;与 metered_llm 同一实例)

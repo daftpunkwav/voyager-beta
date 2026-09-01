@@ -9,6 +9,7 @@ from platform_contracts import LOCAL_USER, ActorKind, ActorRef, ServiceError
 
 from agent.llm import FakeLLM
 from agent.main import build_agent
+from agent.runtime import MeterRecord
 
 USER_CTX = ActorContext(actor=LOCAL_USER)
 AGENT_CTX = ActorContext(actor=ActorRef(kind=ActorKind.AGENT, id="agent.main", scopes=()))
@@ -31,6 +32,7 @@ class TestRegistrySurface:
             "clear_memory",
             "delete_profile",
             "get_memory",
+            "get_resource_quota",
             "get_settings",
             "list_mcp_servers",
             "list_personas",
@@ -103,6 +105,35 @@ class TestSettingsParity:
         with pytest.raises(ServiceError) as exc:
             await execute(app.registry, "get_settings", None, {})
         assert exc.value.body.code == "CAPABILITY.AUTH_REQUIRED"
+
+
+class TestResourceQuota:
+    """get_resource_quota(phase-62,§9.9 资源维):只读返回当日用量与配额上限。"""
+
+    async def test_empty_meter_defaults(self, app) -> None:
+        """空 meter:用量 0;daily_tokens 读设置默认 0(=不限)。"""
+        result = await execute(app.registry, "get_resource_quota", USER_CTX, {})
+        assert result == {"tokens_used_today": 0, "daily_tokens": 0}
+
+    async def test_reports_usage_and_limit(self, app) -> None:
+        """预录当日记录 + 设上限:返回与 Meter / 设置一致(记录默认 ts=今天)。"""
+        app.meter.record(
+            MeterRecord(kind="llm", name="test", ms=1.0, input_tokens=300, output_tokens=70)
+        )
+        await execute(app.registry, "set_setting", USER_CTX,
+                      {"key": "agent.resource.daily_tokens", "value": 1000})
+        result = await execute(app.registry, "get_resource_quota", USER_CTX, {})
+        assert result == {"tokens_used_today": 370, "daily_tokens": 1000}
+
+    async def test_agent_can_read_own_quota(self, app) -> None:
+        """parity:agent 同权可查(§9.9 预期用途:自己剩多少配额)。"""
+        await execute(app.registry, "set_setting", USER_CTX,
+                      {"key": "agent.resource.daily_tokens", "value": 500})
+        result = await execute(
+            app.registry, "get_resource_quota", AGENT_CTX,
+            {},
+        )
+        assert result == {"tokens_used_today": 0, "daily_tokens": 500}
 
 
 class TestSurface:

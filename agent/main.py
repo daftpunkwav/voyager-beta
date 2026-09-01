@@ -69,6 +69,7 @@ class AgentApp:
     spawner: Spawner
     registry: Any  # agent 能力注册表(§5 capabilities.py)
     mcp: McpClientPool  # 外接 MCP 连接池(phase-11b;空池合法)
+    meter: Meter  # 内存计量(§9.9 资源维;metered_llm 与配额查询 capability 共用)
     owns_settings: bool = True  # 共享 store(聚合运行)时为 False,close 不关它
     owns_log: bool = True  # 共享 bus(聚合运行共用 EventLog)时为 False
 
@@ -273,6 +274,7 @@ def build_agent(
             asker=asker,
             toolbelt=toolbelt,
             mcp=mcp,
+            meter=meter,  # 与 Toolbelt / metered_llm 同一实例(§9.9 配额查询读同一份计量)
         )
     )
     handlers, relay, hook_patterns = bind_event_loop(master, proactive, observer, hooks)
@@ -299,6 +301,7 @@ def build_agent(
         spawner=spawner,
         registry=registry,
         mcp=mcp,
+        meter=meter,
         owns_settings=owns_settings,
         owns_log=owns_log,
     )

@@ -14,6 +14,7 @@ from agent.capabilities import (
     memory,
     pages,
     personas,
+    resource,
     settings,
     skills,
     subagents,
@@ -25,6 +26,7 @@ from agent.capabilities.deps import CapabilityDeps
 def build_agent_registry(deps: CapabilityDeps) -> Registry:
     reg = Registry("agent")
     settings.register(reg, deps)
+    resource.register(reg, deps)
     skills.register(reg, deps)
     subagents.register(reg, deps)
     personas.register(reg, deps)
