@@ -175,6 +175,11 @@ def build_agent(
     # 启动 reclaim(§9.17,phase-12):上次进程遗留的 alive checkpoint 标 failed;
     # 空目录 no-op,不据此重建实例(中途 resume 不在本阶段)
     reclaim_alive(checkpoints)
+    # 启动清理超期情节(phase-44,§9.11):retention>0 时按保留天数清;
+    # 0 = 交 agent 管理,启动不自动清(与 get_memory 惰性 purge 同语义)
+    retention = int(settings.get("agent.memory.retention_days") or 0)
+    if retention > 0:
+        memory.purge(retention)
     builder = ContextBuilder(
         # 全局规则(§9.14):原文冻结,见 context/rules.py
         rules=list(GLOBAL_RULES),

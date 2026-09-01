@@ -9,16 +9,22 @@ recovery.py 此前没有调用方;本文件锁定接线后的行为:
 """
 
 import asyncio
+import sqlite3
+import time
+from pathlib import Path
 
 import pytest
 from platform_contracts import LOCAL_USER, Event
 from platform_eventbus import EventBus, EventLog
+from platform_settings import SettingsStore
 
 from agent.llm import FakeLLM, ToolCall
 from agent.main import build_agent
+from agent.memory import EpisodicMemory
 from agent.policy import FsPolicy, PolicyEngine
 from agent.runtime import EventLoop
 from agent.runtime.state import CheckpointStore, RunState, RunStatus, reclaim_alive
+from agent.settings import DEFS as AGENT_SETTING_DEFS
 from agent.tools import AgentTool, Toolbelt, ensure_workdir
 
 
@@ -268,5 +274,63 @@ class TestReclaim:
             assert loaded.status is RunStatus.FAILED
             # 坏文件原样保留:不 unlink、不改写
             assert (cp_dir / "broken.json").read_text(encoding="utf-8") == "{not json"
+        finally:
+            app.memory.close()
+
+
+class TestBootEpisodicPurge:
+    """启动按 retention 清理超期情节(phase-44,§9.11):不依赖用户先打开设置页。"""
+
+    @staticmethod
+    def _seed(rd: Path, *, expired: bool) -> None:
+        """预写两条情节;expired=True 时把第一条 ts 拨到 365 天前。"""
+        db = rd / "memory" / "episodic.db"
+        epi = EpisodicMemory(db)
+        epi.log("consider", "很久以前的事")
+        epi.log("consider", "刚刚发生的事")
+        if expired:
+            conn = sqlite3.connect(str(db))
+            try:
+                conn.execute(
+                    "UPDATE episodes SET ts = ? WHERE summary = ?",
+                    (time.time() - 365 * 86400, "很久以前的事"),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+        epi.close()
+
+    async def _preset_retention(self, rd: Path, days: int) -> None:
+        """build 前预写 retention(与 build_agent 同库、同注册路径)。"""
+        store = SettingsStore(rd / "settings.db")
+        store.register_fresh(AGENT_SETTING_DEFS)
+        await store.set("agent.memory.retention_days", days, LOCAL_USER)
+        store.close()
+
+    async def test_boot_purges_expired_episodes(self, tmp_path) -> None:
+        """retention>0:build_agent 装配时清掉超期情节,保留新鲜条目。"""
+        rd = tmp_path / "rd"
+        self._seed(rd, expired=True)
+        await self._preset_retention(rd, 30)
+
+        app = build_agent(data_dir=rd, workspace_dir=tmp_path / "ws", llm=FakeLLM())
+        try:
+            summaries = [e["summary"] for e in app.memory.episodic.recent()]
+            assert "很久以前的事" not in summaries
+            assert "刚刚发生的事" in summaries
+        finally:
+            app.memory.close()
+
+    async def test_boot_purge_zero_retention_is_noop(self, tmp_path) -> None:
+        """retention=0 = 交 agent 管理:启动不清理,超期条目保留。"""
+        rd = tmp_path / "rd"
+        self._seed(rd, expired=True)
+        await self._preset_retention(rd, 0)
+
+        app = build_agent(data_dir=rd, workspace_dir=tmp_path / "ws", llm=FakeLLM())
+        try:
+            summaries = [e["summary"] for e in app.memory.episodic.recent()]
+            assert "很久以前的事" in summaries
+            assert "刚刚发生的事" in summaries
         finally:
             app.memory.close()
