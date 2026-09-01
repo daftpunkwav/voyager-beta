@@ -1,6 +1,7 @@
 """工具带与工作目录测试:fs jail、能力面裁剪、L1/L2 确认通道(§9.4/§9.9/§9.10)。"""
 
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -194,22 +195,48 @@ class TestAppPolicyTarget:
 
 
 class TestShellGuard:
-    async def test_destructive_commands_blocked(self) -> None:
+    async def test_destructive_commands_blocked(self, tmp_path) -> None:
         """整机级破坏命令在执行前被硬拦截(即使 L2 确认通道缺失)。"""
-        run_shell = shell_tools()["run_shell"].handler
+        run_shell = shell_tools(tmp_path)["run_shell"].handler
         for cmd in ("mkfs.ext4 /dev/sda1", "dd if=a of=/dev/sda",
                     "shutdown now", "rm -rf /", "rm -rf ~", "format C: /q"):
             out = await run_shell(cmd, timeout=2)
             assert "[已拒绝]" in out, cmd
 
-    async def test_normal_command_not_blocked(self) -> None:
-        run_shell = shell_tools()["run_shell"].handler
+    async def test_normal_command_not_blocked(self, tmp_path) -> None:
+        run_shell = shell_tools(tmp_path)["run_shell"].handler
         # 不经 shell:解释器 -c 避免 Windows 内建 echo;无嵌套引号以免 shlex 在 nt 模式拆错
         out = await run_shell(f"{sys.executable} -c print(42)", timeout=5)
         assert "已拒绝" not in out and "42" in out
 
-    async def test_missing_executable_does_not_fall_back_to_shell(self) -> None:
-        run_shell = shell_tools()["run_shell"].handler
+    async def test_missing_executable_does_not_fall_back_to_shell(self, tmp_path) -> None:
+        run_shell = shell_tools(tmp_path)["run_shell"].handler
         # 不用 echo:Unix 上 /bin/echo 真实存在,测不到「不回退 shell」
         out = await run_shell("__no_such_cmd_xyz__", timeout=5)
         assert "[失败]" in out and "找不到可执行文件" in out
+
+    async def test_subprocess_cwd_pinned_to_workspace(self, tmp_path) -> None:
+        """子进程 cwd 钉在装配目录(phase-35):相对路径脚本可被找到,
+        相对写出的文件落在该目录,不落进程 cwd / 父目录。"""
+        work = tmp_path / "ws"
+        work.mkdir()
+        probe = work / "_cwd_probe.py"
+        probe.write_text(
+            "from pathlib import Path\n"
+            "Path('cwd-probe-phase35.txt').write_text('ok', encoding='utf-8')\n",
+            encoding="utf-8",
+        )
+        run_shell = shell_tools(work)["run_shell"].handler
+        stray = Path.cwd() / "cwd-probe-phase35.txt"
+        try:
+            out = await run_shell(f"{sys.executable} {probe.name}", timeout=5)
+            assert "exit=0" in out, out
+            assert (work / "cwd-probe-phase35.txt").read_text(encoding="utf-8") == "ok"
+            assert not (tmp_path / "cwd-probe-phase35.txt").exists()  # 不落父目录
+            # 实现漏传 cwd= 时文件会落到进程 cwd,这条会红
+            if Path.cwd().resolve() != work.resolve():
+                assert not stray.exists()
+        finally:
+            # 防实现漏 cwd= 时弄脏仓库根:进程 cwd 残留同名文件则清理
+            if stray.exists():
+                stray.unlink()

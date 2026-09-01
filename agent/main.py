@@ -148,7 +148,7 @@ def build_agent(
     tools: dict[str, AgentTool] = {}
     for group in (
         fs_tools([workspace]),
-        shell_tools(),
+        shell_tools(workspace),
         web_tools(policy),
         ask_user_tool(asker),
         reach_out_tool(bus),

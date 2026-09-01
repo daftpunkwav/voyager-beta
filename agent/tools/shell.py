@@ -5,6 +5,8 @@ L2 确认是主闸门;此处在执行前再硬拦一眼破坏性命令——即�
 
 执行走 create_subprocess_exec(argv),不经 shell 解释管道/重定向/通配。
 Windows 内建命令(dir/echo)会 FileNotFoundError,不回退 shell=True。
+子进程 cwd 钉在装配时传入的 agent 工作目录,相对路径落在该目录;
+但这不是 chroot——绝对路径、.. 与 PATH 里的解释器仍可越出该目录。
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ import asyncio
 import os
 import re
 import shlex
+from pathlib import Path
 
 from agent.tools.base import AgentTool
 
@@ -34,7 +37,10 @@ _DESTRUCTIVE_RE = re.compile(
 )
 
 
-def shell_tools() -> dict[str, AgentTool]:
+def shell_tools(cwd: str | Path) -> dict[str, AgentTool]:
+    """生成 shell 工具组;子进程 cwd 钉在装配时的 agent 工作目录(§9.10)。"""
+    work = Path(cwd).expanduser().resolve()
+
     async def run_shell(command: str, timeout: float = 30.0) -> str:
         if _DESTRUCTIVE_RE.search(command):
             return ("[已拒绝] 命令含整机级破坏操作(格式化/关机/根递归删除),"
@@ -45,12 +51,16 @@ def shell_tools() -> dict[str, AgentTool]:
             return f"[已拒绝] 命令无法解析: {exc}"
         if not argv:
             return "[已拒绝] 空命令"
+        if not work.is_dir():
+            return (f"[失败] 工作目录不可用: {work} 不存在或不是目录;"
+                    "不会回退到进程当前目录,请让用户先修复 agent 工作目录设置")
         try:
             proc = await asyncio.create_subprocess_exec(
                 argv[0],
                 *argv[1:],
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
+                cwd=str(work),
             )
         except FileNotFoundError:
             return (
@@ -58,6 +68,9 @@ def shell_tools() -> dict[str, AgentTool]:
                 "本工具不经 shell 解释,Windows 内建命令(dir/echo)请改用 "
                 "解释器 -c 或给出可执行文件的完整路径。"
             )
+        except OSError as exc:
+            # 竞态:目录检查后被移走/不可进入;禁止省略 cwd 回退到进程目录
+            return f"[失败] 工作目录不可用: {exc}"
         try:
             out, _ = await asyncio.wait_for(proc.communicate(), timeout)
         except TimeoutError:
@@ -71,7 +84,7 @@ def shell_tools() -> dict[str, AgentTool]:
     return {
         "run_shell": AgentTool(
             name="run_shell",
-            description="在本机执行命令(不经 shell;默认需用户确认;输出截断 1 万字)",
+            description="在 agent 工作目录执行命令(不经 shell;默认需用户确认;输出截断 1 万字)",
             handler=run_shell,
             dimension="shell",
             write=True,
