@@ -162,6 +162,44 @@ class TestShell:
         assert d.allow and d.level == Level.L0_SILENT
 
 
+class TestShellSkillsGuard:
+    """run_shell 命令明显写/删 skills 子树时直接拒绝(phase-41),先于 L2。"""
+
+    def test_redirect_into_skills_denied(self) -> None:
+        engine = PolicyEngine()
+        d = engine.decide(Action(dimension="shell", target="echo x > skills/pwn.txt", write=True))
+        assert not d.allow
+        assert "skill 目录" in d.reason
+
+    def test_append_windows_sep_denied(self) -> None:
+        engine = PolicyEngine()
+        d = engine.decide(Action(dimension="shell", target="echo x >> skills\\pwn.txt", write=True))
+        assert not d.allow
+
+    def test_copy_move_delete_skills_denied(self) -> None:
+        engine = PolicyEngine()
+        for cmd in (
+            "rm -rf skills/keep",
+            r"del /q skills\keep\SKILL.md",
+            "cp a.txt skills/pwn.txt",
+            r"move x skills\pwn.txt",
+        ):
+            d = engine.decide(Action(dimension="shell", target=cmd, write=True))
+            assert not d.allow, cmd
+
+    def test_readonly_skills_still_confirm(self) -> None:
+        """只读类 skills 命令不拦,维持原 L2 档位。"""
+        engine = PolicyEngine()
+        for cmd in ("dir skills", r"type skills\keep\SKILL.md", "grep x skills/README.md"):
+            d = engine.decide(Action(dimension="shell", target=cmd, write=True))
+            assert d.allow and d.level == Level.L2_CONFIRM, cmd
+
+    def test_write_outside_skills_still_confirm(self) -> None:
+        engine = PolicyEngine()
+        d = engine.decide(Action(dimension="shell", target="echo ok > repo/a.txt", write=True))
+        assert d.allow and d.level == Level.L2_CONFIRM
+
+
 class _FakeSettings:
     """最小设置句柄(有 get 即可);value 是 mock 的 settings 库。"""
 

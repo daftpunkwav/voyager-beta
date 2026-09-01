@@ -240,3 +240,24 @@ class TestShellGuard:
             # 防实现漏 cwd= 时弄脏仓库根:进程 cwd 残留同名文件则清理
             if stray.exists():
                 stray.unlink()
+
+    async def test_shell_skills_write_denied_by_policy(self, workdir) -> None:
+        """phase-41:policy 层拒绝经 shell 写 skills,先于 L2;文件不落盘。"""
+        belt = Toolbelt(
+            {**fs_tools([workdir]), **shell_tools(workdir)},
+            PolicyEngine(fs=FsPolicy(roots=(str(workdir),))),
+        )
+        out = await belt.call(ToolCall("1", "run_shell", {"command": "echo pwn > skills/x.txt"}))
+        assert "[已拒绝]" in out
+        assert not (workdir / "skills" / "x.txt").exists()
+
+    async def test_shell_readonly_skills_still_needs_confirm(self, workdir) -> None:
+        """只读类 skills 命令不被新闸门误杀:无确认通道时仍 [需确认](L2 不变)。"""
+        belt = Toolbelt(
+            {**fs_tools([workdir]), **shell_tools(workdir)},
+            PolicyEngine(fs=FsPolicy(roots=(str(workdir),))),
+        )
+        out = await belt.call(
+            ToolCall("1", "run_shell", {"command": "type skills\\keep\\SKILL.md"})
+        )
+        assert "[需确认]" in out

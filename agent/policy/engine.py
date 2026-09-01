@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -41,6 +42,26 @@ def _host_is_nonglobal(host: str) -> bool:
         return not (mapped or addr).is_global
     except ValueError:
         return False
+
+
+# shell 维 skills 禁写(phase-41,补 32 的 shell 旁路):保守正则识别「明显要写/删
+# skills 子树」的字面量,不做完整 shell 解析——宁可漏拦 py -c 内联写文件等复杂变形,
+# 也不误杀 grep skills/README、type skills\keep\SKILL.md 这类只读命令。
+# 路径段允许 ./ ../ 与普通段前缀(repo/../skills/ 解析后仍落 skills);必须带分隔符,
+# 避免误杀 skills.txt、skills_backup 这类同名前缀。
+_SKILLS_PATH = r"(?:(?:\.{1,2}|[\w.-]+)[/\\])*skills[/\\]"
+# 分支一:重定向(> / >> / 2>)进 skills;分支二:复制/移动/删除类动词 + skills 路径
+_SHELL_SKILLS_WRITE_RE = re.compile(
+    r">>?\s*['\"]?" + _SKILLS_PATH
+    + r"|\b(?:cp|mv|move|copy|xcopy|rm|del|erase|rd|rmdir|unlink|touch|tee)\b"
+    + r"[^|;&>\n]*" + _SKILLS_PATH,
+    re.IGNORECASE,
+)
+
+
+def _shell_targets_skills_write(cmd: str) -> bool:
+    """命令字符串是否明显要把内容写入/删除 skills 子树(保守识别,phase-41)。"""
+    return bool(_SHELL_SKILLS_WRITE_RE.search(cmd or ""))
 
 
 @dataclass(frozen=True)
@@ -209,4 +230,7 @@ class PolicyEngine:
         return Decision(True, Level.L1_NOTIFY if action.write else Level.L0_SILENT)
 
     def _decide_shell(self, action: Action) -> Decision:
+        # skills 子树禁经 shell 改写(phase-41):拒绝发生在 L2 确认之前(与 32 的 fs 刀一致)
+        if (action.write or action.irreversible) and _shell_targets_skills_write(action.target):
+            return Decision(False, reason="skill 目录禁止经 shell 改写")
         return Decision(True, self.shell_level, "命令执行默认需确认")
