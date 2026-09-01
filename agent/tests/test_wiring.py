@@ -3,7 +3,7 @@
 import asyncio
 
 from platform_actor import ActorContext
-from platform_contracts import ActorKind, ActorRef
+from platform_contracts import LOCAL_USER, ActorKind, ActorRef
 from platform_settings import SettingsStore
 
 from agent.llm import FakeLLM
@@ -101,5 +101,56 @@ class TestStyleInSystem:
         )
         try:
             assert app.settings.get("agent.style") == "热心"
+        finally:
+            app.close()
+
+
+class TestConductInSystem:
+    """行为准则进 system(phase-29,§9.14):非空注入对应层,空则整层省略;
+    guideline 按 persona_key 经 canonical_persona_key 取对应人格的键。"""
+
+    def _spawn(self, app, persona: str):
+        return app.spawner.spawn(
+            TaskBook(goal="测试", mode=Mode.REACT), persona=persona
+        )
+
+    async def test_conduct_reaches_spawned_system(self, tmp_path) -> None:
+        app = build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=FakeLLM()
+        )
+        try:
+            await app.settings.set(
+                "agent.conduct", "回答简洁,不用 emoji", LOCAL_USER
+            )
+            inst = self._spawn(app, "orchestrator")
+            assert "【用户准则】" in inst.system_prompt
+            assert "回答简洁,不用 emoji" in inst.system_prompt
+        finally:
+            app.close()
+
+    async def test_default_conduct_omits_layer(self, tmp_path) -> None:
+        app = build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=FakeLLM()
+        )
+        try:
+            inst = self._spawn(app, "orchestrator")
+            assert "【用户准则】" not in inst.system_prompt
+            assert "【人格准则】" not in inst.system_prompt
+        finally:
+            app.close()
+
+    async def test_guideline_scoped_to_persona(self, tmp_path) -> None:
+        app = build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=FakeLLM()
+        )
+        try:
+            await app.settings.set(
+                "agent.guidelines", {"orchestrator": "先确认再改代码"}, LOCAL_USER
+            )
+            orch = self._spawn(app, "orchestrator")
+            assert "【人格准则】" in orch.system_prompt
+            assert "先确认再改代码" in orch.system_prompt
+            recon = self._spawn(app, "recon")
+            assert "【人格准则】" not in recon.system_prompt
         finally:
             app.close()

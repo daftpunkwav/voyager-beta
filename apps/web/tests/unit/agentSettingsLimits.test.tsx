@@ -18,7 +18,6 @@ vi.mock('@/bridge/client', async (importOriginal) => ({
 vi.mock('@/api/client', () => ({ getApi: getApiMock }));
 
 import { AgentSettingsSection } from '@/components/settings/AgentSettingsSection';
-import type { Settings } from '@/api/types';
 import { useUIStore } from '@/stores/uiStore';
 
 const SNAPSHOT = {
@@ -57,15 +56,8 @@ function backend(_domain: string, name: string, args: Record<string, unknown>) {
   }
 }
 
-const noop = () => Promise.resolve();
-
 function renderSection() {
-  render(
-    <AgentSettingsSection
-      settings={{ agent_code_of_conduct: '', agent_guidelines: [] } as Settings}
-      updateSettings={noop}
-    />,
-  );
+  render(<AgentSettingsSection />);
 }
 
 beforeEach(() => {

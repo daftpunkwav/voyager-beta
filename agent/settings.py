@@ -20,6 +20,14 @@ DEFS = [
                default=False, description="直聊模式:简单问答由主 agent 直接回复(默认关)"),
     SettingDef(key="agent.style", module="agent", type=SettingType.STR,
                default="热心", description="人格风格(毒舌/热心/严谨…)"),
+    # 行为准则(phase-29,§9.14):用户在设置页写的规则,每回合注入 system。
+    # user_only:准则属于用户给 agent 立的规矩,提示注入经 agent 写不进来。
+    SettingDef(key="agent.conduct", module="agent", type=SettingType.STR,
+               default="", user_only=True,
+               description="通用行为准则,对所有 Agent 生效,注入每次对话 system(仅用户可改)"),
+    SettingDef(key="agent.guidelines", module="agent", type=SettingType.JSON,
+               default={}, user_only=True,
+               description="分 Agent 行为准则 {<人格结构ID>: 文本},叠加在通用准则上(仅用户可改)"),
     SettingDef(key="agent.proactive.per_session", module="agent", type=SettingType.INT,
                default=3, min=0, max=20, description="主动触达:每会话上限"),
     SettingDef(key="agent.proactive.per_day", module="agent", type=SettingType.INT,

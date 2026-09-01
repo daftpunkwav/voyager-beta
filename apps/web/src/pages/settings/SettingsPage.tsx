@@ -242,9 +242,7 @@ export function SettingsPage() {
           </section>
         )}
 
-        {section === 'agent' && (
-          <AgentSettingsSection settings={settings} updateSettings={updateSettings} />
-        )}
+        {section === 'agent' && <AgentSettingsSection />}
 
         {section === 'data' && (
           <section className="settings-section glass-card glass-card--overview-outer">

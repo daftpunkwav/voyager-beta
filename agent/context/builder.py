@@ -38,14 +38,20 @@ class ContextBuilder:
         persona: Persona | None = None,
         task: TaskBook | None = None,
         style: str = "",
+        conduct: str = "",
+        guideline: str = "",
     ) -> str:
         layers: list[str] = []
         if self._rules:
             layers.append("【全局规则】\n" + "\n".join(f"- {r}" for r in self._rules))
+        if conduct.strip():
+            layers.append("【用户准则】\n" + conduct.strip())
         if persona is not None:
             layers.append(
                 f"【人格】{persona.display_name}({persona.style})\n{persona.system_prompt}"
             )
+        if guideline.strip():
+            layers.append("【人格准则】\n" + guideline.strip())
         if style:
             layers.append(f"【风格】{style}")
         if self._memory is not None:

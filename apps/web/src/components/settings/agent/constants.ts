@@ -3,6 +3,11 @@ import { AGENT_CATALOG } from '@/constants/agentCatalog';
 export const CONDUCT_MAX = 4000;
 export const GUIDELINE_MAX = 2000;
 
+/** 通用行为准则(agent.conduct,§9.14):用户写的全局规则,注入每次对话 system */
+export const CONDUCT_KEY = 'agent.conduct';
+/** 分 Agent 行为准则(agent.guidelines,§9.14):{ <人格结构ID>: 文本 },叠加在通用准则上 */
+export const GUIDELINES_KEY = 'agent.guidelines';
+
 /** 全局说话风格预设(agent.style,自由字符串的常用取值;叠加在每个人格气质之上) */
 export const STYLE_PRESETS = ['热心', '毒舌', '严谨', '简洁', '幽默', '专业'];
 export const STYLE_KEY = 'agent.style';

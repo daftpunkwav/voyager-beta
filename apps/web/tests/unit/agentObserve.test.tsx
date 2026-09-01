@@ -13,7 +13,6 @@ vi.mock('@/bridge/client', async (importOriginal) => ({
 
 import { AgentSettingsSection } from '@/components/settings/AgentSettingsSection';
 import { ObserveLine } from '@/widgets/chat/MessageList';
-import type { Settings } from '@/api/types';
 import { useChatStore, type ChatEvent } from '@/stores/chatStore';
 import { useUIStore } from '@/stores/uiStore';
 
@@ -113,12 +112,7 @@ describe('ObserveLine(phase-12)', () => {
 
 describe('设置:自动建索引开关(phase-12)', () => {
   it('勾选打到 agent.observe.auto_index(true)', async () => {
-    render(
-      <AgentSettingsSection
-        settings={{ agent_code_of_conduct: '', agent_guidelines: [] } as Settings}
-        updateSettings={() => Promise.resolve()}
-      />,
-    );
+    render(<AgentSettingsSection />);
     const box = (await screen.findByLabelText(
       '导入完成后自动建图谱索引',
     )) as HTMLInputElement;
@@ -134,12 +128,7 @@ describe('设置:自动建索引开关(phase-12)', () => {
 
   it('取消勾选保存 false;保存成功出 toast', async () => {
     Object.assign(SETTINGS, { 'agent.observe.auto_index': true });
-    render(
-      <AgentSettingsSection
-        settings={{ agent_code_of_conduct: '', agent_guidelines: [] } as Settings}
-        updateSettings={() => Promise.resolve()}
-      />,
-    );
+    render(<AgentSettingsSection />);
     const box = (await screen.findByLabelText(
       '导入完成后自动建图谱索引',
     )) as HTMLInputElement;

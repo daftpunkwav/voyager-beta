@@ -24,7 +24,7 @@ from agent.llm import FakeLLM, LLMClient
 from agent.master import Arbiter, DigestStore, Master, ProactiveBudget, ProactiveEngine
 from agent.memory import Memory
 from agent.observe import Observer
-from agent.personas import resolve_persona
+from agent.personas import canonical_persona_key, resolve_persona
 from agent.policy import AppPolicy, FsPolicy, NetworkPolicy, PolicyEngine
 from agent.runtime import EventLoop, Meter, RuntimeEvents, Scheduler
 from agent.runtime.state import CheckpointStore, reclaim_alive
@@ -182,7 +182,23 @@ def build_agent(
 
     def _build_system(task, persona_key: str) -> str:
         persona = resolve_persona(persona_key) if persona_key else None
-        return builder.system(persona=persona, task=task, style=settings.get("agent.style"))
+        # 准则与风格一样每回合现读(phase-29,§9.14):改设置页下一回合即生效
+        conduct = str(settings.get("agent.conduct") or "")
+        raw = settings.get("agent.guidelines") or {}
+        # raw 必须当 dict;人格 key 经 canonical_persona_key(别名 lucien→orchestrator),
+        # 未知/自建 persona 没有对应键就没有【人格准则】层
+        guideline = (
+            str(raw.get(canonical_persona_key(persona_key), "") or "")
+            if isinstance(raw, dict)
+            else ""
+        )
+        return builder.system(
+            persona=persona,
+            task=task,
+            style=settings.get("agent.style"),
+            conduct=conduct,
+            guideline=guideline,
+        )
 
     spawner = Spawner(
         llm=llm,
