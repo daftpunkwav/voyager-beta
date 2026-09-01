@@ -44,6 +44,9 @@ def _host_is_nonglobal(host: str) -> bool:
         return False
 
 
+# 复制/移动/删除类动词表:skills 刀(41)与只读附加根刀(58)共用,防两处漂移
+_SHELL_WRITE_VERBS = r"cp|mv|move|copy|xcopy|rm|del|erase|rd|rmdir|unlink|touch|tee"
+
 # shell 维 skills 禁写(phase-41,补 32 的 shell 旁路):保守正则识别「明显要写/删
 # skills 子树」的字面量,不做完整 shell 解析——宁可漏拦 py -c 内联写文件等复杂变形,
 # 也不误杀 grep skills/README、type skills\keep\SKILL.md 这类只读命令。
@@ -53,7 +56,7 @@ _SKILLS_PATH = r"(?:(?:\.{1,2}|[\w.-]+)[/\\])*skills[/\\]"
 # 分支一:重定向(> / >> / 2>)进 skills;分支二:复制/移动/删除类动词 + skills 路径
 _SHELL_SKILLS_WRITE_RE = re.compile(
     r">>?\s*['\"]?" + _SKILLS_PATH
-    + r"|\b(?:cp|mv|move|copy|xcopy|rm|del|erase|rd|rmdir|unlink|touch|tee)\b"
+    + r"|\b(?:" + _SHELL_WRITE_VERBS + r")\b"
     + r"[^|;&>\n]*" + _SKILLS_PATH,
     re.IGNORECASE,
 )
@@ -62,6 +65,46 @@ _SHELL_SKILLS_WRITE_RE = re.compile(
 def _shell_targets_skills_write(cmd: str) -> bool:
     """命令字符串是否明显要把内容写入/删除 skills 子树(保守识别,phase-41)。"""
     return bool(_SHELL_SKILLS_WRITE_RE.search(cmd or ""))
+
+
+# shell 维只读附加根守卫(phase-58,补 53 的 shell 旁路):与 41 同精神保守识别,
+# 不做完整 shell 解析——复杂变形(py -c 内联写文件、变量拼接路径)可漏拦。
+# write_roots 内路径按可写对待不拦(与 fs 维 55 一致,仍走 L2);相对路径以 workspace
+# 为 cwd(35),天然落在 jail 内,不经本函数处理(skills 仍走 41)。
+# 写/删意图粗筛:分支一为重定向(> / >> / 2>)指向绝对路径,分支二为出现动词表动词。
+_SHELL_WRITE_INTENT_RE = re.compile(
+    r">>?\s*['\"]?(?:[A-Za-z]:[/\\]|/)|\b(?:" + _SHELL_WRITE_VERBS + r")\b",
+    re.IGNORECASE,
+)
+# 命令里的绝对路径字面量(Windows 盘符 / Unix 根);引号、空白、管道、分号、重定向符截断
+_SHELL_ABS_PATH_RE = re.compile(r"[A-Za-z]:[/\\][^\s|;&\"']*|/[^\s|;&\"']*")
+
+
+def _shell_targets_read_root_write(
+    cmd: str, read_roots: tuple[str, ...], write_roots: tuple[str, ...]
+) -> bool:
+    """命令字符串是否明显要把内容写入/删除只读附加根子树(保守识别,phase-58)。
+
+    先用意图粗筛(重定向或复制/移动/删除类动词),命中再提取命令里的绝对路径
+    字面量逐个 resolve:落在某只读附加根下、且不在任何读写根下 → True(应拒,
+    先于 L2)。路径同时落在读写根下按可写对待(对齐 _decide_fs 的 roots 顺序)。"""
+    if not _SHELL_WRITE_INTENT_RE.search(cmd or ""):
+        return False
+    for raw in _SHELL_ABS_PATH_RE.findall(cmd or ""):
+        target = Path(raw).resolve()
+        writable = False
+        for root in write_roots:  # 读写根优先于只读根(与 fs 维同序)
+            root_path = Path(root).resolve()
+            if target == root_path or root_path in target.parents:
+                writable = True
+                break
+        if writable:
+            continue
+        for root in read_roots:
+            root_path = Path(root).resolve()
+            if target == root_path or root_path in target.parents:
+                return True
+    return False
 
 
 @dataclass(frozen=True)
@@ -289,4 +332,10 @@ class PolicyEngine:
         # skills 子树禁经 shell 改写(phase-41):拒绝发生在 L2 确认之前(与 32 的 fs 刀一致)
         if (action.write or action.irreversible) and _shell_targets_skills_write(action.target):
             return Decision(False, reason="skill 目录禁止经 shell 改写")
+        # 只读附加根禁经 shell 改写(phase-58,补 53 的 shell 旁路):同样先于 L2 拒绝;
+        # write_roots 内路径不拦(与 fs 维一致,仍走 L2)。附加根热读,与 fs 判定同源。
+        if action.write or action.irreversible:
+            fs = self._fs_policy()
+            if _shell_targets_read_root_write(action.target, fs.read_roots, fs.write_roots):
+                return Decision(False, reason="只读附加目录禁止经 shell 改写")
         return Decision(True, self.shell_level, "命令执行默认需确认")

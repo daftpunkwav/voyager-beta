@@ -405,6 +405,82 @@ class TestShellSkillsGuard:
         assert d.allow and d.level == Level.L2_CONFIRM
 
 
+class TestShellReadRootsGuard:
+    """run_shell 命令明显写/删只读附加根子树时直接拒绝(phase-58),先于 L2;
+    write_roots 内路径不拦(仍 L2,与 fs 维 55 一致);skills 刀(41)语义不变。"""
+
+    @staticmethod
+    def _engine(tmp_path, *, read_roots=(), write_roots=()) -> PolicyEngine:
+        return PolicyEngine(
+            fs=FsPolicy(
+                roots=(str(tmp_path / "ws"),),
+                read_roots=tuple(read_roots),
+                write_roots=tuple(write_roots),
+            )
+        )
+
+    def test_redirect_into_read_root_denied(self, tmp_path) -> None:
+        root = tmp_path / "docs"
+        engine = self._engine(tmp_path, read_roots=(str(root),))
+        d = engine.decide(
+            Action(dimension="shell", target=f"echo x > {root / 'a.txt'}", write=True)
+        )
+        assert not d.allow
+        assert "只读附加目录" in d.reason
+
+    def test_copy_move_delete_read_root_denied(self, tmp_path) -> None:
+        root = tmp_path / "docs"
+        engine = self._engine(tmp_path, read_roots=(str(root),))
+        for cmd in (
+            f"rm -rf {root / 'keep'}",
+            f"del /q {root}\\a.txt",
+            f"cp a.txt {root / 'pwn.txt'}",
+            f"move x {root}\\pwn.txt",
+        ):
+            d = engine.decide(Action(dimension="shell", target=cmd, write=True))
+            assert not d.allow, cmd
+
+    def test_under_write_root_still_confirm(self, tmp_path) -> None:
+        """read_root 父目录 + write_root 子目录:子树写不拦(仍 L2),父树其余仍拒。"""
+        read_root = tmp_path / "proj"
+        write_root = read_root / "out"
+        engine = self._engine(
+            tmp_path, read_roots=(str(read_root),), write_roots=(str(write_root),)
+        )
+        d = engine.decide(
+            Action(dimension="shell", target=f"echo x > {write_root / 'a.txt'}", write=True)
+        )
+        assert d.allow and d.level == Level.L2_CONFIRM
+        d = engine.decide(
+            Action(dimension="shell", target=f"echo x > {read_root / 'b.txt'}", write=True)
+        )
+        assert not d.allow
+
+    def test_readonly_commands_still_confirm(self, tmp_path) -> None:
+        """只读类命令(type/cat)不拦,维持原 L2 档位。"""
+        root = tmp_path / "docs"
+        engine = self._engine(tmp_path, read_roots=(str(root),))
+        for cmd in (f"type {root}\\keep.txt", f"cat {root}/a.txt"):
+            d = engine.decide(Action(dimension="shell", target=cmd, write=True))
+            assert d.allow and d.level == Level.L2_CONFIRM, cmd
+
+    def test_workspace_relative_write_still_confirm(self, tmp_path) -> None:
+        """workspace 内写(cwd 钉在 workspace,35)不受本刀影响,回归。"""
+        engine = self._engine(tmp_path, read_roots=(str(tmp_path / "docs"),))
+        d = engine.decide(Action(dimension="shell", target="echo ok > a.txt", write=True))
+        assert d.allow and d.level == Level.L2_CONFIRM
+
+    def test_read_roots_hot_from_settings(self, tmp_path) -> None:
+        """附加根热读(与 fs 判定同源):settings 现值直接生效,不重启。"""
+        root = tmp_path / "docs"
+        settings = _FakeSettings({"agent.fs.read_roots": [str(root)]})
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(tmp_path / "ws"),)), settings=settings)
+        d = engine.decide(
+            Action(dimension="shell", target=f"echo x > {root}\\a.txt", write=True)
+        )
+        assert not d.allow
+
+
 class _FakeSettings:
     """最小设置句柄(有 get 即可);value 是 mock 的 settings 库。"""
 
