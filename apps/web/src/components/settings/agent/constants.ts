@@ -34,6 +34,9 @@ export const NETWORK_MODE_OPTIONS = [
 /** 工作目录(agent.workspace.dir,§9.10):相对仓库根,保存后需重启才换 jail */
 export const WORKDIR_KEY = 'agent.workspace.dir';
 
+/** 附加只读根(agent.fs.read_roots,§9.9/phase-53):绝对路径列表,读可访问,写/删仍仅限工作目录 */
+export const READ_ROOTS_KEY = 'agent.fs.read_roots';
+
 /** 主动触达预算(agent.proactive.*,§9.8/phase-18):范围与 SettingDef 一致 */
 export const PROACTIVE_PER_SESSION_KEY = 'agent.proactive.per_session';
 export const PROACTIVE_PER_SESSION_MAX = 20;
