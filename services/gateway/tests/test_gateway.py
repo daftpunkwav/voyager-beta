@@ -73,6 +73,18 @@ class TestChat:
         r = client.get("/api/chat/stream?after_seq=0&once=true")
         assert "agent.step" in r.text and "notes__create_note" in r.text
 
+    def test_sse_streams_policy_notify_not_history(self, client, bus) -> None:
+        """L1 权限提示(phase-40):进 SSE 流推 toast;不进 GET messages 聊天史。"""
+        asyncio.run(bus.publish(Event(
+            type="agent.policy.notify",
+            actor=ActorRef(kind=ActorKind.AGENT, id="agent.main"),
+            payload={"message": "write_file: g.txt"},
+        )))
+        r = client.get("/api/chat/stream?after_seq=0&once=true")
+        assert "agent.policy.notify" in r.text and "write_file: g.txt" in r.text
+        hist = client.get("/api/chat/messages").json()["messages"]
+        assert all(m["type"] != "agent.policy.notify" for m in hist)
+
     def test_sse_replay_includes_task_glob(self, client, bus) -> None:
         """once 补读认识 glob(phase-15):_STREAM_TYPES 里的 'task.*' 补读能
         拿到事先落库的 task.progress(此前 SQL IN 字面量补不到,断线丢进度)。"""

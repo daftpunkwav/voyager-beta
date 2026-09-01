@@ -139,6 +139,10 @@ def build_agent(
         answer = await asker.ask(Question(prompt=prompt, kind="confirm"))
         return bool(answer)
 
+    async def _notify(message: str) -> None:
+        """L1 权限提示(§9.9):经事件流推到 Chat toast,不冒充对话。"""
+        await events.emit("agent.policy.notify", message=message)
+
     _master: dict[str, Master] = {}  # spawn_subagent 工具与 master 互相引用,先占位
 
     def _provide_context(need: str) -> dict[str, str]:
@@ -159,7 +163,7 @@ def build_agent(
         tools.update(group)
     tools.update(spawn_tool(lambda *a, **kw: _master["master"].dispatch_task(*a, **kw)))
     tools.update(extra_tools or {})  # 领域能力桥(聚合运行注入,§9.4)
-    toolbelt = Toolbelt(tools, policy, confirm=_confirm, meter=meter, hooks=hooks)
+    toolbelt = Toolbelt(tools, policy, confirm=_confirm, notify=_notify, meter=meter, hooks=hooks)
 
     # 外接 MCP(phase-11b,§9.13):空池合法;批准动作经能力层 register 进根名册
     #(对话下一轮 from 根再拷即见),start() 只重连 enabled 且已批准的条目

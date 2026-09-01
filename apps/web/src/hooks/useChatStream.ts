@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { subscribe } from '@/bridge/stream';
 import { safeInternalPath } from '@/utils/safeUrl';
 import { type ChatEvent, useChatStore } from '@/stores/chatStore';
+import { useUIStore } from '@/stores/uiStore';
 
 const STREAM_PATTERNS = [
   'agent.message',
@@ -16,6 +17,7 @@ const STREAM_PATTERNS = [
   'agent.navigate',
   'agent.step',
   'agent.observe',
+  'agent.policy.notify',
   'task.*',
   'note.created',
 ];
@@ -35,6 +37,12 @@ export function useChatStream(onNavigate: (path: string) => void) {
       if (ev.type === 'agent.navigate') {
         const path = safeInternalPath(ev.payload.path);
         if (path) onNavigate(path);
+        return;
+      }
+      if (ev.type === 'agent.policy.notify') {
+        // L1 权限提示(§9.9):只弹 info toast,不进聊天时间线
+        const msg = String(ev.payload?.message ?? '').trim();
+        if (msg) useUIStore.getState().addToast({ type: 'info', message: msg });
         return;
       }
       useChatStore.getState().dispatch(ev as ChatEvent);
