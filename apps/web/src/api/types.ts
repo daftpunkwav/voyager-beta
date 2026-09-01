@@ -844,14 +844,14 @@ export type SSEEventType =
 
 export interface SSETextDelta {
   type: 'text_delta';
-  /** 运行时字段为 content(佐证:sseHandlers/agentSSEStream/ProjectDetailPage/
+  /** 运行时字段为 content(佐证:sseHandlers/ProjectDetailPage/
    *  useTrendingSpotlight(原 useTrendingScoutSpot)消费) */
   content: string;
 }
 
 export interface SSEThinking {
   type: 'thinking';
-  /** 运行时字段为 content(佐证:sseHandlers/agentSSEStream 两处消费) */
+  /** 运行时字段为 content */
   content: string;
 }
 
