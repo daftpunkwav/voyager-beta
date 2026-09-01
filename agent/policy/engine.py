@@ -151,6 +151,13 @@ class PolicyEngine:
         for root in self.fs.roots:
             root_path = Path(root).resolve()
             if target == root_path or root_path in target.parents:
+                if action.write or action.irreversible:
+                    # skills 目录禁写禁删(phase-32):SKILL.md 一旦可写,提示注入
+                    # 下一轮即进 system 的「可用 skill」索引;拒绝必须发生在本判定,
+                    # 先于 L2 确认(delete 不该先弹「允许删除吗?」再失败)
+                    reserved = root_path / "skills"
+                    if target == reserved or reserved in target.parents:
+                        return Decision(False, reason="skill 目录禁止经文件工具改写")
                 if action.irreversible:
                     return Decision(True, Level.L2_CONFIRM, "删除类操作需确认")
                 return Decision(

@@ -45,6 +45,57 @@ class TestFsJail:
         for cat in ("repo", "books", "news", "exports", "imports", "sandbox"):
             assert (workdir / cat).is_dir()
 
+    async def test_skills_write_denied(self, workdir) -> None:
+        """skills/ 禁写(phase-32):policy 层拒绝,文件不落盘。"""
+        belt = _belt(workdir)
+        out = await belt.call(
+            ToolCall("1", "write_file", {"path": "skills/pwn/SKILL.md", "content": "pwn"})
+        )
+        assert "[已拒绝]" in out
+        assert not (workdir / "skills").exists()  # 连父目录都不许建
+
+    async def test_skills_write_via_dotdot_denied(self, workdir) -> None:
+        """repo/../skills 解析后仍在 skills 下,同样拒绝。"""
+        belt = _belt(workdir)
+        out = await belt.call(
+            ToolCall("1", "write_file", {"path": "repo/../skills/pwn/SKILL.md", "content": "pwn"})
+        )
+        assert "[已拒绝]" in out
+        assert not (workdir / "skills" / "pwn").exists()
+
+    async def test_skills_delete_denied_without_confirm(self, workdir) -> None:
+        """delete 打 skills 直接拒绝,不弹 L2 确认;文件保留。"""
+        asked: list[str] = []
+
+        async def spy_confirm(prompt: str) -> bool:
+            asked.append(prompt)
+            return True
+
+        keep = workdir / "skills" / "keep" / "SKILL.md"
+        keep.parent.mkdir(parents=True)
+        keep.write_text("# keep\n", encoding="utf-8")
+        belt = _belt(workdir, confirm=spy_confirm)
+        out = await belt.call(ToolCall("1", "delete_file", {"path": "skills/keep/SKILL.md"}))
+        assert "[已拒绝]" in out
+        assert keep.exists()
+        assert asked == []  # 拒绝发生在确认之前,确认通道根本没被问
+
+    async def test_skills_read_list_still_ok(self, workdir) -> None:
+        keep = workdir / "skills" / "keep" / "SKILL.md"
+        keep.parent.mkdir(parents=True)
+        keep.write_text("# keep\n", encoding="utf-8")
+        belt = _belt(workdir)
+        text = await belt.call(ToolCall("1", "read_file", {"path": "skills/keep/SKILL.md"}))
+        assert "# keep" in text
+        listing = await belt.call(ToolCall("2", "list_dir", {"path": "skills"}))
+        assert "keep/" in listing
+
+    async def test_repo_write_regression(self, workdir) -> None:
+        """非 skills 分类仍可写(回归)。"""
+        belt = _belt(workdir)
+        out = await belt.call(ToolCall("1", "write_file", {"path": "repo/a.md", "content": "x"}))
+        assert "written" in out
+
 
 async def _yes() -> bool:
     return True

@@ -64,6 +64,36 @@ class TestFs:
         assert d.allow and d.level == Level.L2_CONFIRM
 
 
+class TestFsSkillsGuard:
+    """jail 内 skills/ 子树对写删类 fs Action 只读(phase-32):拒绝在 L2 之前。"""
+
+    def test_write_into_skills_denied(self, tmp_path) -> None:
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(tmp_path),)))
+        d = engine.decide(
+            Action(dimension="fs", target=str(tmp_path / "skills" / "pwn" / "SKILL.md"), write=True)
+        )
+        assert not d.allow
+        assert "skill 目录" in d.reason
+
+    def test_read_skills_still_allowed(self, tmp_path) -> None:
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(tmp_path),)))
+        d = engine.decide(Action(dimension="fs", target=str(tmp_path / "skills" / "pwn" / "SKILL.md")))
+        assert d.allow and d.level == Level.L0_SILENT
+
+    def test_write_repo_still_allowed(self, tmp_path) -> None:
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(tmp_path),)))
+        d = engine.decide(Action(dimension="fs", target=str(tmp_path / "repo" / "a.md"), write=True))
+        assert d.allow and d.level == Level.L1_NOTIFY
+
+    def test_delete_skills_denied_before_confirm(self, tmp_path) -> None:
+        """irreversible 打 skills 直接拒绝,不再进入 L2 确认。"""
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(tmp_path),)))
+        d = engine.decide(
+            Action(dimension="fs", target=str(tmp_path / "skills" / "keep" / "SKILL.md"), irreversible=True)
+        )
+        assert not d.allow
+
+
 class TestApp:
     def test_whitelist_and_denied(self) -> None:
         engine = PolicyEngine(app=AppPolicy(allowed=frozenset({"set_theme"}), denied=frozenset()))

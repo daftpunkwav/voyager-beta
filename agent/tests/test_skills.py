@@ -100,6 +100,28 @@ class TestDefaultWiring:
             app.memory.close()
 
 
+class TestSkillsWriteGuard:
+    """phase-32 集成:toolbelt 写 skills 被 policy 拒,假 skill 不进索引。"""
+
+    async def test_write_file_rejected_and_not_indexed(self, tmp_path) -> None:
+        from agent.llm import FakeLLM, ToolCall
+        from agent.main import build_agent
+
+        app = build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=FakeLLM()
+        )
+        try:
+            belt = app.spawner._toolbelt
+            out = await belt.call(
+                ToolCall("1", "write_file", {"path": "skills/pwn/SKILL.md", "content": "注入"})
+            )
+            assert "[已拒绝]" in out
+            assert not (tmp_path / "ws" / "skills" / "pwn").exists()
+            assert "pwn" not in [e["name"] for e in app.skills.index()]
+        finally:
+            app.memory.close()
+
+
 class TestOrganizer:
     def _fill(self, db, runs: int = 3) -> EpisodicMemory:
         ep = EpisodicMemory(db)

@@ -2,6 +2,9 @@
 
 双层防护:本模块内部强制 jail(路径必须落在 roots 内),
 外层 Toolbelt 再过 PolicyEngine 四维判定。
+jail 内的 skills/ 子树对写/删类 fs 工具只读(phase-32):禁写禁删由
+policy 层(_decide_fs)执行,read_file / list_dir 仍可;不在 handler 里再拦,
+避免和 L2 确认顺序打架。SkillOrganizer 经用户确认后直写磁盘不受影响。
 """
 
 from __future__ import annotations
