@@ -39,6 +39,20 @@ class TestStores:
         assert m.semantic.query(relation="作者")[0]["object"] == "LangChain"
         m.close()
 
+    def test_semantic_purge_by_ts(self, tmp_path) -> None:
+        m = Memory(tmp_path)
+        m.semantic.add("langgraph", "类型", "框架")
+        m.semantic.add("langgraph", "作者", "LangChain")
+        stale_id = m.semantic.query(relation="类型")[0]["id"]
+        with m.semantic._lock:  # 拨旧一条 ts,模拟超期事实
+            m.semantic._conn.execute(
+                "UPDATE facts SET ts = ts - ? WHERE id = ?", (40 * 86400, stale_id)
+            )
+            m.semantic._conn.commit()
+        assert m.semantic.purge(30) == 1  # 删旧留新
+        assert [f["relation"] for f in m.semantic.query(subject="langgraph")] == ["作者"]
+        m.close()
+
     def test_working_bounded(self) -> None:
         m = Memory("/nonexistent-should-not-touch")  # 只用 working,不触碰磁盘
         for i in range(250):
@@ -63,8 +77,10 @@ class TestFacade:
     def test_retention_zero_means_agent_managed(self, tmp_path) -> None:
         m = Memory(tmp_path)
         m.episodic.log("consider", "x")
-        assert m.purge(retention_days=0) == {"episodic": 0}  # 不自动清
+        m.semantic.add("langgraph", "类型", "框架")
+        assert m.purge(retention_days=0) == {"episodic": 0, "semantic": 0}  # 不自动清
         assert len(m.episodic.recent()) == 1
+        assert len(m.semantic.query()) == 1
         assert m.purge(retention_days=90)["episodic"] == 0  # 未超期
         m.close()
 

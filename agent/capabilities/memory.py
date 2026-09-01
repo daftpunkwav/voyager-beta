@@ -15,9 +15,9 @@ def register(reg: Registry, deps: CapabilityDeps) -> None:
 
     @capability(reg, name="get_memory", description="记忆快照:画像摘要+键值、最近情节/语义、工作记忆条数")
     def get_memory() -> dict:
-        """设置页数据源(§10.11):读 retention_days 并惰性清超期情节(与 notes 回收站同精神)。"""
+        """设置页数据源(§10.11):读 retention_days 并惰性清超期情节与语义事实(与 notes 回收站同精神)。"""
         retention = int(deps.settings.get("agent.memory.retention_days") or 0)
-        purged = deps.memory.purge(retention)["episodic"] if retention > 0 else 0
+        purged = deps.memory.purge(retention)
         episodic_recent = deps.memory.episodic.recent(limit=20)
         semantic_recent = deps.memory.semantic.query(limit=20)
         return {
@@ -31,7 +31,8 @@ def register(reg: Registry, deps: CapabilityDeps) -> None:
             "semantic": {"recent": semantic_recent, "shown": len(semantic_recent)},
             "working": {"size": len(deps.memory.working)},
             "retention_days": retention,
-            "purged_episodic": purged,
+            "purged_episodic": purged["episodic"],
+            "purged_semantic": purged.get("semantic", 0),
         }
 
     @capability(reg, name="clear_memory", description="清空记忆区(zone: profile/episodic/semantic/working/all)",

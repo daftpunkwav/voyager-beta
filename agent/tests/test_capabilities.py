@@ -183,7 +183,7 @@ class TestMemorySurface:
                       {"key": "语言偏好", "value": "中文"})
         out = await execute(app.registry, "get_memory", USER_CTX, {})
         assert set(out) == {"profile", "episodic", "semantic", "working",
-                            "retention_days", "purged_episodic"}
+                            "retention_days", "purged_episodic", "purged_semantic"}
         assert "语言偏好: 中文" in out["profile"]["summary"]
         assert out["profile"]["items"] == [{"key": "语言偏好", "value": "中文"}]
         assert set(out["episodic"]) == {"recent", "shown"}
@@ -206,13 +206,14 @@ class TestMemorySurface:
         assert exc.value.body.code == "AGENT.INVALID_INPUT"
 
     async def test_get_memory_retention_zero_does_not_purge(self, app) -> None:
-        """retention_days=0 = 交 agent 管理:快照不清情节,purged_episodic 为 0。"""
+        """retention_days=0 = 交 agent 管理:快照不清情节/语义,purged_* 均为 0。"""
         await execute(app.registry, "set_setting", USER_CTX,
                       {"key": "agent.memory.retention_days", "value": 0})
         app.memory.episodic.log("consider", "用户在看 langgraph")
         out = await execute(app.registry, "get_memory", USER_CTX, {})
         assert out["retention_days"] == 0
         assert out["purged_episodic"] == 0
+        assert out["purged_semantic"] == 0
         assert out["episodic"]["shown"] == 1
 
     async def test_set_profile_empty_key_rejected(self, app) -> None:

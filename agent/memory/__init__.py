@@ -1,6 +1,6 @@
 """记忆系统(§9.11):四类记忆 + 检索式查询门面(recall,§9.20 按需加载)。
 
-保留策略(决策 §15):retention_days>0 时 purge 清理超期情节;0 = 交 agent 管理(不自动清)。
+保留策略(决策 §15):retention_days>0 时 purge 同时清理超期情节与超期语义事实;0 = 交 agent 管理(不自动清)。
 """
 
 from __future__ import annotations
@@ -42,8 +42,11 @@ class Memory:
 
     def purge(self, retention_days: int) -> dict[str, int]:
         if retention_days <= 0:
-            return {"episodic": 0}  # 交 agent 管理
-        return {"episodic": self.episodic.purge(retention_days)}
+            return {"episodic": 0, "semantic": 0}  # 交 agent 管理
+        return {
+            "episodic": self.episodic.purge(retention_days),
+            "semantic": self.semantic.purge(retention_days),
+        }
 
     def clear(self, zone: str) -> dict[str, int]:
         """按区清空记忆(§10.11 设置页"查看/清空"),返回各区删除条数。

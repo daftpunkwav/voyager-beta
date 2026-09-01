@@ -78,6 +78,14 @@ class SemanticMemory:
             for r in self._conn.execute(sql, params).fetchall()
         ]
 
+    def purge(self, older_than_days: int) -> int:
+        """保留策略(§9.11):清理超期事实,返回删除条数。"""
+        cutoff = time.time() - older_than_days * 86400
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM facts WHERE ts < ?", (cutoff,))
+            self._conn.commit()
+        return cur.rowcount
+
     def clear(self) -> int:
         """清空全部事实三元组(§10.11 设置页清空动作),返回删除条数。"""
         with self._lock:
