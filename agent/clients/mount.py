@@ -1,8 +1,9 @@
 """外接 MCP 工具挂载:把远端 tool 变成 AgentTool 挂进根 Toolbelt。
 
 连接由 pool.py 负责;mount.py 只关心「工具名怎么定」「AgentTool 怎么造」
-与「批准后 register / 移除时 unregister」。批准已经是进入工具面的门,
-dimension 固定为 "none",不与 capability app 白名单维搅在一起(见 §9.13)。
+与「批准后 register / 移除时 unregister」。批准只是进名册的门;调用仍走
+capability app 白名单维(dimension="app",target=工具名,与桥工具同一套
+agent.app.allowed/denied,phase-31;见 §9.9/§9.13)。
 """
 
 from __future__ import annotations
@@ -44,8 +45,8 @@ def _build_tool(cfg: dict, session: McpSession, remote: dict) -> AgentTool:
         description=f"[MCP:{cfg['name']}] {remote.get('description') or remote_name}",
         handler=handler,
         schema=schema,
-        # 批准已经是进入工具面的门;不与 capability 白名单维(app)搅在一起
-        dimension="none",
+        # 批准只是进名册的门;调用走 app 维(target=工具名,同一套 agent.app.allowed)
+        dimension="app",
     )
 
 

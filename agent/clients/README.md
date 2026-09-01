@@ -4,7 +4,8 @@
   stdio/URL 配置(`agent.mcp.servers`),连接并列出远端 tools;连接实现可注入,
   测试用 Fake。
 - `mount.py`:把远端 tools 按 `mcp__<id>__<tool>` 挂进 Toolbelt;
-  批准(整包/逐项)与移除卸载在此。
+  批准(整包/逐项)与移除卸载在此。批准只是进名册的门;调用走 app 维
+  白名单(与桥工具同一套 `agent.app.allowed`,phase-31)。
 - `session.py`:MCP 会话产品路径(stdio 子进程 shell=False、HTTP POST JSON-RPC),
   最小握手 initialize → tools/list / tools/call。
 - `discovery.py`:启动时按各服务 service.json 发现模块卡(只读卡,不连接)。

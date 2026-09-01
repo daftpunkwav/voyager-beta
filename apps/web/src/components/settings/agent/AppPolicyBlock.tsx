@@ -85,7 +85,7 @@ export function AppPolicyBlock() {
       <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
         控制 Agent 能否调用笔记、图谱等应用内能力。名称与团队页工具面一致（如 notes__create_note）。单独一行
         * 表示全部应用内能力；notes__* 表示该域前缀；拒绝优先于允许。空白允许名单会让笔记/图谱等桥工具全部失败。
-        文件、联网、命令、外接 MCP 不走本名单。
+        批准后的外接 MCP（mcp__*）也走本名单；文件、联网、命令不走。
       </p>
       {loadFailed ? (
         <p className="muted" style={{ fontSize: 12 }}>读取失败请刷新。</p>

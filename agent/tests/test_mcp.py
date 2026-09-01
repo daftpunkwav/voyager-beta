@@ -168,6 +168,59 @@ class TestApproveAndMount:
         assert sorted(mcp_names) == ["mcp__demo__fetch", "mcp__demo__search"]
 
 
+class TestAppDimension:
+    """phase-31:挂载 dimension="app";调用与桥工具同一套 agent.app.allowed/denied,
+    批准只是进名册的门。名单用 set_setting 热改(PolicyEngine 持 settings 句柄)。"""
+
+    async def _approve_all(self, app) -> None:
+        await _add(app)
+        await execute(
+            app.registry, "approve_mcp_tools", USER_CTX, {"id": "demo", "names": ["*"]}
+        )
+
+    async def test_mounted_dimension_is_app(self, app) -> None:
+        await self._approve_all(app)
+        assert app.spawner._toolbelt._tools["mcp__demo__search"].dimension == "app"
+
+    async def test_allow_list_without_mcp_rejects_before_handler(self, app) -> None:
+        """允许名单收成 notes__* 后 mcp__* 被拒,且远端 handler 未执行。"""
+        await self._approve_all(app)
+        await execute(
+            app.registry, "set_setting", USER_CTX,
+            {"key": "agent.app.allowed", "value": ["notes__*"]},
+        )
+        out = await app.spawner._toolbelt.call(
+            ToolCall(id="1", name="mcp__demo__search", arguments={"q": "x"})
+        )
+        assert "[已拒绝]" in out
+        assert app.sessions["demo"].calls == []
+
+    async def test_allow_mcp_prefix_still_calls_fake(self, app) -> None:
+        await self._approve_all(app)
+        await execute(
+            app.registry, "set_setting", USER_CTX,
+            {"key": "agent.app.allowed", "value": ["mcp__*"]},
+        )
+        out = await app.spawner._toolbelt.call(
+            ToolCall(id="1", name="mcp__demo__search", arguments={"q": "mcp"})
+        )
+        assert out == "fake:search:mcp"
+        assert app.sessions["demo"].calls == [("search", {"q": "mcp"})]
+
+    async def test_denied_mcp_prefix_wins_over_allowed_star(self, app) -> None:
+        """allowed=["*"] + denied=["mcp__*"]:拒绝优先,handler 未执行。"""
+        await self._approve_all(app)
+        await execute(
+            app.registry, "set_setting", USER_CTX,
+            {"key": "agent.app.denied", "value": ["mcp__*"]},
+        )
+        out = await app.spawner._toolbelt.call(
+            ToolCall(id="1", name="mcp__demo__search", arguments={"q": "x"})
+        )
+        assert "[已拒绝]" in out
+        assert app.sessions["demo"].calls == []
+
+
 class TestRemove:
     async def test_remove_unmounts_and_forgets(self, app) -> None:
         await _add(app)

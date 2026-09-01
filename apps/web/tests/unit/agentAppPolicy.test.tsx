@@ -139,6 +139,21 @@ describe('应用内能力白名单(phase-19)', () => {
     );
   });
 
+  it('mcp__* 前缀能保存(phase-31:外接 MCP 也走 app 维)', async () => {
+    renderSection();
+    await waitDraft('应用内能力允许名单', '*');
+
+    const box = screen.getByLabelText('应用内能力允许名单') as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: 'mcp__*' } });
+    fireEvent.blur(box);
+    await waitFor(() =>
+      expect(callCapabilityMock).toHaveBeenCalledWith('settings', 'set_setting', {
+        key: 'agent.app.allowed',
+        value: ['mcp__*'],
+      }),
+    );
+  });
+
   it('URL 形态拒收,不发请求', async () => {
     renderSection();
     await waitDraft('应用内能力允许名单', '*');
