@@ -14,14 +14,19 @@ async def with_retry(
     retries: int = 2,
     backoff: float = 0.1,
     retry_on: tuple[type[BaseException], ...] = (Exception,),
+    no_retry_on: tuple[type[BaseException], ...] = (),
 ) -> Any:
-    """指数退避重试。最后一次失败原样抛出,由上层按错误码决策(§7.10)。"""
+    """指数退避重试。最后一次失败原样抛出,由上层按错误码决策(§7.10)。
+
+    no_retry_on 命中的异常不重试、立即原样抛出(phase-43):超时重试只会
+    拖长等待;熔断已打开时重试只会空转。
+    """
     delay = backoff
     for attempt in range(retries + 1):
         try:
             return await fn()
-        except retry_on:
-            if attempt >= retries:
+        except retry_on as exc:
+            if attempt >= retries or isinstance(exc, no_retry_on):
                 raise
             await asyncio.sleep(delay)
             delay *= 2

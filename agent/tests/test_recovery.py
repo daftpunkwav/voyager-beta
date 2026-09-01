@@ -2,10 +2,13 @@
 
 recovery.py 此前没有调用方;本文件锁定接线后的行为:
 - 只读工具失败重试到成功;写类工具失败一次即停(防双写);
-- 按工具名熔断,打开后不再进 handler;
+- 超时不重试(phase-43);按工具名熔断且按**每次 handler 尝试**计次(phase-43),
+  打开后不再进 handler;
 - EventLoop 某 pattern 连续失败被跳过,其它 pattern 不受影响,loop 不炸;
 - 启动 reclaim 把磁盘上 alive 的 checkpoint 标 failed(不 resume)。
 """
+
+import asyncio
 
 import pytest
 from platform_contracts import LOCAL_USER, Event
@@ -59,6 +62,23 @@ class TestToolRetry:
         assert "[工具失败]" in out
         assert counter["calls"] == 1
 
+    async def test_timeout_not_retried(self, tmp_path) -> None:
+        """超时默认不重试(phase-43):MCP/shell 超时 × 退避重试只会拖长,
+        只读工具抛 TimeoutError 也只进 1 次 handler,一次超时即失败。"""
+        root = ensure_workdir(tmp_path / "ws")
+        counter = {"calls": 0}
+
+        async def slow(**kwargs) -> str:
+            counter["calls"] += 1
+            raise asyncio.TimeoutError("上游 30s 未响应")
+
+        belt = _belt(root, {"slow": AgentTool(
+            name="slow", description="测试用超时工具", handler=slow, dimension="none",
+        )})
+        out = await belt.call(ToolCall("1", "slow", {}))
+        assert "[工具失败]" in out and "TimeoutError" in out
+        assert counter["calls"] == 1
+
     async def test_spawn_subagent_is_write_never_retried(self, tmp_path) -> None:
         """spawn_subagent 有副作用(创建运行实例):标 write,失败只进 1 次
         handler,不按只读重试双开实例(phase-13)。"""
@@ -81,26 +101,26 @@ class TestToolRetry:
 
 class TestToolBreaker:
     async def test_opens_after_consecutive_failures(self, tmp_path) -> None:
-        """连续失败 3 次(默认 open_after)后熔断;打开后不再进 handler。"""
+        """连续 3 次 handler 失败(默认 open_after)即熔断;重试内每次尝试都计数,
+        不再按外层 belt.call 计 1 次(旧结构 3×3=9 次才断,phase-43)。"""
         root = ensure_workdir(tmp_path / "ws")
         counter = {"calls": 0}
         belt = _belt(root, {"flaky": _flaky_tool(10**9, counter)})
-        for _ in range(3):  # 熔断按 belt.call 计次(with_retry 在其内层)
-            assert "[工具失败]" in await belt.call(ToolCall("1", "flaky", {}))
-        assert counter["calls"] == 9  # 3 次调用 × (1 + 2 重试)
-        assert "[熔断]" in await belt.call(ToolCall("2", "flaky", {}))
-        assert counter["calls"] == 9  # 打开后不再进 handler
+        # 单次 belt.call 内 3 次 handler 尝试全部失败 → 熔断立即打开
+        assert "[工具失败]" in await belt.call(ToolCall("1", "flaky", {}))
+        assert counter["calls"] == 3
+        assert "[熔断]" in await belt.call(ToolCall("2", "flaky", {}))  # 后续直接熔断
+        assert counter["calls"] == 3  # 打开后不再进 handler
 
     async def test_breaker_shared_across_trimmed_views(self, tmp_path) -> None:
         """裁剪视图与根名册同一份熔断器:不因视图重建而复位。"""
         root = ensure_workdir(tmp_path / "ws")
         counter = {"calls": 0}
         belt = _belt(root, {"flaky": _flaky_tool(10**9, counter)})
-        for _ in range(3):
-            await belt.call(ToolCall("1", "flaky", {}))
+        await belt.call(ToolCall("1", "flaky", {}))  # 3 次 handler 失败,熔断打开
         trimmed = belt.trimmed(["flaky"])
         assert "[熔断]" in await trimmed.call(ToolCall("2", "flaky", {}))
-        assert counter["calls"] == 9
+        assert counter["calls"] == 3
 
 
 def _event(type_: str) -> Event:

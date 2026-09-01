@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
 import time
@@ -28,10 +29,16 @@ def _breaker_for(belt: Toolbelt, name: str) -> CircuitBreaker:
 
 
 async def _invoke_with_recovery(belt: Toolbelt, tool: AgentTool, call: ToolCall) -> Any:
-    """handler 执行包重试 + 熔断(§9.17,phase-12)。
+    """handler 执行包重试 + 熔断(§9.17,phase-12;计次与超时语义 phase-43)。
 
     - 只读/网络 GET 类可重试;write / irreversible 工具禁重试(重试会双写/重复删除);
-    - 熔断按工具名计次:连续失败达到 open_after 后直接抛 CircuitOpenError,不进 handler;
+    - 熔断按**每次 handler 执行**计失败(phase-43):with_retry 内的每一次尝试
+      都单独过 breaker.call,连续 3 次 handler 失败即断开;不再按外层
+      belt.call 计 1 次(旧结构 3 次 belt.call × 3 次 handler = 9 次才断);
+    - TimeoutError / asyncio.TimeoutError 默认不重试(phase-43):MCP/shell
+      超时 × 退避重试只会拖长等待,一次超时即失败,交给熔断/文本结果;
+    - 熔断打开后的 CircuitOpenError 不进重试循环,直接冒泡(invoke_tool
+      折成 [熔断] 文本结果);
     - policy 拒绝 / 用户未确认 / pre_tool 拦截在 invoke_tool() 更早返回,不进这里,
       因此不重试、不记熔断失败;
     - backoff 收在 belt 构造参数,单测注入 0 免真睡。
@@ -39,14 +46,21 @@ async def _invoke_with_recovery(belt: Toolbelt, tool: AgentTool, call: ToolCall)
     breaker = _breaker_for(belt, tool.name)
     retries = 0 if (tool.write or tool.irreversible) else belt._retries
 
-    async def _attempt() -> Any:
+    async def _attempt_once() -> Any:
         result = tool.handler(**call.arguments)
         if inspect.isawaitable(result):
             result = await result
         return result
 
-    return await breaker.call(
-        lambda: with_retry(_attempt, retries=retries, backoff=belt._retry_backoff)
+    async def _attempt_with_breaker() -> Any:
+        # 每次尝试都经熔断计数:成功复位、失败累计,open_after 次即断(phase-43)
+        return await breaker.call(_attempt_once)
+
+    return await with_retry(
+        _attempt_with_breaker,
+        retries=retries,
+        backoff=belt._retry_backoff,
+        no_retry_on=(CircuitOpenError, TimeoutError, asyncio.TimeoutError),
     )
 
 
