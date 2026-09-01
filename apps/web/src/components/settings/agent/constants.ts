@@ -22,6 +22,10 @@ export const ROUNDS_TOOL_KEY = 'agent.rounds.tool_max';
 export const ROUNDS_RE_MAX = 200;
 export const ROUNDS_TOOL_MAX = 500;
 
+/** token 日配额(agent.resource.daily_tokens,§9.9 资源维):当日 input+output 合计上限,0=不限 */
+export const DAILY_TOKENS_KEY = 'agent.resource.daily_tokens';
+export const DAILY_TOKENS_MAX = 10_000_000;
+
 /** 网络权限(agent.network.*;档位值与后端枚举一致) */
 export const NETWORK_MODE_KEY = 'agent.network.mode';
 export const NETWORK_DOMAINS_KEY = 'agent.network.domains';

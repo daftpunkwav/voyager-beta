@@ -11,6 +11,7 @@ import { ReadRootsBlock } from './agent/ReadRootsBlock';
 import { RoundsBlock } from './agent/RoundsBlock';
 import { SkillsBlock } from './agent/SkillsBlock';
 import { StyleBlock } from './agent/StyleBlock';
+import { TokenQuotaBlock } from './agent/TokenQuotaBlock';
 import { WorkspaceBlock } from './agent/WorkspaceBlock';
 import { WriteRootsBlock } from './agent/WriteRootsBlock';
 
@@ -25,6 +26,7 @@ export function AgentSettingsSection() {
       <StyleBlock />
       <GuidelinesBlock />
       <RoundsBlock />
+      <TokenQuotaBlock />
       <NetworkBlock />
       <WorkspaceBlock />
       <ReadRootsBlock />
