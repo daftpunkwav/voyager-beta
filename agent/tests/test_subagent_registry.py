@@ -55,3 +55,17 @@ class TestRegistry:
     def test_load_rejects_non_snake_case(self, tmp_path) -> None:
         with pytest.raises(ServiceError, match="snake_case"):
             SubagentRegistry(tmp_path).load("Bad Name")
+
+    def test_list_skips_bad_files(self, tmp_path) -> None:
+        # 单份坏 JSON / 非法定义不挡 list();坏文件保留在磁盘不删
+        (tmp_path / "broken.json").write_text("{not json", encoding="utf-8")
+        reg = SubagentRegistry(tmp_path)
+        reg.save(SubagentDef(name="alpha", description="A", mode="react"))
+        (tmp_path / "zzz-bad-mode.json").write_text(
+            json.dumps({"name": "zzz", "description": "x", "mode": "magic"}),
+            encoding="utf-8",
+        )
+        assert [d.name for d in reg.list()] == ["alpha"]
+        # 坏文件未被删除、内容未改
+        assert (tmp_path / "broken.json").read_text(encoding="utf-8") == "{not json"
+        assert (tmp_path / "zzz-bad-mode.json").exists()

@@ -91,10 +91,17 @@ class SubagentRegistry:
         return SubagentDef(**data)
 
     def list(self) -> list[SubagentDef]:
-        return [
-            SubagentDef(**json.loads(p.read_text(encoding="utf-8")))
-            for p in sorted(self._root.glob("*.json"))
-        ]
+        """已注册定义;单份文件损坏或非法则跳过,不挡其它条目、不挡 list_subagents。"""
+        out: list[SubagentDef] = []
+        for p in sorted(self._root.glob("*.json")):
+            try:
+                out.append(SubagentDef(**json.loads(p.read_text(encoding="utf-8"))))
+            except (
+                json.JSONDecodeError, UnicodeDecodeError, ValueError, KeyError,
+                TypeError, OSError, ServiceError,
+            ):
+                continue
+        return out
 
     def delete(self, name: str) -> None:
         name = _safe_name(name)
