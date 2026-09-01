@@ -1,4 +1,4 @@
-# GitLab CI:push / MR 时跑默认 pytest。
+# GitLab CI:push / MR 时先 ruff 检查 agent/deploy,再跑默认 pytest。
 # 测试范围由根 pyproject.toml 的 testpaths 决定
 # (platform / agent / deploy/tests / services/_template),依赖按 uv.lock 安装。
 stages:
@@ -20,4 +20,5 @@ pytest:
     - pip install uv
     - uv sync
   script:
+    - uv run ruff check agent deploy
     - uv run pytest -q
