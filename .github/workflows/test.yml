@@ -1,0 +1,21 @@
+# GitHub Actions:push / PR 时先 ruff 检查 agent/deploy,再跑默认 pytest。
+# 与 .gitlab-ci.yml 行为对齐(Python 3.11、同一命令顺序);
+# 测试范围由根 pyproject.toml 的 testpaths 决定,依赖按 uv.lock 安装。
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+          enable-cache: true   # 缓存 uv 下载目录,按 uv.lock 失效(对齐 GitLab 的 uv.lock 缓存键)
+      - run: uv sync
+      - run: uv run ruff check agent deploy
+      - run: uv run pytest -q
