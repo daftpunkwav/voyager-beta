@@ -10,7 +10,6 @@ import time
 from fastapi.testclient import TestClient
 
 from agent.clients.pool import McpClientPool
-
 from deploy.backend import build
 
 DOMAINS = {"llm", "sources", "notes", "graph", "settings", "agent"}

@@ -17,7 +17,7 @@ def scan_source_files(root: Path) -> list[str]:
             continue
         try:
             text = path.read_text(encoding="utf-8")
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             continue
         for lineno, line in enumerate(text.splitlines(), start=1):
             if BRAND_RE.search(line):

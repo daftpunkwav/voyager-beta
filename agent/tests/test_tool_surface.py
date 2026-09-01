@@ -198,7 +198,7 @@ class TestStepEvents:
     async def test_digest_render_omits_empty_last_step(self, tmp_path) -> None:
         """phase-20:没有步骤时 render 不拼空「最近」。"""
         app = _app(tmp_path, FakeLLM(default="收到。"))
-        inst = await app.master.dispatch_task("无工具任务", name="noop")
+        await app.master.dispatch_task("无工具任务", name="noop")
         await asyncio.sleep(0.05)
         rendered = app.master._digests.render()
         assert "noop" in rendered

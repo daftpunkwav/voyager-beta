@@ -13,8 +13,9 @@ from __future__ import annotations
 
 import asyncio
 import re
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from platform_contracts import ErrorSuffix, ServiceError
 
@@ -62,7 +63,7 @@ def validate_server_config(raw: dict) -> dict:
             raise ServiceError("agent", ErrorSuffix.INVALID_INPUT, "stdio 类型 command 不能为空")
         url = ""
     else:
-        if not (url.startswith("http://") or url.startswith("https://")):
+        if not (url.startswith(("http://", "https://"))):
             raise ServiceError(
                 "agent", ErrorSuffix.INVALID_INPUT,
                 f"url 须以 http:// 或 https:// 开头(禁止 file:): {url!r}",
@@ -169,7 +170,7 @@ class McpClientPool:
         if session is not None:
             try:
                 await session.aclose()
-            except Exception:
+            except Exception:  # noqa: BLE001, S110  # 清理路径:断开尽力而为,失败不挡调用方
                 pass
 
     # ---- 挂载(进 Toolbelt 工具面;实现在 mount.py) ----
@@ -208,7 +209,7 @@ class McpClientPool:
             try:
                 # preview 成功后若已批准会自行 remount
                 await self.preview(sid)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001  # 单台失败记录到条目 error 供设置页展示,不挡启动
                 self._errors[sid] = str(exc)
 
     def list_state(self) -> list[dict]:
@@ -236,7 +237,7 @@ class McpClientPool:
         for session in targets:
             try:
                 await session.aclose()
-            except Exception:
+            except Exception:  # noqa: BLE001, S110  # 收尾清理:断开尽力而为,失败不挡其余会话
                 pass
         if sessions is None:
             self._sessions.clear()
@@ -255,7 +256,7 @@ class McpClientPool:
                 if closer is not None:
                     try:
                         closer()
-                    except Exception:
+                    except Exception:  # noqa: BLE001, S110  # sync 收尾尽力杀,此处无日志通道可走
                         pass
         else:
             loop.create_task(self.aclose_sessions(sessions))

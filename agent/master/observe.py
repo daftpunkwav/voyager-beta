@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 async def consider(
-    master: "Master",
+    master: Master,
     settings,
     bus: EventBus | None,
     memory,

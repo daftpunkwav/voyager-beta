@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 
 async def dispatch_task(
-    master: "Master",
+    master: Master,
     spawner: Spawner,
     settings: SettingsReader,
     policy: PolicyEngine | None,

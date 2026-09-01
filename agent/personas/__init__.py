@@ -61,8 +61,8 @@ __all__ = [
     "ORCHESTRATOR",
     "ORGANIZER",
     "PERSONAS",
-    "Persona",
     "RECON",
+    "Persona",
     "canonical_persona_key",
     "resolve_persona",
 ]

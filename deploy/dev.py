@@ -19,7 +19,7 @@ def _stop_tree(proc: subprocess.Popen) -> None:
     仅 terminate() 会留孤儿;taskkill /T 连子进程一起杀。"""
     if sys.platform == "win32":
         subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                       capture_output=True)
+                       capture_output=True, check=False)
     else:
         proc.terminate()
 

@@ -217,7 +217,8 @@ class UrlMcpSession(_McpProtocol):
             {"jsonrpc": "2.0", "id": rid, "method": method, "params": params or {}}
         )
         if not isinstance(msg, dict):
-            raise RuntimeError(f"MCP server 对 {method} 未返回响应")
+            # RuntimeError 语义正确(协议层失败),非入参类型错误
+            raise RuntimeError(f"MCP server 对 {method} 未返回响应")  # noqa: TRY004
         if msg.get("error"):
             err = msg["error"] or {}
             raise RuntimeError(f"JSON-RPC {err.get('code')}: {err.get('message')}")

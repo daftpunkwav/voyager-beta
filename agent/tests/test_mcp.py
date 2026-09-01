@@ -4,6 +4,8 @@
 返回值 → remove 卸载 → 重启(mcp.start)自动重连 → 默认空池不混领域桥 → 非法入参。
 """
 
+from typing import ClassVar
+
 import pytest
 from platform_actor import ActorContext
 from platform_capability import execute
@@ -18,7 +20,7 @@ USER_CTX = ActorContext(actor=LOCAL_USER)
 class FakeSession:
     """内存 MCP server:固定两个远端工具,记录调用。"""
 
-    TOOLS = [
+    TOOLS: ClassVar[list[dict]] = [
         {"name": "search", "description": "搜索", "schema": {"type": "object"}},
         {"name": "fetch", "description": "抓取远端页面"},  # 无 schema → 兜底 schema
     ]

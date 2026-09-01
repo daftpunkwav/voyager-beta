@@ -207,9 +207,7 @@ def _should_continue_react(
     if any(_CONTINUE_MARK in str(m.get("content") or "") for m in messages):
         return False
     user = _last_user_text(messages)
-    if not user or _CHITCHAT_RE.match(user):
-        return False
-    return True
+    return not (not user or _CHITCHAT_RE.match(user))
 
 
 async def _branch(

@@ -23,7 +23,7 @@ class TestCancelRun:
         class HangingLLM(FakeLLM):
             """挂起在 complete 上,制造可急停的运行中窗口。"""
 
-            async def complete(self, *args, **kw):  # noqa: ANN001, ANN002, ANN003
+            async def complete(self, *args, **kw):
                 await asyncio.Event().wait()
 
         app = _app(tmp_path, HangingLLM())

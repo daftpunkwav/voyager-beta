@@ -48,9 +48,8 @@ def _violations(scope: tuple[str, ...], source: str, display: str) -> list[str]:
             elif top == "services" and second != domain:
                 why = (f"services.{domain or '*'} 禁止 import "
                        f"services.{second or '*'}(跨域)")
-        elif scope[0] == "platform":
-            if top in ("agent", "services", "deploy", "apps"):
-                why = f"platform 禁止 import {top}"
+        elif scope[0] == "platform" and top in ("agent", "services", "deploy", "apps"):
+            why = f"platform 禁止 import {top}"
         if why:
             problems.append(f"{display}:{lineno}: {why}")
     return problems

@@ -8,7 +8,6 @@ recovery.py 此前没有调用方;本文件锁定接线后的行为:
 - 启动 reclaim 把磁盘上 alive 的 checkpoint 标 failed(不 resume)。
 """
 
-import asyncio
 import sqlite3
 import time
 from pathlib import Path
@@ -77,7 +76,7 @@ class TestToolRetry:
 
         async def slow(**kwargs) -> str:
             counter["calls"] += 1
-            raise asyncio.TimeoutError("上游 30s 未响应")
+            raise TimeoutError("上游 30s 未响应")
 
         belt = _belt(root, {"slow": AgentTool(
             name="slow", description="测试用超时工具", handler=slow, dimension="none",
