@@ -116,6 +116,109 @@ class TestFsSkillsGuard:
         assert not d.allow
 
 
+class TestFsReadRoots:
+    """附加只读根(phase-53,§9.9 文件维):读放行 L0,写/删一律拒绝。"""
+
+    def test_read_inside_read_root_allowed(self, tmp_path) -> None:
+        read_root = tmp_path / "docs"
+        (read_root / "sub").mkdir(parents=True)
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(tmp_path / "ws"),), read_roots=(str(read_root),)))
+        d = engine.decide(Action(dimension="fs", target=str(read_root / "sub" / "a.txt")))
+        assert d.allow and d.level == Level.L0_SILENT
+
+    def test_read_root_itself_readable(self, tmp_path) -> None:
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(tmp_path / "ws"),), read_roots=(str(tmp_path / "docs"),)))
+        d = engine.decide(Action(dimension="fs", target=str(tmp_path / "docs")))
+        assert d.allow and d.level == Level.L0_SILENT
+
+    def test_write_in_read_root_denied(self, tmp_path) -> None:
+        read_root = tmp_path / "docs"
+        read_root.mkdir()
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(tmp_path / "ws"),), read_roots=(str(read_root),)))
+        d = engine.decide(Action(dimension="fs", target=str(read_root / "a.txt"), write=True))
+        assert not d.allow
+        assert "只读" in d.reason
+
+    def test_delete_in_read_root_denied_before_confirm(self, tmp_path) -> None:
+        """附加根上的删除不做 L2 确认——确认了也没有写权限,直接拒。"""
+        read_root = tmp_path / "docs"
+        read_root.mkdir()
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(tmp_path / "ws"),), read_roots=(str(read_root),)))
+        d = engine.decide(Action(dimension="fs", target=str(read_root / "a.txt"), irreversible=True))
+        assert not d.allow
+        assert "只读" in d.reason
+
+    def test_outside_all_roots_still_denied(self, tmp_path) -> None:
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(tmp_path / "ws"),), read_roots=(str(tmp_path / "docs"),)))
+        d = engine.decide(Action(dimension="fs", target=str(tmp_path / "evil.txt")))
+        assert not d.allow
+        assert "工作目录之外" in d.reason
+
+    def test_workspace_write_unaffected_by_read_roots(self, tmp_path) -> None:
+        """workspace 语义回归:roots 优先,附加根不把工作目录变只读。"""
+        ws = tmp_path / "ws"
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(ws),), read_roots=(str(tmp_path),)))
+        d = engine.decide(Action(dimension="fs", target=str(ws / "a.txt"), write=True))
+        assert d.allow and d.level == Level.L1_NOTIFY
+
+    def test_read_root_without_roots_rejected(self, tmp_path) -> None:
+        """没配附加根时行为与从前一致:workspace 外一律拒绝。"""
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(tmp_path / "ws"),)))
+        d = engine.decide(Action(dimension="fs", target=str(tmp_path / "docs" / "a.txt")))
+        assert not d.allow
+
+    def test_relative_path_resolved_against_workspace_not_read_roots(self, tmp_path) -> None:
+        """相对路径只以 jail 根为基准(与 fs 工具一致),不会落到附加根:
+        a.txt 若按附加根解析则写被拒,按 workspace 解析则写放行 L1。"""
+        read_root = tmp_path / "docs"
+        read_root.mkdir()
+        ws = tmp_path / "ws"
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(ws),), read_roots=(str(read_root),)))
+        d = engine.decide(Action(dimension="fs", target="a.txt", write=True))
+        assert d.allow and d.level == Level.L1_NOTIFY
+
+    def test_escape_via_dotdot_lands_in_read_root_readonly(self, tmp_path) -> None:
+        """`..` 逃逸按 resolve 后落点判定:ws/../docs/x 解析后落附加根 → 只读。"""
+        read_root = tmp_path / "docs"
+        read_root.mkdir()
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(tmp_path / "ws"),), read_roots=(str(read_root),)))
+        inside = engine.decide(Action(dimension="fs", target=str(tmp_path / "ws" / ".." / "docs" / "a.txt")))
+        assert inside.allow and inside.level == Level.L0_SILENT
+        write = engine.decide(
+            Action(dimension="fs", target=str(tmp_path / "ws" / ".." / "docs" / "a.txt"), write=True)
+        )
+        assert not write.allow
+
+
+class TestHotFsReadRootSettings:
+    """附加只读根热读(phase-53):不传 settings 用构造快照,传了现读。"""
+
+    def test_settings_override_construction_snapshot(self, tmp_path) -> None:
+        read_root = tmp_path / "docs"
+        read_root.mkdir()
+        settings = _FakeSettings({"agent.fs.read_roots": [str(read_root)]})
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(tmp_path / "ws"),)), settings=settings)
+        d = engine.decide(Action(dimension="fs", target=str(read_root / "a.txt")))
+        assert d.allow and d.level == Level.L0_SILENT
+        assert not engine.decide(
+            Action(dimension="fs", target=str(read_root / "a.txt"), write=True)
+        ).allow
+
+    def test_invalid_settings_falls_back_to_snapshot(self, tmp_path) -> None:
+        """坏值(非字符串列表)整份回落快照,不把坏设置当成全拒打残文件读。"""
+        settings = _FakeSettings({"agent.fs.read_roots": "not-a-list"})
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(tmp_path / "ws"),)), settings=settings)
+        assert not engine.decide(Action(dimension="fs", target=str(tmp_path / "docs" / "a.txt"))).allow
+
+    def test_none_settings_value_keeps_snapshot(self, tmp_path) -> None:
+        """settings 缺该键(None)时保持构造快照,与 network 热读同语义。"""
+        engine = PolicyEngine(
+            fs=FsPolicy(roots=(str(tmp_path / "ws"),), read_roots=(str(tmp_path / "docs"),)),
+            settings=_FakeSettings({}),
+        )
+        assert engine.decide(Action(dimension="fs", target=str(tmp_path / "docs" / "a.txt"))).allow
+
+
 class TestApp:
     def test_whitelist_and_denied(self) -> None:
         engine = PolicyEngine(app=AppPolicy(allowed=frozenset({"set_theme"}), denied=frozenset()))

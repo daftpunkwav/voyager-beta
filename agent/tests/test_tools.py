@@ -261,3 +261,88 @@ class TestShellGuard:
             ToolCall("1", "run_shell", {"command": "type skills\\keep\\SKILL.md"})
         )
         assert "[需确认]" in out
+
+
+class TestFsReadRoots:
+    """附加只读根端到端(phase-53,§9.9):policy 与工具层双层同语义——
+    读工具放行附加根,写/删双层都拒。"""
+
+    def _belt_with_read_root(self, workdir, docs) -> Toolbelt:
+        return Toolbelt(
+            fs_tools([workdir], read_roots=[docs]),
+            PolicyEngine(fs=FsPolicy(roots=(str(workdir),), read_roots=(str(docs),))),
+        )
+
+    async def test_read_file_in_read_root_allowed(self, workdir, tmp_path) -> None:
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "a.txt").write_text("附加根内容", encoding="utf-8")
+        belt = self._belt_with_read_root(workdir, docs)
+        out = await belt.call(ToolCall("1", "read_file", {"path": str(docs / "a.txt")}))
+        assert "附加根内容" in out
+
+    async def test_list_dir_in_read_root_allowed(self, workdir, tmp_path) -> None:
+        docs = tmp_path / "docs"
+        (docs / "sub").mkdir(parents=True)
+        belt = self._belt_with_read_root(workdir, docs)
+        out = await belt.call(ToolCall("1", "list_dir", {"path": str(docs)}))
+        assert "sub/" in out
+
+    async def test_write_in_read_root_denied(self, workdir, tmp_path) -> None:
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        belt = self._belt_with_read_root(workdir, docs)
+        out = await belt.call(
+            ToolCall("1", "write_file", {"path": str(docs / "pwn.txt"), "content": "x"})
+        )
+        assert "[已拒绝]" in out
+        assert not (docs / "pwn.txt").exists()
+
+    async def test_delete_in_read_root_denied_without_confirm(self, workdir, tmp_path) -> None:
+        """附加根删除直接拒绝,不弹 L2 确认;文件保留。"""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        target = docs / "keep.txt"
+        target.write_text("keep", encoding="utf-8")
+        belt = self._belt_with_read_root(workdir, docs)
+        out = await belt.call(ToolCall("1", "delete_file", {"path": str(target)}))
+        assert "[已拒绝]" in out
+        assert target.exists()
+
+    async def test_read_outside_all_roots_still_denied(self, workdir, tmp_path) -> None:
+        """未配附加根(或路径在所有根之外)时,读也双层拒绝——旧行为回归。"""
+        belt = Toolbelt(
+            fs_tools([workdir]),
+            PolicyEngine(fs=FsPolicy(roots=(str(workdir),))),
+        )
+        out = await belt.call(ToolCall("1", "read_file", {"path": str(tmp_path / "evil.txt")}))
+        assert "[已拒绝]" in out
+
+    async def test_hot_read_roots_fn_without_rebuild(self, workdir, tmp_path) -> None:
+        """read_roots_fn 热读:改 settings 后 policy 与工具层同步放行,无需重建 Toolbelt。"""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "a.txt").write_text("热读内容", encoding="utf-8")
+        values: dict[str, list[str]] = {"agent.fs.read_roots": []}
+        settings = _FakeSettings(values)
+        belt = Toolbelt(
+            fs_tools(
+                [workdir],
+                read_roots=[],
+                read_roots_fn=lambda: list(settings.get("agent.fs.read_roots") or ()),
+            ),
+            PolicyEngine(fs=FsPolicy(roots=(str(workdir),)), settings=settings),
+        )
+        denied = await belt.call(ToolCall("1", "read_file", {"path": str(docs / "a.txt")}))
+        assert "[已拒绝]" in denied
+        values["agent.fs.read_roots"] = [str(docs)]
+        allowed = await belt.call(ToolCall("2", "read_file", {"path": str(docs / "a.txt")}))
+        assert "热读内容" in allowed
+
+
+class _FakeSettings:
+    def __init__(self, values: dict) -> None:
+        self._values = values
+
+    def get(self, key: str):
+        return self._values.get(key)

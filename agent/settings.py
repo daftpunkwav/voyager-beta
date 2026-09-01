@@ -41,6 +41,11 @@ DEFS = [
     SettingDef(key="agent.workspace.dir", module="agent", type=SettingType.STR,
                default="workspace", user_only=True,
                description="agent 默认工作目录(§9.10;仅用户可改)"),
+    # 附加只读根(phase-53,§9.9 文件维):workspace jail 之外的绝对路径列表,
+    # 读 fs 工具可访问;写/删仍仅限 workspace。user_only:安全边界,提示注入改不了。
+    SettingDef(key="agent.fs.read_roots", module="agent", type=SettingType.JSON,
+               default=[], user_only=True,
+               description="附加只读目录(§9.9;绝对路径列表):读可访问,写/删仅限工作目录(仅用户可改)"),
     SettingDef(key="agent.network.mode", module="agent", type=SettingType.CHOICE,
                default="whitelist", choices=("off", "whitelist", "all"), user_only=True,
                description="网络权限模式(§9.9;仅用户可改)"),

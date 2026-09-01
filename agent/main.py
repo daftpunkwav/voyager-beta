@@ -119,17 +119,20 @@ def build_agent(
     digests = DigestStore()
     on_demand = OnDemandLoader(skills=skills, memory=memory, pages=pages)
 
+    # 附加只读根(phase-53,§9.9):policy 判定与 fs 工具层 jail 都要放行读
+    #(双层防护,fs_tools 只放宽读工具;写/删仍限 workspace)
+    read_roots = tuple(settings.get("agent.fs.read_roots") or ())
     policy = PolicyEngine(
         network=NetworkPolicy(
             mode=settings.get("agent.network.mode"),
             domains=tuple(settings.get("agent.network.domains")),
         ),
-        fs=FsPolicy(roots=(str(workspace),)),
+        fs=FsPolicy(roots=(str(workspace),), read_roots=read_roots),
         app=AppPolicy(
             allowed=frozenset(settings.get("agent.app.allowed")),
             denied=frozenset(settings.get("agent.app.denied")),
         ),
-        settings=settings,  # 网络/app 判定热读设置(§9.9):改档位/白名单不重启即生效
+        settings=settings,  # 网络/app/fs(附加只读根)判定热读设置(§9.9):改设置不重启即生效
     )
     meter = Meter()
     events = RuntimeEvents(bus)
@@ -151,7 +154,11 @@ def build_agent(
 
     tools: dict[str, AgentTool] = {}
     for group in (
-        fs_tools([workspace]),
+        fs_tools(
+            [workspace],
+            read_roots=list(read_roots),
+            read_roots_fn=lambda: list(settings.get("agent.fs.read_roots") or ()),
+        ),
         shell_tools(workspace),
         web_tools(policy),
         ask_user_tool(asker),

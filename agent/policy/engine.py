@@ -73,6 +73,7 @@ class NetworkPolicy:
 @dataclass(frozen=True)
 class FsPolicy:
     roots: tuple[str, ...] = ("workspace",)  # fs jail 根(§9.10)
+    read_roots: tuple[str, ...] = ()  # 附加只读根(§9.9):读放行,写/删一律拒绝
 
 
 @dataclass(frozen=True)
@@ -184,12 +185,29 @@ class PolicyEngine:
             return Decision(True, Level.L1_NOTIFY, f"白名单域名: {host}")
         return Decision(False, reason=f"域名不在白名单: {host}(可在设置页添加)")
 
+    def _fs_policy(self) -> FsPolicy:
+        """本次判定用的 fs 策略:有 settings 句柄则热读附加只读根(§9.9,改设置
+        不重启即生效),没有则用构造时的快照(单元测试路径)。roots(workspace)
+        不热读——workspace 变更是装配期的事。坏值(非字符串列表)整份回落快照。"""
+        if self._settings is None:
+            return self.fs
+        try:
+            raw = self._settings.get("agent.fs.read_roots")
+            if raw is None:
+                return self.fs
+            if not isinstance(raw, (list, tuple, set)) or not all(isinstance(x, str) for x in raw):
+                return self.fs
+            return FsPolicy(roots=self.fs.roots, read_roots=tuple(raw))
+        except Exception:  # noqa: BLE001  # settings 异常时保守回落快照
+            return self.fs
+
     def _decide_fs(self, action: Action) -> Decision:
+        fs = self._fs_policy()
         target = Path(action.target)
-        if not target.is_absolute() and self.fs.roots:
-            target = Path(self.fs.roots[0]) / target  # 相对路径以 jail 根为基准(与 fs 工具一致)
+        if not target.is_absolute() and fs.roots:
+            target = Path(fs.roots[0]) / target  # 相对路径以 jail 根为基准(与 fs 工具一致)
         target = target.resolve()
-        for root in self.fs.roots:
+        for root in fs.roots:
             root_path = Path(root).resolve()
             if target == root_path or root_path in target.parents:
                 if action.write or action.irreversible:
@@ -204,6 +222,18 @@ class PolicyEngine:
                 return Decision(
                     True, Level.L1_NOTIFY if action.write else Level.L0_SILENT
                 )
+        # workspace jail 之外:附加只读根(§9.9)只放行读;写/删一律拒绝(先于 L2,
+        # 附加根不做删除确认——确认了也没有写权限)。skills 特例无需另判:附加根本
+        # 身已拒写。roots 优先于 read_roots:workspace 及其子树不受附加根只读约束。
+        for root in fs.read_roots:
+            root_path = Path(root).resolve()
+            if target == root_path or root_path in target.parents:
+                if action.write or action.irreversible:
+                    return Decision(
+                        False,
+                        reason=f"附加根目录只读,写/删仅限工作目录: {target}(§9.9)",
+                    )
+                return Decision(True, Level.L0_SILENT)
         return Decision(
             False, reason=f"路径在工作目录之外: {target}(fs jail,§9.9/§9.10)"
         )
