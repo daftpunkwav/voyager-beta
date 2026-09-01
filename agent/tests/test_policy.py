@@ -219,6 +219,108 @@ class TestHotFsReadRootSettings:
         assert engine.decide(Action(dimension="fs", target=str(tmp_path / "docs" / "a.txt"))).allow
 
 
+class TestFsWriteRoots:
+    """附加读写根(phase-55,§9.9/§9.10):读 L0,写/删 L2;workspace 优先,
+    read_roots 兜底只读——判定顺序 roots → write_roots → read_roots → 拒。"""
+
+    def _engine(self, tmp_path, *, write_roots=(), read_roots=()) -> PolicyEngine:
+        return PolicyEngine(
+            fs=FsPolicy(
+                roots=(str(tmp_path / "ws"),),
+                read_roots=tuple(read_roots),
+                write_roots=tuple(write_roots),
+            )
+        )
+
+    def test_read_inside_write_root_l0(self, tmp_path) -> None:
+        write_root = tmp_path / "proj"
+        (write_root / "sub").mkdir(parents=True)
+        engine = self._engine(tmp_path, write_roots=(str(write_root),))
+        d = engine.decide(Action(dimension="fs", target=str(write_root / "sub" / "a.txt")))
+        assert d.allow and d.level == Level.L0_SILENT
+
+    def test_write_inside_write_root_l2_not_l1(self, tmp_path) -> None:
+        """用户目录写入不是 workspace 的 L1 提示,须 L2 确认(§9.10)。"""
+        write_root = tmp_path / "proj"
+        write_root.mkdir()
+        engine = self._engine(tmp_path, write_roots=(str(write_root),))
+        d = engine.decide(Action(dimension="fs", target=str(write_root / "a.txt"), write=True))
+        assert d.allow and d.level == Level.L2_CONFIRM
+        assert "确认" in d.reason
+
+    def test_delete_inside_write_root_l2(self, tmp_path) -> None:
+        write_root = tmp_path / "proj"
+        write_root.mkdir()
+        engine = self._engine(tmp_path, write_roots=(str(write_root),))
+        d = engine.decide(Action(dimension="fs", target=str(write_root / "a.txt"), irreversible=True))
+        assert d.allow and d.level == Level.L2_CONFIRM
+
+    def test_write_in_read_root_only_still_denied(self, tmp_path) -> None:
+        """在 read_root 但不在 write_root → 仍拒写(读写根不放宽只读根)。"""
+        read_root = tmp_path / "docs"
+        read_root.mkdir()
+        engine = self._engine(tmp_path, read_roots=(str(read_root),), write_roots=(str(tmp_path / "proj"),))
+        d = engine.decide(Action(dimension="fs", target=str(read_root / "a.txt"), write=True))
+        assert not d.allow
+        assert "只读" in d.reason
+
+    def test_workspace_precedence_over_write_roots(self, tmp_path) -> None:
+        """workspace 优先:嵌套在 write_root 下的 workspace 内路径仍走 workspace 规则(写 L1)。"""
+        write_root = tmp_path / "proj"
+        ws = write_root / "ws"
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(ws),), write_roots=(str(write_root),)))
+        d = engine.decide(Action(dimension="fs", target=str(ws / "a.txt"), write=True))
+        assert d.allow and d.level == Level.L1_NOTIFY
+
+    def test_workspace_skills_guard_not_relaxed_by_write_roots(self, tmp_path) -> None:
+        """把 write_root 配到 workspace/skills 上也旁路不了禁写:roots 循环先命中并拒绝。"""
+        ws = tmp_path / "ws"
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(ws),), write_roots=(str(ws / "skills"),)))
+        d = engine.decide(Action(dimension="fs", target=str(ws / "skills" / "pwn" / "SKILL.md"), write=True))
+        assert not d.allow
+        assert "skill 目录" in d.reason
+
+    def test_outside_all_roots_still_denied(self, tmp_path) -> None:
+        engine = self._engine(tmp_path, write_roots=(str(tmp_path / "proj"),))
+        d = engine.decide(Action(dimension="fs", target=str(tmp_path / "evil.txt")))
+        assert not d.allow
+        assert "工作目录之外" in d.reason
+
+
+class TestHotFsWriteRootSettings:
+    """附加读写根热读(phase-55):与 read_roots 热读同范式——传 settings 现读,
+    缺键/坏值回落构造快照。"""
+
+    def test_settings_override_construction_snapshot(self, tmp_path) -> None:
+        write_root = tmp_path / "proj"
+        write_root.mkdir()
+        settings = _FakeSettings({"agent.fs.write_roots": [str(write_root)]})
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(tmp_path / "ws"),)), settings=settings)
+        d = engine.decide(Action(dimension="fs", target=str(write_root / "a.txt"), write=True))
+        assert d.allow and d.level == Level.L2_CONFIRM
+        r = engine.decide(Action(dimension="fs", target=str(write_root / "a.txt")))
+        assert r.allow and r.level == Level.L0_SILENT
+
+    def test_invalid_settings_falls_back_to_snapshot(self, tmp_path) -> None:
+        """坏值(非字符串列表)整份回落快照,不把坏设置当成全拒打残文件工具。"""
+        settings = _FakeSettings({"agent.fs.write_roots": "not-a-list"})
+        engine = PolicyEngine(fs=FsPolicy(roots=(str(tmp_path / "ws"),)), settings=settings)
+        assert not engine.decide(
+            Action(dimension="fs", target=str(tmp_path / "proj" / "a.txt"))
+        ).allow
+
+    def test_none_settings_value_keeps_snapshot(self, tmp_path) -> None:
+        """settings 缺该键(None)时保持构造快照,与 read_roots 热读同语义。"""
+        write_root = tmp_path / "proj"
+        write_root.mkdir()
+        engine = PolicyEngine(
+            fs=FsPolicy(roots=(str(tmp_path / "ws"),), write_roots=(str(write_root),)),
+            settings=_FakeSettings({}),
+        )
+        d = engine.decide(Action(dimension="fs", target=str(write_root / "a.txt"), write=True))
+        assert d.allow and d.level == Level.L2_CONFIRM
+
+
 class TestApp:
     def test_whitelist_and_denied(self) -> None:
         engine = PolicyEngine(app=AppPolicy(allowed=frozenset({"set_theme"}), denied=frozenset()))

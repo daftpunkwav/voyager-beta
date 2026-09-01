@@ -340,6 +340,113 @@ class TestFsReadRoots:
         assert "热读内容" in allowed
 
 
+class TestFsWriteRoots:
+    """附加读写根端到端(phase-55,§9.9/§9.10):policy 与工具层双层同语义——
+    读工具放行,写/删走 L2 确认,read_root-only 路径写双层仍拒。"""
+
+    def _belt(self, workdir, *, write_roots=(), read_roots=(), confirm=None) -> Toolbelt:
+        return Toolbelt(
+            fs_tools([workdir], read_roots=list(read_roots), write_roots=list(write_roots)),
+            PolicyEngine(
+                fs=FsPolicy(
+                    roots=(str(workdir),),
+                    read_roots=tuple(read_roots),
+                    write_roots=tuple(write_roots),
+                )
+            ),
+            confirm=confirm,
+        )
+
+    async def test_read_and_list_in_write_root_allowed(self, workdir, tmp_path) -> None:
+        proj = tmp_path / "proj"
+        (proj / "sub").mkdir(parents=True)
+        (proj / "a.txt").write_text("读写根内容", encoding="utf-8")
+        (proj / "sub" / "b.txt").write_text("x", encoding="utf-8")
+        belt = self._belt(workdir, write_roots=[proj])
+        text = await belt.call(ToolCall("1", "read_file", {"path": str(proj / "a.txt")}))
+        assert "读写根内容" in text
+        listing = await belt.call(ToolCall("2", "list_dir", {"path": str(proj / "sub")}))
+        assert "b.txt" in listing
+
+    async def test_write_without_confirm_channel_not_landed(self, workdir, tmp_path) -> None:
+        """write_roots 内写走 L2:无 confirm 通道则跳过,不落盘。"""
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        belt = self._belt(workdir, write_roots=[proj])
+        out = await belt.call(
+            ToolCall("1", "write_file", {"path": str(proj / "a.txt"), "content": "x"})
+        )
+        assert "[需确认]" in out
+        assert not (proj / "a.txt").exists()
+
+    async def test_write_with_confirm_lands(self, workdir, tmp_path) -> None:
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        belt = self._belt(workdir, write_roots=[proj], confirm=lambda _p: _yes())
+        out = await belt.call(
+            ToolCall("1", "write_file", {"path": str(proj / "sub" / "a.txt"), "content": "x"})
+        )
+        assert "written" in out
+        assert (proj / "sub" / "a.txt").read_text(encoding="utf-8") == "x"
+
+    async def test_delete_without_confirm_not_removed(self, workdir, tmp_path) -> None:
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        target = proj / "keep.txt"
+        target.write_text("keep", encoding="utf-8")
+        belt = self._belt(workdir, write_roots=[proj])
+        out = await belt.call(ToolCall("1", "delete_file", {"path": str(target)}))
+        assert "[需确认]" in out
+        assert target.exists()
+
+    async def test_delete_with_confirm_removes(self, workdir, tmp_path) -> None:
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        target = proj / "gone.txt"
+        target.write_text("x", encoding="utf-8")
+        belt = self._belt(workdir, write_roots=[proj], confirm=lambda _p: _yes())
+        out = await belt.call(ToolCall("1", "delete_file", {"path": str(target)}))
+        assert "deleted" in out
+        assert not target.exists()
+
+    async def test_write_in_read_root_only_denied(self, workdir, tmp_path) -> None:
+        """read_root-only 路径写仍拒:write_roots 不放宽只读根。"""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        belt = self._belt(workdir, read_roots=[docs], write_roots=[tmp_path / "proj"],
+                          confirm=lambda _p: _yes())
+        out = await belt.call(
+            ToolCall("1", "write_file", {"path": str(docs / "pwn.txt"), "content": "x"})
+        )
+        assert "[已拒绝]" in out
+        assert not (docs / "pwn.txt").exists()
+
+    async def test_hot_write_roots_fn_without_rebuild(self, workdir, tmp_path) -> None:
+        """write_roots_fn 热读:改 settings 后 policy 与工具层同步放行,无需重建 Toolbelt;
+        放行后写仍走 L2 确认(无通道 → [需确认])。"""
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        values: dict[str, list[str]] = {"agent.fs.write_roots": []}
+        settings = _FakeSettings(values)
+        belt = Toolbelt(
+            fs_tools(
+                [workdir],
+                write_roots=[],
+                write_roots_fn=lambda: list(settings.get("agent.fs.write_roots") or ()),
+            ),
+            PolicyEngine(fs=FsPolicy(roots=(str(workdir),)), settings=settings),
+        )
+        denied = await belt.call(
+            ToolCall("1", "write_file", {"path": str(proj / "a.txt"), "content": "x"})
+        )
+        assert "[已拒绝]" in denied
+        values["agent.fs.write_roots"] = [str(proj)]
+        confirmed = await belt.call(
+            ToolCall("2", "write_file", {"path": str(proj / "a.txt"), "content": "x"})
+        )
+        assert "[需确认]" in confirmed
+
+
 class _FakeSettings:
     def __init__(self, values: dict) -> None:
         self._values = values

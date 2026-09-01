@@ -4,6 +4,8 @@
 外层 Toolbelt 再过 PolicyEngine 四维判定。
 附加只读根(phase-53,§9.9):read_roots 仅对读工具(read_file/list_dir)
 放行,写/删仍限 roots——与 policy 层(_decide_fs)同语义,双层一致。
+附加读写根(phase-55,§9.9/§9.10):write_roots 对读工具放行(读写根天然可读),
+写/删工具也放行,但档位由 policy 层判 L2 确认;read_roots 内写/删双层仍拒。
 jail 内的 skills/ 子树对写/删类 fs 工具只读(phase-32):禁写禁删由
 policy 层(_decide_fs)执行,read_file / list_dir 仍可;不在 handler 里再拦,
 避免和 L2 确认顺序打架。SkillOrganizer 经用户确认后直写磁盘不受影响。
@@ -11,7 +13,7 @@ policy 层(_decide_fs)执行,read_file / list_dir 仍可;不在 handler 里再�
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from agent.tools.base import AgentTool
@@ -31,44 +33,59 @@ def ensure_workdir(root: str | Path) -> Path:
 def fs_tools(
     roots: list[str | Path],
     read_roots: list[str | Path] | None = None,
+    write_roots: list[str | Path] | None = None,
     *,
     read_roots_fn: Callable[[], list[str | Path]] | None = None,
+    write_roots_fn: Callable[[], list[str | Path]] | None = None,
 ) -> dict[str, AgentTool]:
     """生成 jailed 文件工具组。roots 之外的路径一律拒绝;
-    read_roots 仅放宽读工具的 jail 判定(写/删仍限 roots)。
-    read_roots_fn 优先(热读 settings 时用),与 policy._fs_policy 同语义。"""
+    read_roots 仅放宽读工具的 jail 判定(写/删仍限 roots);
+    write_roots 放宽读工具与写/删工具(L2 档位由 policy 层判定)。
+    *_fn 优先(热读 settings 时用),与 policy._fs_policy 同语义。"""
     jail = [Path(r).resolve() for r in roots]
 
-    def _extra_read_roots() -> list[Path]:
-        raw = read_roots_fn() if read_roots_fn is not None else (read_roots or ())
+    def _extra_roots(fallback: Iterable[str | Path] | None,
+                     fn: Callable[[], list[str | Path]] | None) -> list[Path]:
+        raw = fn() if fn is not None else (fallback or ())
         return [Path(r).resolve() for r in raw]
 
-    def _resolve(path: str, *, allow_read_roots: bool = False) -> Path:
+    def _resolve(
+        path: str,
+        *,
+        allow_read_roots: bool = False,
+        allow_write_roots: bool = False,
+    ) -> Path:
         candidate = Path(path)
         if not candidate.is_absolute():
             candidate = jail[0] / candidate
         resolved = candidate.resolve()
-        allowed = jail + (_extra_read_roots() if allow_read_roots else [])
+        allowed = jail
+        if allow_read_roots:
+            allowed = allowed + _extra_roots(read_roots, read_roots_fn)
+        if allow_write_roots:
+            allowed = allowed + _extra_roots(write_roots, write_roots_fn)
         if not any(resolved == r or r in resolved.parents for r in allowed):
             raise ValueError(f"路径在工作目录之外: {resolved}")
         return resolved
 
     def read_file(path: str, max_chars: int = 8000) -> str:
-        text = _resolve(path, allow_read_roots=True).read_text(encoding="utf-8", errors="replace")
+        text = _resolve(path, allow_read_roots=True, allow_write_roots=True).read_text(
+            encoding="utf-8", errors="replace"
+        )
         return text if len(text) <= max_chars else text[:max_chars] + "\n…[截断]"
 
     def write_file(path: str, content: str) -> dict:
-        target = _resolve(path)
+        target = _resolve(path, allow_write_roots=True)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
         return {"written": str(target), "chars": len(content)}
 
     def list_dir(path: str = ".") -> list[str]:
-        target = _resolve(path, allow_read_roots=True)
+        target = _resolve(path, allow_read_roots=True, allow_write_roots=True)
         return sorted(p.name + ("/" if p.is_dir() else "") for p in target.iterdir())
 
     def delete_file(path: str) -> dict:
-        target = _resolve(path)
+        target = _resolve(path, allow_write_roots=True)
         target.unlink()
         return {"deleted": str(target)}
 

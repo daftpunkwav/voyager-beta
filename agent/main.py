@@ -119,15 +119,16 @@ def build_agent(
     digests = DigestStore()
     on_demand = OnDemandLoader(skills=skills, memory=memory, pages=pages)
 
-    # 附加只读根(phase-53,§9.9):policy 判定与 fs 工具层 jail 都要放行读
-    #(双层防护,fs_tools 只放宽读工具;写/删仍限 workspace)
+    # 附加只读根 + 附加读写根(phase-53/55,§9.9):policy 判定与 fs 工具层 jail
+    # 都要放行(双层防护;write_roots 的写/删档位由 policy 判 L2 确认)
     read_roots = tuple(settings.get("agent.fs.read_roots") or ())
+    write_roots = tuple(settings.get("agent.fs.write_roots") or ())
     policy = PolicyEngine(
         network=NetworkPolicy(
             mode=settings.get("agent.network.mode"),
             domains=tuple(settings.get("agent.network.domains")),
         ),
-        fs=FsPolicy(roots=(str(workspace),), read_roots=read_roots),
+        fs=FsPolicy(roots=(str(workspace),), read_roots=read_roots, write_roots=write_roots),
         app=AppPolicy(
             allowed=frozenset(settings.get("agent.app.allowed")),
             denied=frozenset(settings.get("agent.app.denied")),
@@ -157,7 +158,9 @@ def build_agent(
         fs_tools(
             [workspace],
             read_roots=list(read_roots),
+            write_roots=list(write_roots),
             read_roots_fn=lambda: list(settings.get("agent.fs.read_roots") or ()),
+            write_roots_fn=lambda: list(settings.get("agent.fs.write_roots") or ()),
         ),
         shell_tools(workspace),
         web_tools(policy),

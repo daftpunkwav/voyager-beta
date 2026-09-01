@@ -74,6 +74,7 @@ class NetworkPolicy:
 class FsPolicy:
     roots: tuple[str, ...] = ("workspace",)  # fs jail 根(§9.10)
     read_roots: tuple[str, ...] = ()  # 附加只读根(§9.9):读放行,写/删一律拒绝
+    write_roots: tuple[str, ...] = ()  # 附加读写根(§9.9/§9.10):读 L0,写/删 L2;workspace 优先
 
 
 @dataclass(frozen=True)
@@ -186,18 +187,31 @@ class PolicyEngine:
         return Decision(False, reason=f"域名不在白名单: {host}(可在设置页添加)")
 
     def _fs_policy(self) -> FsPolicy:
-        """本次判定用的 fs 策略:有 settings 句柄则热读附加只读根(§9.9,改设置
+        """本次判定用的 fs 策略:有 settings 句柄则热读附加只读根与读写根(§9.9,改设置
         不重启即生效),没有则用构造时的快照(单元测试路径)。roots(workspace)
         不热读——workspace 变更是装配期的事。坏值(非字符串列表)整份回落快照。"""
         if self._settings is None:
             return self.fs
         try:
-            raw = self._settings.get("agent.fs.read_roots")
-            if raw is None:
+            read_raw = self._settings.get("agent.fs.read_roots")
+            write_raw = self._settings.get("agent.fs.write_roots")
+            if read_raw is None and write_raw is None:
                 return self.fs
-            if not isinstance(raw, (list, tuple, set)) or not all(isinstance(x, str) for x in raw):
+            if read_raw is not None and (
+                not isinstance(read_raw, (list, tuple, set))
+                or not all(isinstance(x, str) for x in read_raw)
+            ):
                 return self.fs
-            return FsPolicy(roots=self.fs.roots, read_roots=tuple(raw))
+            if write_raw is not None and (
+                not isinstance(write_raw, (list, tuple, set))
+                or not all(isinstance(x, str) for x in write_raw)
+            ):
+                return self.fs
+            return FsPolicy(
+                roots=self.fs.roots,
+                read_roots=tuple(read_raw) if read_raw is not None else self.fs.read_roots,
+                write_roots=tuple(write_raw) if write_raw is not None else self.fs.write_roots,
+            )
         except Exception:  # noqa: BLE001  # settings 异常时保守回落快照
             return self.fs
 
@@ -222,7 +236,19 @@ class PolicyEngine:
                 return Decision(
                     True, Level.L1_NOTIFY if action.write else Level.L0_SILENT
                 )
-        # workspace jail 之外:附加只读根(§9.9)只放行读;写/删一律拒绝(先于 L2,
+        # 附加读写根(phase-55,§9.9/§9.10):用户显式配置的可写白名单目录,读 L0、
+        # 写/删 L2 确认(§9.10「用户目录默认只读,写入须 L2」)。判在 read_roots 之前:
+        # 路径同时落在读写根与只读根下时按可写对待。skills 禁写特例不在这里另判——
+        # 它只属于 workspace jail,落在 roots 循环里,write_roots 旁路不了。
+        for root in fs.write_roots:
+            root_path = Path(root).resolve()
+            if target == root_path or root_path in target.parents:
+                if action.irreversible:
+                    return Decision(True, Level.L2_CONFIRM, "用户目录删除需确认(§9.10)")
+                if action.write:
+                    return Decision(True, Level.L2_CONFIRM, "用户目录写入需确认(§9.10)")
+                return Decision(True, Level.L0_SILENT)
+        # workspace jail 与读写根之外:附加只读根(§9.9)只放行读;写/删一律拒绝(先于 L2,
         # 附加根不做删除确认——确认了也没有写权限)。skills 特例无需另判:附加根本
         # 身已拒写。roots 优先于 read_roots:workspace 及其子树不受附加根只读约束。
         for root in fs.read_roots:

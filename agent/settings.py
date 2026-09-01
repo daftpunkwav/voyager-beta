@@ -46,6 +46,12 @@ DEFS = [
     SettingDef(key="agent.fs.read_roots", module="agent", type=SettingType.JSON,
                default=[], user_only=True,
                description="附加只读目录(§9.9;绝对路径列表):读可访问,写/删仅限工作目录(仅用户可改)"),
+    # 附加读写根(phase-55,§9.9/§9.10):用户显式配置的可写白名单目录。
+    # 读 L0;写/删 L2 确认(§9.10「用户目录默认只读,写入须 L2」)。
+    # workspace 内路径不受影响(roots 优先);user_only:安全边界,提示注入改不了。
+    SettingDef(key="agent.fs.write_roots", module="agent", type=SettingType.JSON,
+               default=[], user_only=True,
+               description="附加读写目录(§9.9;绝对路径):读 L0,写/删 L2,仍受 workspace 优先"),
     SettingDef(key="agent.network.mode", module="agent", type=SettingType.CHOICE,
                default="whitelist", choices=("off", "whitelist", "all"), user_only=True,
                description="网络权限模式(§9.9;仅用户可改)"),
