@@ -173,8 +173,8 @@ def build(
             if w.start:
                 await w.start()
         # 外接 MCP(phase-11b):重启后重连 enabled 且已批准的 server 并重挂工具;
-        # 幂等,单台失败只记条目 error 不挡启动
-        await agent.mcp.start()
+        # 后台挂载(phase-39):不挡 gateway ready;单台失败仍只记 error
+        mcp_task = asyncio.create_task(agent.mcp.start())
         agent_task = asyncio.create_task(agent.loop.run())
         try:
             yield
@@ -183,6 +183,9 @@ def build(
             agent_task.cancel()
             with suppress(asyncio.CancelledError):
                 await agent_task
+            mcp_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await mcp_task
             for w in reversed(list(wirings.values())):
                 if w.stop:
                     await w.stop()
