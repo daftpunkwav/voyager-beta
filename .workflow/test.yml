@@ -1,0 +1,34 @@
+# Gitee Go 流水线:push main / PR 时先 ruff 检查 agent/deploy,再跑默认 pytest。
+# 与 .gitlab-ci.yml / .github/workflows/test.yml 行为对齐(同一命令顺序,Python 3.11);
+# 测试范围由根 pyproject.toml 的 testpaths 决定,依赖按 uv.lock 安装。
+# 注意:须在 Gitee 仓库的「流水线(Gitee Go)」页面开通服务后才会执行,本文件只是配置。
+# build@python 插件镜像最高只提供 Python 3.9,故步骤基础镜像选 3.9,
+# 由 uv 在 uv sync 时按 requires-python/uv.lock 自动下载 CPython 3.11。
+version: '1.0'
+name: test
+displayName: 测试(ruff + pytest)
+triggers:
+  trigger: auto
+  push:
+    branches:
+      precise:
+        - main
+  pr:
+    branches:
+      precise:
+        - main
+stages:
+  - name: test
+    displayName: 测试
+    strategy: naturally
+    trigger: auto
+    steps:
+      - step: build@python
+        name: test_ruff_pytest
+        displayName: ruff + pytest
+        pythonVersion: '3.9'
+        commands:
+          - pip3 install uv
+          - uv sync
+          - uv run ruff check agent deploy
+          - uv run pytest -q
