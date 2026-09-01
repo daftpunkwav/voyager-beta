@@ -193,7 +193,8 @@ class McpClientPool:
     async def start(self) -> None:
         """启动重连(deploy lifespan 调):enabled 且已批准的条目 connect + 挂载。
 
-        幂等(重复调用是空操作);单台失败记录到条目 error,不挡启动与其他 server。
+        幂等(重复调用是空操作);单台失败记录到条目 error,不挡启动与其他 server;
+        缺 id 的脏条目(直写 settings 的残留)直接跳过,同样不挡其他 server。
         """
         if self._started:
             return
@@ -201,26 +202,33 @@ class McpClientPool:
         for cfg in self.configs():
             if not cfg.get("enabled", True) or not cfg.get("approved"):
                 continue
+            sid = str(cfg.get("id") or "").strip()
+            if not sid:
+                continue
             try:
                 # preview 成功后若已批准会自行 remount
-                await self.preview(cfg["id"])
+                await self.preview(sid)
             except Exception as exc:
-                self._errors[cfg["id"]] = str(exc)
+                self._errors[sid] = str(exc)
 
     def list_state(self) -> list[dict]:
-        """设置页数据源:配置 + 运行态(connected / error / preview / mounted)。"""
+        """设置页数据源:配置 + 运行态(connected / error / preview / mounted)。
+
+        缺 id 的脏条目直接跳过,不让整表 KeyError 炸掉设置页列表接口。
+        """
         mounted_all = self._toolbelt.names() if self._toolbelt else []
         return [
             {
                 **cfg,
-                "connected": cfg["id"] in self._sessions,
-                "error": self._errors.get(cfg["id"], ""),
-                "preview": self._previews.get(cfg["id"], []),
+                "connected": sid in self._sessions,
+                "error": self._errors.get(sid, ""),
+                "preview": self._previews.get(sid, []),
                 "mounted": [
-                    n for n in mounted_all if n.startswith(f"mcp__{cfg['id']}__")
+                    n for n in mounted_all if n.startswith(f"mcp__{sid}__")
                 ],
             }
             for cfg in self.configs()
+            if (sid := str(cfg.get("id") or "").strip())
         ]
 
     async def aclose_sessions(self, sessions: list[McpSession] | None = None) -> None:

@@ -371,6 +371,36 @@ class TestRestart:
             app.close()
             shared.close()
 
+    async def test_start_skips_config_without_id(self, tmp_path) -> None:
+        """phase-34:直写 settings 塞进缺 id 的脏条目,start 不抛、不挡其后的
+        合法 server;list_state 也不抛、不含空 id 行。不自动清脏条目。"""
+        from platform_settings import SettingsStore
+
+        shared = SettingsStore(tmp_path / "shared.db")
+        sessions: dict[str, FakeSession] = {}
+        app = build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=FakeLLM(),
+            settings_store=shared, mcp_connect=fake_connect(sessions),
+        )
+        await shared.set("agent.mcp.servers", [
+            {"name": "no-id", "kind": "stdio", "command": "npx",
+             "args": [], "url": "", "approval": "package", "approved": ["*"],
+             "enabled": True},  # 无 id 的脏条目(直写残留)
+            {"id": "ok", "name": "ok", "kind": "stdio", "command": "npx",
+             "args": [], "url": "", "approval": "package", "approved": ["*"],
+             "enabled": True},
+        ], LOCAL_USER)
+        try:
+            await app.mcp.start()  # 缺 id 不抛
+            assert list(sessions) == ["ok"]  # 脏条目未进 sessions;合法条目照常连
+            assert "mcp__ok__search" in app.spawner._toolbelt.names()
+            state = app.mcp.list_state()  # 缺 id 不抛
+            assert [s["id"] for s in state if s["id"] == "ok"] == ["ok"]
+            assert all(str(s.get("id") or "").strip() for s in state)  # 无空 id 行
+        finally:
+            app.close()
+            shared.close()
+
 
 class TestDefaultEmpty:
     async def test_default_pool_empty_no_domain_bridge(self, tmp_path) -> None:
