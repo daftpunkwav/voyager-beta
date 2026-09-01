@@ -37,6 +37,9 @@ export const WORKDIR_KEY = 'agent.workspace.dir';
 /** 附加只读根(agent.fs.read_roots,§9.9/phase-53):绝对路径列表,读可访问,写/删仍仅限工作目录 */
 export const READ_ROOTS_KEY = 'agent.fs.read_roots';
 
+/** 附加读写根(agent.fs.write_roots,§9.9/phase-55):绝对路径列表,读 L0,写/删须 L2 确认,仍受 workspace 优先 */
+export const WRITE_ROOTS_KEY = 'agent.fs.write_roots';
+
 /** 主动触达预算(agent.proactive.*,§9.8/phase-18):范围与 SettingDef 一致 */
 export const PROACTIVE_PER_SESSION_KEY = 'agent.proactive.per_session';
 export const PROACTIVE_PER_SESSION_MAX = 20;

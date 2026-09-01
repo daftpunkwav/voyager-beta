@@ -12,6 +12,7 @@ import { RoundsBlock } from './agent/RoundsBlock';
 import { SkillsBlock } from './agent/SkillsBlock';
 import { StyleBlock } from './agent/StyleBlock';
 import { WorkspaceBlock } from './agent/WorkspaceBlock';
+import { WriteRootsBlock } from './agent/WriteRootsBlock';
 
 /** 设置 → Agent:按块组装的壳;各块自己持 state、自己拉数据、自己 toast。 */
 export function AgentSettingsSection() {
@@ -27,6 +28,7 @@ export function AgentSettingsSection() {
       <NetworkBlock />
       <WorkspaceBlock />
       <ReadRootsBlock />
+      <WriteRootsBlock />
       <AppPolicyBlock />
       <ProactiveBlock />
       <ObserveBlock />
