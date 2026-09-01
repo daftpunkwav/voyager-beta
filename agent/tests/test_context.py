@@ -7,6 +7,7 @@ from agent.context import (
     compress,
     estimate_tokens,
 )
+from agent.context.compressor import _prune_span
 from agent.context.rules import GLOBAL_RULES
 from agent.memory import Memory
 from agent.personas import LUCIEN
@@ -92,6 +93,93 @@ class TestCompressor:
         assert "已压缩" in out[3]["content"]  # 旧 tool 被截断(末 4 条之外)
         assert out[5]["content"] == "新结果" * 300  # 最近 4 条内不动
         assert out[0]["content"] == "系统提示"  # system 保留
+
+    @staticmethod
+    def _tool_pair_msgs() -> list[dict]:
+        """多组 user → assistant(tool_calls) → tool 的合法 transcript(超预算)。"""
+        def long(text: str) -> str:
+            return text * 20
+
+        return [
+            {"role": "system", "content": "系统提示"},
+            {"role": "user", "content": long("第一轮任务")},
+            {"role": "assistant", "content": long("调一个工具"), "tool_calls": [{"id": "a1"}]},
+            {"role": "tool", "tool_call_id": "a1", "content": long("第一组结果")},
+            {"role": "assistant", "content": long("第一轮小结")},
+            {"role": "user", "content": long("第二轮任务")},
+            {"role": "assistant", "content": long("并行调用两个工具"),
+             "tool_calls": [{"id": "b1"}, {"id": "b2"}]},
+            {"role": "tool", "tool_call_id": "b1", "content": long("第二组结果一")},
+            {"role": "tool", "tool_call_id": "b2", "content": long("第二组结果二")},
+            {"role": "user", "content": long("第三轮任务")},
+            {"role": "assistant", "content": "收尾答复"},
+        ]
+
+    @staticmethod
+    def _pairs_intact(msgs: list[dict]) -> bool:
+        """校验成对形状(§9.1):带 tool_calls 的 assistant 紧跟数量与 id
+        都匹配的 tool 行;tool 行要么紧跟其 assistant,要么紧跟同组 tool。"""
+        for idx, m in enumerate(msgs):
+            role = m.get("role")
+            if role == "tool":
+                prev = msgs[idx - 1] if idx else None
+                ok = prev is not None and (
+                    (prev.get("role") == "assistant" and prev.get("tool_calls"))
+                    or prev.get("role") == "tool"
+                )
+                if not ok:
+                    return False
+            if role == "assistant" and m.get("tool_calls"):
+                ids = [c["id"] for c in m["tool_calls"]]
+                k = 0
+                while idx + 1 + k < len(msgs) and msgs[idx + 1 + k].get("role") == "tool":
+                    k += 1
+                got = [msgs[idx + 1 + j].get("tool_call_id") for j in range(k)]
+                if k != len(ids) or got != ids:
+                    return False
+        return True
+
+    def test_prune_true_drops_tool_pairs_atomically(self) -> None:
+        """prune=True 第二刀按组删(phase-42):任一带 tool_calls 的 assistant
+        后面必须紧跟对应数量的 tool,不得出现孤立 tool 行。"""
+        msgs = self._tool_pair_msgs()
+        out = compress(msgs, budget=200, prune=True)
+        assert len(out) < len(msgs)  # 确实发生了剪枝
+        assert self._pairs_intact(out)
+        ids_left = {m.get("tool_call_id") for m in out if m.get("role") == "tool"}
+        calls_left = {
+            c["id"] for m in out if m.get("role") == "assistant" for c in m.get("tool_calls", [])
+        }
+        assert ids_left == calls_left  # 没有缺对的任一侧
+        assert "a1" not in ids_left  # 最旧的工具对被整组剪掉
+
+    def test_prune_true_keeps_recent_tail(self) -> None:
+        """剪到 len(out) <= 8 为止:最近的回合(含最后一组工具对)原样保留。"""
+        msgs = self._tool_pair_msgs()
+        out = compress(msgs, budget=200, prune=True)
+        assert len(out) <= 8
+        assert out[-1]["content"] == "收尾答复"  # 收尾回合仍在
+        assert "第三轮任务" in out[-2]["content"]
+        last_pair = next(m for m in reversed(out) if m.get("tool_calls"))
+        idx = out.index(last_pair)
+        assert [c["id"] for c in last_pair["tool_calls"]] == ["b1", "b2"]  # 最近一组完整
+        assert [out[idx + 1]["tool_call_id"], out[idx + 2]["tool_call_id"]] == ["b1", "b2"]
+
+    def test_prune_span_group_widths(self) -> None:
+        """helper 的 span 宽度 >1 当且仅当删的是 assistant+tools 组(phase-42)。"""
+        msgs = [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "u"},
+            {"role": "assistant", "content": "", "tool_calls": [{"id": "t"}]},
+            {"role": "tool", "tool_call_id": "t", "content": "r"},
+            {"role": "assistant", "content": "plain"},
+            {"role": "tool", "tool_call_id": "x", "content": "orphan"},
+        ]
+        assert _prune_span(msgs, 0) == (1, 2)  # 跳过 system,单删 user
+        assert _prune_span(msgs, 2) == (2, 4)  # assistant + tool 整组
+        assert _prune_span(msgs, 4) == (4, 5)  # 无 tool_calls 的 assistant 单删
+        assert _prune_span(msgs, 5) == (5, 6)  # 头部孤立 tool 单删
+        assert _prune_span(msgs, 6) == (6, 6)  # 越界:无可剪对象
 
 
 class TestPages:
