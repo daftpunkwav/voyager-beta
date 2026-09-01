@@ -53,5 +53,8 @@ class HookLoader:
                         log.info("declarative hook 触发: %s (%s)", _desc, etype)
 
                 self._registry.register("on_event", _on_event_hook, source=src)
+                # 记下声明的事件 pattern,供 EventLoop 精确订阅(phase-28);
+                # 生命周期点(on ∈ HOOK_POINTS)不是事件类型,不记
+                self._registry.record_event_pattern(on)
             count += 1
         return count

@@ -7,6 +7,7 @@ recovery.py 此前没有调用方;本文件锁定接线后的行为:
 - 启动 reclaim 把磁盘上 alive 的 checkpoint 标 failed(不 resume)。
 """
 
+import pytest
 from platform_contracts import LOCAL_USER, Event
 from platform_eventbus import EventBus, EventLog
 
@@ -127,6 +128,67 @@ class TestLoopBreaker:
         assert calls["bad"] == 3
         await loop._dispatch(_event("good.y"))  # 其它 pattern 不受影响
         assert calls["good"] == 1
+        log.close()
+
+
+class TestLoopSubscribe:
+    """精确订阅(phase-28):禁 "*",hook 走 relay,订阅 = handlers + extra_patterns。"""
+
+    async def test_star_in_handlers_rejected(self, tmp_path) -> None:
+        log = EventLog(tmp_path / "events.db")
+
+        async def noop(_ev: Event) -> None:
+            return None
+
+        with pytest.raises(ValueError, match="relay"):
+            EventLoop(EventBus(log), {"*": noop})
+        log.close()
+
+    async def test_star_in_extra_patterns_rejected(self, tmp_path) -> None:
+        """extra_patterns 里的 "*" 一样拒绝:否则精确订阅被偷懒抵消;note.* 允许。"""
+        log = EventLog(tmp_path / "events.db")
+
+        async def noop(_ev: Event) -> None:
+            return None
+
+        loop = EventLoop(EventBus(log), {"user.message": noop}, extra_patterns=("note.*",))
+        assert "note.*" in loop.patterns  # 通配类型放行
+        with pytest.raises(ValueError, match="relay"):
+            EventLoop(EventBus(log), {"user.message": noop}, extra_patterns=("*",))
+        log.close()
+
+    async def test_patterns_dedup_preserve_order(self, tmp_path) -> None:
+        """订阅 pattern 去重保序:handlers keys 在前,extra_patterns 补充在后。"""
+        log = EventLog(tmp_path / "events.db")
+
+        async def noop(_ev: Event) -> None:
+            return None
+
+        loop = EventLoop(
+            EventBus(log),
+            {"bad.*": noop, "good.*": noop},
+            extra_patterns=("note.created", "bad.*", "note.created"),
+        )
+        assert loop.patterns == ("bad.*", "good.*", "note.created")
+        log.close()
+
+    async def test_relay_breaker_does_not_touch_domain_handler(self, tmp_path) -> None:
+        """relay 连续失败熔断后只 skip relay,领域 handler 照常;loop 不炸。"""
+        log = EventLog(tmp_path / "events.db")
+        calls = {"good": 0, "relay": 0}
+
+        async def good(_ev: Event) -> None:
+            calls["good"] += 1
+
+        async def bad_relay(_ev: Event) -> None:
+            calls["relay"] += 1
+            raise RuntimeError("relay boom")
+
+        loop = EventLoop(EventBus(log), {"good.*": good}, relay=bad_relay)
+        for _ in range(5):  # 前 3 次进 relay,之后熔断跳过;handler 每次都跑
+            await loop._dispatch(_event("good.x"))
+        assert calls["good"] == 5
+        assert calls["relay"] == 3  # open_after 默认 3,熔断后不再进入
         log.close()
 
 

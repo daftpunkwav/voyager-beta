@@ -25,6 +25,19 @@ log = logging.getLogger("agent.hooks")
 class HookRegistry:
     def __init__(self) -> None:
         self._hooks: dict[str, list[tuple[str, HookFn]]] = {p: [] for p in HOOK_POINTS}
+        # 声明式 hook 声明过的领域事件 pattern(保声明顺序,去重;phase-28):
+        # 供 EventLoop 精确订阅;register("on_event") 的纯 Python 钩子不在此列
+        self._event_patterns: list[str] = []
+
+    def record_event_pattern(self, pattern: str) -> None:
+        """Loader 包装 on_event 时登记领域事件类型(支持 fnmatch 通配),供订阅。"""
+        if pattern not in self._event_patterns:
+            self._event_patterns.append(pattern)
+
+    @property
+    def event_patterns(self) -> tuple[str, ...]:
+        """声明式 hook 声明过的领域事件类型;生命周期点不记。"""
+        return tuple(self._event_patterns)
 
     def register(self, point: str, fn: HookFn, *, source: str = "local") -> None:
         if point not in self._hooks:

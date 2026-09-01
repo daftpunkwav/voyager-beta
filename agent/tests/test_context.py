@@ -7,10 +7,18 @@ from agent.context import (
     compress,
     estimate_tokens,
 )
+from agent.context.rules import GLOBAL_RULES
 from agent.memory import Memory
 from agent.personas import LUCIEN
 from agent.skills.loader import SkillLoader
 from agent.subagent import TaskBook
+
+
+class TestGlobalRules:
+    def test_shape_locked(self) -> None:
+        """8 条原文(phase-28 自 main.py 抽出);只锁条数 + 首条前缀,不复制全文。"""
+        assert len(GLOBAL_RULES) == 8
+        assert GLOBAL_RULES[0].startswith("诚实第一")
 
 
 class TestBuilder:

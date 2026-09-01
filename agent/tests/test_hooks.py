@@ -125,10 +125,17 @@ class TestBuildAgentWiring:
         )
 
     def test_default_no_hooks_loaded(self, tmp_path) -> None:
-        """默认装配:用户 hooks 目录为空,plugins/_example 不加载。"""
+        """默认装配:用户 hooks 目录为空,plugins/_example 不加载;
+        订阅恰好四条领域类型,无 "*"(phase-28 精确订阅)。"""
         app = self._build(tmp_path)
         try:
             assert app.hooks.registered() == {}
+            assert app.loop.patterns == (
+                "user.message",
+                "user.online",
+                "source.ready",
+                "user.activity",
+            )
         finally:
             app.memory.close()
 
@@ -142,21 +149,28 @@ class TestBuildAgentWiring:
         app = self._build(tmp_path)
         try:
             assert app.hooks.registered() == {"on_event": 1}
+            # 声明式 hook 的事件 pattern 进订阅;"*" 仍不出现(phase-28)
+            assert "note.created" in app.loop.patterns
+            assert "*" not in app.loop.patterns
         finally:
             app.memory.close()
 
     async def test_loop_forwards_events_to_on_event(self, tmp_path) -> None:
-        """EventLoop 的 "*" handler 把领域事件转给 on_event(不拆既有 handler)。"""
+        """进入 loop 的事件经 relay 交给 on_event(phase-28 起无 "*" handler)。
+
+        这里直接调 _dispatch,只锁 relay 转发本身;live 总线上任意事件
+        不再进 agent——订阅由 patterns 精确决定(见 test_user_hooks_dir_loaded)。
+        """
         app = self._build(tmp_path)
         try:
-            assert "note.created" not in app.loop._handlers  # 具体事件名不在 handler 表
+            assert "*" not in app.loop._handlers  # "*" 已被禁止,relay 取代
             seen: list[str] = []
 
             async def spy(event) -> None:
                 seen.append(event.type)
 
             app.hooks.register("on_event", spy, source="test")
-            await app.loop._handlers["*"](
+            await app.loop._dispatch(
                 SimpleNamespace(type="note.created", trace_id=None, payload={})
             )
             assert seen == ["note.created"]
