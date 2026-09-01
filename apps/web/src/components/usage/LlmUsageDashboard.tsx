@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getApi } from '@/api/client';
 import type { LlmUsageSummary } from '@/api/types';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
@@ -7,6 +7,7 @@ import { BACKEND_UNREACHABLE } from '@/utils/errors';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { GLASS_CHIP, GLASS_INNER, GLASS_OUTER } from '@/constants/glassTokens';
 import { formatTokenCount } from '@/utils/formatTokens';
+import { DailyTokenQuotaCard } from './DailyTokenQuotaCard';
 import { UsageDonut } from './UsageDonut';
 import { UsageHeatmap } from './UsageHeatmap';
 import { UsageKpiCards } from './UsageKpiCards';
@@ -75,6 +76,7 @@ function normalizeUsage(raw: unknown): LlmUsageSummary {
 /** 一屏用量仪表盘 */
 export function LlmUsageDashboard() {
   const [days, setDays] = useState<(typeof DAYS_OPTIONS)[number]>(30);
+  const queryClient = useQueryClient();
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['llm-usage', days],
@@ -126,13 +128,18 @@ export function LlmUsageDashboard() {
               type="button"
               className={`btn btn-sm ${GLASS_INNER}`}
               disabled={isFetching}
-              onClick={() => void refetch()}
+              onClick={() => {
+                // 今日配额是另一条 query(agent Meter),刷新时一并失效重拉
+                void queryClient.invalidateQueries({ queryKey: ['agent-daily-quota'] });
+                void refetch();
+              }}
             >
               刷新
             </button>
           </div>
 
           <div className="usage-dashboard-body">
+          <DailyTokenQuotaCard />
           <UsageKpiCards usage={usage} />
           <div className="usage-mid-row">
             <UsageHeatmap heatmap={usage.heatmap} />

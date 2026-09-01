@@ -78,6 +78,64 @@
   font-size: 13px;
 }
 
+/* 今日 token 配额块（agent Meter 当日口径，§9.9 资源维） */
+.usage-quota {
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+.usage-quota-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.usage-quota-value {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.usage-quota-sep {
+  margin: 0 6px;
+  color: var(--text-400);
+  font-weight: 400;
+}
+
+.usage-quota-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.usage-quota-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.usage-quota-bar {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(120, 120, 128, 0.16);
+  overflow: hidden;
+}
+
+.usage-quota-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand-500);
+  transition: width 0.3s ease;
+}
+
+.usage-quota-bar.is-warning .usage-quota-bar-fill {
+  background: var(--warning);
+}
+
 .usage-kpi-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
