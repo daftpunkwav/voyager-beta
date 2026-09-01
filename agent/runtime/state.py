@@ -93,9 +93,16 @@ class CheckpointStore:
         return RunState.from_dict(json.loads(path.read_text(encoding="utf-8")))
 
     def list_alive(self) -> list[RunState]:
+        """列出仍 alive 的 checkpoint;单份文件损坏则跳过,不挡其它 checkpoint、不挡启动。"""
         out = []
         for path in sorted(self._root.glob("*.json")):
-            state = RunState.from_dict(json.loads(path.read_text(encoding="utf-8")))
+            try:
+                raw = json.loads(path.read_text(encoding="utf-8"))
+                state = RunState.from_dict(raw)
+            except (
+                json.JSONDecodeError, UnicodeDecodeError, ValueError, KeyError, TypeError, OSError
+            ):
+                continue
             if state.status.alive:
                 out.append(state)
         return out

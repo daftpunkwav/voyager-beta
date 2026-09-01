@@ -94,3 +94,20 @@ class TestCheckpoint:
                 store.load(bad)
             with pytest.raises(ValueError, match="非法 run_id"):
                 store.delete(bad)
+
+    def test_list_alive_skips_broken_files(self, tmp_path) -> None:
+        """单份坏 checkpoint(坏 JSON / 缺字段)跳过,不挡后面的合法文件,也不删坏文件。"""
+        store = CheckpointStore(tmp_path)
+        (tmp_path / "broken.json").write_text("{not json", encoding="utf-8")
+        running = RunState(task="索引仓库")
+        running.status = RunStatus.RUNNING
+        running.run_id = "mid-run"  # 固定名保证扫描顺序:坏(b)在前、合法(m)居中、缺字段(z)殿后
+        store.save(running)
+        (tmp_path / "zzz-no-status.json").write_text('{"task":"x"}', encoding="utf-8")
+
+        alive = store.list_alive()  # 混有坏文件也不抛
+
+        assert [s.run_id for s in alive] == ["mid-run"]
+        # 坏文件原样保留:不 unlink、不改写
+        assert (tmp_path / "broken.json").read_text(encoding="utf-8") == "{not json"
+        assert (tmp_path / "zzz-no-status.json").read_text(encoding="utf-8") == '{"task":"x"}'

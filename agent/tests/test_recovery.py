@@ -228,3 +228,25 @@ class TestReclaim:
             assert loaded.status is RunStatus.FAILED
         finally:
             app.memory.close()
+
+    def test_build_agent_skips_broken_checkpoint(self, tmp_path) -> None:
+        """checkpoint 目录混有坏 JSON 时启动装配不炸;合法 alive 照旧标 failed,坏文件保留。"""
+        cp_dir = tmp_path / "rd" / "checkpoints"
+        cp_dir.mkdir(parents=True)
+        (cp_dir / "broken.json").write_text("{not json", encoding="utf-8")
+        store = CheckpointStore(cp_dir)
+        state = RunState(task="t")
+        state.status = RunStatus.RUNNING
+        store.save(state)
+
+        app = build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=FakeLLM()
+        )
+        try:
+            assert store.list_alive() == []
+            loaded = store.load(state.run_id)
+            assert loaded.status is RunStatus.FAILED
+            # 坏文件原样保留:不 unlink、不改写
+            assert (cp_dir / "broken.json").read_text(encoding="utf-8") == "{not json"
+        finally:
+            app.memory.close()
