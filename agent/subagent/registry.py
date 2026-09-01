@@ -21,6 +21,13 @@ _DOMAIN = "agent"
 _NETWORK_MODES = ("", NET_OFF, NET_WHITELIST, NET_ALL)  # 空 = 继承全局(§9.9)
 
 
+def _safe_name(name: str) -> str:
+    """name 会直接拼进文件路径,统一在此校验(防 ../ 穿越到 subagents 目录之外)。"""
+    if not _NAME_RE.match(name):
+        raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, f"名称须为小写 snake_case: {name}")
+    return name
+
+
 @dataclass(frozen=True)
 class SubagentDef:
     name: str
@@ -35,8 +42,7 @@ class SubagentDef:
     network_mode: str = ""  # 网络档位覆盖(§9.9);空=继承全局
 
     def __post_init__(self) -> None:
-        if not _NAME_RE.match(self.name):
-            raise ServiceError(_DOMAIN, ErrorSuffix.INVALID_INPUT, f"名称须为小写 snake_case: {self.name}")
+        _safe_name(self.name)
         valid_modes = {m.value for m in Mode}
         if self.mode not in valid_modes:
             raise ServiceError(
@@ -77,6 +83,7 @@ class SubagentRegistry:
         return path
 
     def load(self, name: str) -> SubagentDef:
+        name = _safe_name(name)
         path = self._root / f"{name}.json"
         if not path.exists():
             raise ServiceError(_DOMAIN, ErrorSuffix.NOT_FOUND, f"未注册的 subagent: {name}")
@@ -90,4 +97,5 @@ class SubagentRegistry:
         ]
 
     def delete(self, name: str) -> None:
+        name = _safe_name(name)
         (self._root / f"{name}.json").unlink(missing_ok=True)
