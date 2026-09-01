@@ -30,6 +30,28 @@ class TestNetwork:
         d = engine.decide(Action(dimension="network", target="https://example.com"))
         assert d.allow and d.level == Level.L1_NOTIFY
 
+    def test_all_rejects_nonglobal_literals(self) -> None:
+        """phase-33:ALL 档也不放行环回/链路本地/私网字面量(SSRF);reason 说明缘由。"""
+        engine = PolicyEngine(network=NetworkPolicy(mode="all"))
+        for target in (
+            "http://127.0.0.1/",  # 环回
+            "http://localhost:8080/",  # 本机名
+            "http://169.254.169.254/",  # 链路本地 / 云元数据
+            "http://10.0.0.1/",  # 私网
+        ):
+            d = engine.decide(Action(dimension="network", target=target))
+            assert not d.allow, target
+            assert "环回" in d.reason or "内网" in d.reason, target
+
+    def test_nonglobal_beats_whitelist(self) -> None:
+        """非全局先于白名单:白名单里写了环回 IP 也不放行。"""
+        engine = PolicyEngine(
+            network=NetworkPolicy(mode="whitelist", domains=("127.0.0.1",))
+        )
+        d = engine.decide(Action(dimension="network", target="http://127.0.0.1/"))
+        assert not d.allow
+        assert "环回" in d.reason or "内网" in d.reason
+
     def test_userinfo_url_judged_by_real_host(self) -> None:
         """userinfo 形如 https://github.com@evil.com/ 的 URL 实连 evil.com,必须拒绝;
         反向 https://evil.com@github.com/ 实连 github.com(host 解析只看 @ 之后)。"""

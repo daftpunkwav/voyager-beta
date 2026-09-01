@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -25,6 +26,21 @@ def narrow_network(global_mode: str, requested: str) -> str:
     ):
         return requested
     return global_mode
+
+
+def _host_is_nonglobal(host: str) -> bool:
+    """环回/内网/链路本地/本机名的字面判断;只看 URL 里已写出的 host,不做 DNS。
+    字面规则对齐 services/llm 的同名判定(不跨包 import),但网络维没有 USER 例外:
+    web_fetch 打 127.0.0.1 是 SSRF,一律拒绝。空 host(解析失败)不算非全局。"""
+    h = (host or "").lower().rstrip(".")
+    if h in {"localhost", "metadata.google.internal"} or h.endswith(".localhost"):
+        return True
+    try:
+        addr = ipaddress.ip_address(h)
+        mapped = getattr(addr, "ipv4_mapped", None)
+        return not (mapped or addr).is_global
+    except ValueError:
+        return False
 
 
 @dataclass(frozen=True)
@@ -137,6 +153,10 @@ class PolicyEngine:
         host = (urlparse(action.target).hostname or "") if "://" in action.target \
             else action.target
         host = host.lower()
+        # 顺序冻结(§9.9 网络维):off → 非全局 → all/白名单。
+        # 非全局字面量先于档位分支:ALL 档也不打环回/内网(SSRF),白名单写了也不放行
+        if _host_is_nonglobal(host):
+            return Decision(False, reason="网络权限:拒绝环回或内网地址")
         if net.mode == NET_ALL:
             return Decision(True, Level.L1_NOTIFY, "网络全开")
         if any(host == d or host.endswith("." + d) for d in net.domains):

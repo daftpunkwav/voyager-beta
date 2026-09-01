@@ -41,7 +41,9 @@ async def test_redirect_to_internal_is_refused(monkeypatch) -> None:
     out = await fetch("http://github.com/redirect")
 
     assert len(calls) == 1  # 只打了第一跳
-    assert "[已拒绝]" in out and "不在白名单" in out
+    # phase-33 后内网跳由「非全局字面量」规则拒绝(reason=拒绝环回或内网地址),
+    # 在此之前走白名单拒绝;不锁定具体是哪条规则,任一生效即算拦截成功
+    assert "[已拒绝]" in out and ("不在白名单" in out or "环回" in out or "内网" in out)
 
 
 async def test_redirect_within_whitelist_follows(monkeypatch) -> None:
