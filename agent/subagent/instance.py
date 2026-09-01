@@ -16,26 +16,16 @@ from agent.llm import LLMClient
 from agent.runtime.events import RuntimeEvents
 from agent.runtime.state import RunState, RunStatus
 from agent.subagent.modes import Mode, ModeLimits, run_mode
-from agent.tools.activate import graded_toolbelt, infer_domains
+from agent.tools.activate import (
+    graded_toolbelt,
+    infer_domains,
+    page_preactivate,  # 页面→预激活域映射在 activate.py(phase-30);此处再导出兼容旧 import 路径
+)
 from agent.tools.base import Toolbelt
 
 #: 跨轮 history 硬上限(条数,phase-15):长对话不无限涨。
 #: history 里只有 user/assistant 行(本回合 tool 行只活在 messages),成对丢弃。
 HISTORY_MAX = 60
-
-
-#: 页面 → 预激活域(§9.20):用户停在这三个领域页时,对话开局即并入该域
-#: 工具,省一轮 activate_tools;其他页(settings/usage…)不预激活。
-_PAGE_PREACTIVATE: dict[str, str] = {
-    "notes": "notes",
-    "graph": "graph",
-    "sources": "sources",
-}
-
-
-def page_preactivate(page: str) -> str | None:
-    """当前页面对应的工具域;无映射返回 None(单测直测这个小函数)。"""
-    return _PAGE_PREACTIVATE.get(page)
 
 
 class SubStatus(str, Enum):

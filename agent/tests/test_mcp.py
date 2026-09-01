@@ -352,9 +352,12 @@ class TestInvalidInput:
 
 class TestDomains:
     def test_mcp_domain_activatable(self) -> None:
-        """DOMAINS 含 mcp:Lucien 能 activate_tools(domain='mcp') 看见批准后的工具。"""
-        from agent.tools.activate import CORE_TOOLS, DOMAINS
+        """名册出现 mcp__* 后推导含 mcp:Lucien 能 activate_tools(domain='mcp')
+        看见批准后的工具;空名册或不含 mcp 工具时不含(phase-30 推导,非常量)。"""
+        from agent.tools.activate import CORE_TOOLS, domain_prefixes
 
-        assert "mcp" in DOMAINS
+        assert "mcp" in domain_prefixes(["mcp__demo__search", "read_file"])
+        assert "mcp" not in domain_prefixes(["read_file", "notes__create_note"])
+        assert domain_prefixes([]) == ()
         assert "load_skill" in CORE_TOOLS  # 不许移出 CORE
         assert not [n for n in CORE_TOOLS if n.startswith("mcp__")]

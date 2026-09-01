@@ -218,3 +218,38 @@ class TestPagePreactivate:
     def test_other_pages_do_not_preactivate(self) -> None:
         for page in ("chat", "team", "activity", "settings", "usage", ""):
             assert page_preactivate(page) is None
+
+
+class TestDomainPrefixes:
+    """phase-30:可激活域从当前名册 `__` 前缀推导,不再是 import 时冻死的常量。"""
+
+    def test_derive_from_belt_names(self) -> None:
+        from agent.tools.activate import domain_prefixes
+
+        assert domain_prefixes(["read_file", "notes__x", "mcp__a__b"]) == ("mcp", "notes")
+        # 只取第一段 `__` 之前:mcp__demo__search → mcp,不是 mcp__demo
+        assert "mcp__demo" not in domain_prefixes(["mcp__demo__search"])
+        assert domain_prefixes(["read_file", "run_shell", "activate_tools"]) == ()
+        assert domain_prefixes([]) == ()
+
+    async def test_schema_enum_follows_roster(self, tmp_path) -> None:
+        """activate_tools 的 domain enum 现算自名册;内部工具域(fs/shell/web)不再出现。"""
+
+        async def search(query: str = "") -> dict:
+            return {"hits": []}
+
+        tools = _fake_notes_tools()
+        tools["mcp__demo__search"] = AgentTool(
+            name="mcp__demo__search",
+            description="[mcp] 演示搜索",
+            handler=search,
+        )
+        llm = FakeLLM([LLMReply(text="看完了。")])
+        app = _app(tmp_path, llm, tools)
+        await app.master.handle_user_message("看看工作目录")
+        await _settle(app)
+        spec = next(s for s in llm.calls[0]["tools"] if s.name == "activate_tools")
+        enum = spec.schema["properties"]["domain"]["enum"]
+        assert "notes" in enum and "mcp" in enum
+        assert not {"fs", "shell", "web"} & set(enum)
+        app.memory.close()
