@@ -58,7 +58,7 @@ plugins = ["pydantic.mypy"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-testpaths = ["platform", "agent", "services/_template"]
+testpaths = ["platform", "agent", "deploy/tests", "services/_template"]
 asyncio_mode = "auto"
 filterwarnings = ["ignore::DeprecationWarning"]
 norecursedirs = ["data", "vendor", ".venv", "node_modules", "build", "dist"]
