@@ -1,0 +1,23 @@
+# GitLab CI:push / MR 时跑默认 pytest。
+# 测试范围由根 pyproject.toml 的 testpaths 决定
+# (platform / agent / deploy/tests / services/_template),依赖按 uv.lock 安装。
+stages:
+  - test
+
+pytest:
+  stage: test
+  image: python:3.11
+  variables:
+    UV_LINK_MODE: copy        # 跨文件系统时避免硬链接告警
+    UV_CACHE_DIR: .uv-cache   # 缓存 uv 下载目录(比缓存 .venv 更不易跨平台失效)
+  cache:
+    key:
+      files:
+        - uv.lock
+    paths:
+      - .uv-cache
+  before_script:
+    - pip install uv
+    - uv sync
+  script:
+    - uv run pytest -q

@@ -21,6 +21,8 @@ npm install    # Node 依赖（npm workspaces）
 python deploy/dev.py    # gateway :8000 + Vite :5173
 ```
 
+push / MR 由 GitLab CI 跑默认 pytest（`.gitlab-ci.yml`），本地等价命令 `uv run pytest -q`。
+
 ## 端口
 
 | 服务 | 默认端口 | 覆盖变量 |
