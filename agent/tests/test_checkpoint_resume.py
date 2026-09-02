@@ -1,8 +1,9 @@
-"""checkpoint resume 后端(phase-69,§9.17):boot PAUSED、恢复列表、实例重建、拒绝路径。
+"""checkpoint resume 后端(phase-69/70/71,§9.17):boot PAUSED、恢复列表、
+实例重建、拒绝路径、ReAct 中途增量存盘与续跑。
 
 范围(任务书 E):任务型 + 非 conversational + mode=react;
 对话型 / 无快照 / 其它 mode / 终态 返回明确错误。
-限制(已知,写回披露):仅 turn 结束存盘,ReAct 中途崩溃丢当轮进度。
+phase-71 起每步增量存盘,ReAct 中途崩溃可从中途续跑,不重复已完成 tool 步。
 """
 
 import asyncio
@@ -13,7 +14,7 @@ from platform_actor import ActorContext
 from platform_capability import execute
 from platform_contracts import LOCAL_USER, ServiceError
 
-from agent.llm import FakeLLM
+from agent.llm import FakeLLM, LLMReply, ToolCall
 from agent.main import build_agent
 from agent.runtime.state import CheckpointStore, ResumeSnapshot, RunState, RunStatus
 from agent.subagent import Mode, TaskBook
@@ -65,6 +66,16 @@ class TestSnapshotData:
     def test_snapshot_roundtrip(self) -> None:
         snap = _snapshot(max_tool_calls=9, active_tools=["notes", "web"])
         assert ResumeSnapshot.from_dict(snap.to_dict()) == snap
+
+    def test_phase71_fields_default_and_old_json_loads(self) -> None:
+        """A 验收:新字段有缺省;旧 JSON(无新键)可读,与 69 快照等价。"""
+        snap = _snapshot()
+        assert snap.pending_messages is None
+        assert snap.in_turn is False
+        data = snap.to_dict()
+        assert "pending_messages" in data and "in_turn" in data
+        old = {k: v for k, v in data.items() if k not in ("pending_messages", "in_turn")}
+        assert ResumeSnapshot.from_dict(old) == snap
 
     def test_old_checkpoint_without_resume_loads(self, tmp_path) -> None:
         """旧版 checkpoint(无 resume 键)可读:resume=None,不炸。"""
@@ -173,6 +184,161 @@ class TestResumeRun:
                 app.registry, "list_resumable_checkpoints", USER_CTX, {}
             )
             assert listed["items"] == []
+        finally:
+            app.memory.close()
+
+
+class TestMidTurnCheckpoint:
+    """phase-71(§9.17):ReAct 中途增量存盘 → boot PAUSED → resume 从中途续跑。"""
+
+    async def test_mid_turn_save_and_resume_continues_without_redo(self, tmp_path) -> None:
+        """D 验收:round-1 调 tool、round-2 前崩溃 → resume 续跑完成,tool 只调一次。"""
+        rd = tmp_path / "rd"
+        hang = asyncio.Event()
+        n_calls = {"n": 0}
+
+        async def _script(messages, tools):
+            n_calls["n"] += 1
+            if n_calls["n"] == 1:  # round-1:请求 list_dir
+                return LLMReply(
+                    tool_calls=(ToolCall(id="c1", name="list_dir", arguments={"path": "."}),)
+                )
+            await hang.wait()  # round-2 complete 挂起 = 崩溃点
+            return LLMReply(text="不应到达")
+
+        app = build_agent(
+            data_dir=rd, workspace_dir=tmp_path / "ws", llm=FakeLLM(dynamic=_script)
+        )
+        try:
+            inst = app.spawner.spawn(
+                TaskBook(goal="中途存盘", mode=Mode.REACT, allowed_tools=("list_dir",)),
+                persona="recon", name="scout",
+            )
+            # 绕过 spawner.start 驱动 run_turn:进程死亡不会执行 start 的
+            # finally 存盘,盘上应保留最后一步的 mid-turn 快照
+            turn = asyncio.create_task(inst.run_turn())
+            store = CheckpointStore(rd / "checkpoints")
+            # B 验收:轮询等待 tool 步的增量存盘落盘(含刚落地的 tool 行)
+            for _ in range(500):
+                await asyncio.sleep(0.01)
+                if not (rd / "checkpoints" / f"{inst.state.run_id}.json").exists():
+                    continue  # 首个存盘点(第 1 步 on_step)尚未发生
+                saved = store.load(inst.state.run_id).resume
+                if (
+                    isinstance(saved, dict)
+                    and saved.get("in_turn")
+                    and any(
+                        m.get("role") == "tool"
+                        for m in saved.get("pending_messages") or []
+                    )
+                ):
+                    break
+            else:
+                pytest.fail("tool 步后未见 mid-turn 快照落盘")
+            pending = saved["pending_messages"]
+            # 快照形状:成对回填(system 起步,assistant(tool_calls) 与 tool 同组)
+            assert [m["role"] for m in pending] == ["system", "assistant", "tool"]
+            assert pending[1]["tool_calls"][0]["id"] == "c1"
+            assert pending[2]["tool_call_id"] == "c1"
+            assert inst.state.tool_calls == 1
+            assert inst.state.rounds == 1
+
+            # 模拟进程被杀:硬取消,盘上 mid-turn 快照不被 turn 边界覆盖
+            turn.cancel()
+            await asyncio.gather(turn, return_exceptions=True)
+            assert store.load(inst.state.run_id).resume["in_turn"] is True
+            assert store.load(inst.state.run_id).status is RunStatus.RUNNING
+        finally:
+            app.close()
+
+        # “重启”:同一数据目录重建 app → boot 转 PAUSED → resume 续跑
+        llm2 = FakeLLM(script=[LLMReply(text="目录清点完成。")])
+        app2 = build_agent(data_dir=rd, workspace_dir=tmp_path / "ws", llm=llm2)
+        try:
+            out = await execute(
+                app2.registry, "resume_run", USER_CTX,
+                {"run_id": inst.state.run_id, "continue_run": True},
+            )
+            assert out["continuing"] is True
+            await asyncio.sleep(0.1)
+            inst2 = app2.spawner.instances[inst.id]
+            assert inst2.status is RunStatus.COMPLETED
+            assert inst2.state.result == "目录清点完成。"
+            # C 验收:续跑只做了一次 complete(崩溃点的下一轮);
+            # list_dir 不重复执行(结果已在 transcript)
+            assert len(llm2.calls) == 1
+            assert inst2.state.tool_calls == 1
+            assert inst2.state.rounds == 2
+            msgs = llm2.calls[0]["messages"]
+            assert [m["role"] for m in msgs] == ["system", "assistant", "tool"]
+            assert msgs[2]["content"] == pending[2]["content"]
+            # 续跑完 turn 边界快照覆盖中途快照:in_turn 复位、状态终态
+            final = CheckpointStore(rd / "checkpoints").load(inst.state.run_id)
+            assert final.status is RunStatus.COMPLETED
+            assert final.resume["in_turn"] is False
+        finally:
+            app2.close()
+
+    def test_snapshot_repairs_unpaired_tail(self, tmp_path) -> None:
+        """崩在多工具轮中途:尾部残组(assistant 带 tool_calls 但 tool 行未齐)整体回退。"""
+        app = _build(tmp_path)
+        try:
+            inst = app.spawner.spawn(
+                TaskBook(goal="残组回退", mode=Mode.REACT, allowed_tools=("list_dir",)),
+                persona="recon",
+            )
+            inst._turn_messages = [
+                {"role": "system", "content": "s"},
+                {"role": "user", "content": "u"},
+                {"role": "assistant", "content": "",
+                 "tool_calls": [{"id": "a"}, {"id": "b"}]},
+                {"role": "tool", "tool_call_id": "a", "name": "list_dir", "content": "r1"},
+            ]
+            snap = inst.build_resume_snapshot(
+                in_turn=True, pending_messages=inst._turn_messages
+            )
+            assert snap.in_turn is True
+            assert [m["role"] for m in snap.pending_messages] == ["system", "user"]
+            # 缺省调用 = turn 边界快照,与 phase-69 行为一致
+            plain = inst.build_resume_snapshot()
+            assert plain.pending_messages is None
+            assert plain.in_turn is False
+        finally:
+            app.memory.close()
+
+    async def test_in_turn_without_pending_falls_back_to_turn_boundary(self, tmp_path) -> None:
+        """in_turn=True 但 pending_messages 缺失:退回 69 行为(history 重建 + 新开 turn)。"""
+        rd = tmp_path / "rd"
+        state = _seed_checkpoint(rd, _snapshot(in_turn=True))
+        app = _build(tmp_path)
+        try:
+            await execute(
+                app.registry, "resume_run", USER_CTX,
+                {"run_id": state.run_id, "continue_run": True},
+            )
+            await asyncio.sleep(0.1)
+            inst = app.spawner.instances["instabcd"]
+            assert inst.status is RunStatus.COMPLETED
+            assert inst.history[-1] == {"role": "assistant", "content": "收到。"}
+        finally:
+            app.memory.close()
+
+    async def test_in_turn_corrupt_pending_rejected(self, tmp_path) -> None:
+        """pending_messages 结构残缺(非 list / 含非 dict):拒为 NOT_FOUND,不留半建实例。"""
+        rd = tmp_path / "rd"
+        _seed_checkpoint(
+            rd, _snapshot(in_turn=True, pending_messages="garbage"), run_id="badpend01",
+        )
+        _seed_checkpoint(
+            rd, _snapshot(in_turn=True, pending_messages=[1, 2]), run_id="badpend02",
+        )
+        app = _build(tmp_path)
+        try:
+            for rid in ("badpend01", "badpend02"):
+                with pytest.raises(ServiceError) as exc:
+                    await execute(app.registry, "resume_run", USER_CTX, {"run_id": rid})
+                assert exc.value.body.code == "AGENT.NOT_FOUND", rid
+            assert app.spawner.instances == {}  # 拒绝时不留半建实例
         finally:
             app.memory.close()
 

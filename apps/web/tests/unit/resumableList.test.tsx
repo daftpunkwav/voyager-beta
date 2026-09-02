@@ -102,6 +102,26 @@ describe('可恢复任务列表(phase-70 A)', () => {
     await waitFor(() => expect(screen.queryByText('侦察兵')).toBeNull());
   });
 
+  it('status=running:继续置灰带提示(phase-71 E),放弃仍可用', async () => {
+    items = [sampleItem({ status: 'running' })];
+    render(<ResumableList />);
+    const btn = await screen.findByRole('button', { name: '继续' });
+    expect(btn.hasAttribute('disabled')).toBe(true);
+    expect(btn.getAttribute('title')).toContain('仍在运行中');
+    // 置灰按钮点击不触发 resume_run
+    fireEvent.click(btn);
+    expect(callCapabilityMock).not.toHaveBeenCalledWith(
+      'agent', 'resume_run', expect.anything(),
+    );
+    // 放弃不受影响(70 语义:停实例 + 删盘)
+    fireEvent.click(screen.getByRole('button', { name: '放弃' }));
+    await waitFor(() =>
+      expect(callCapabilityMock).toHaveBeenCalledWith(
+        'agent', 'abandon_resumable_checkpoint', { run_id: 'runresum001' },
+      ),
+    );
+  });
+
   it('放弃确认弹窗点取消:不发请求', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false);
     items = [sampleItem()];

@@ -42,6 +42,11 @@ class Spawner:
         self._sync_digest = sync_digest
         self.instances: dict[str, SubagentInstance] = {}
 
+    def _persist_checkpoint(self, inst: SubagentInstance) -> None:
+        """checkpoint_persist 注入实现(phase-71):与 start() finally 同一 save 口径。"""
+        if self._checkpoints is not None:
+            self._checkpoints.save(inst.state)
+
     def spawn(
         self,
         task: TaskBook,
@@ -63,15 +68,17 @@ class Spawner:
             persona=persona,
             build_system=self._build_system,  # 每回合重算 system(phase-15)
             sync_digest=self._sync_digest,  # 步骤时刷新 DigestStore(phase-20)
+            checkpoint_persist=self._persist_checkpoint,  # 中途存盘(phase-71)
         )
         self.instances[instance.id] = instance
         return instance
 
     async def start(self, instance: SubagentInstance, user_text: str | None = None) -> str:
-        """在调度器并发上限内启动实例;每轮结束存 checkpoint(§9.17)。
+        """在调度器并发上限内启动实例;turn 结束落边界快照(§9.17)。
 
-        存盘前附恢复快照(phase-69):崩溃后可重建实例继续(仅 turn 结束存盘,
-        ReAct 循环中途崩溃丢当轮进度)。
+        ReAct 中途的增量存盘由 instance._on_step 承担(phase-71);
+        这里 finally 落的是 turn 终态(完成/失败/取消)的 turn 边界快照,
+        覆盖中途快照,in_turn 复位为 False。
         """
         try:
             return await self._scheduler.run(
@@ -165,6 +172,19 @@ class Spawner:
         instance.history = [dict(m) for m in snap.history]
         if snap.active_tools:
             instance.active = set(snap.active_tools)
+        if snap.in_turn and snap.pending_messages:
+            # mid-turn 续跑(phase-71):崩溃点在本 turn 的 ReAct 中途,
+            # pending_messages 原样带回,run_turn 检测到即从下一 complete 继续;
+            # 缺失/为空则退回 69 行为(history 重建 + 新开 turn)
+            pending = snap.pending_messages
+            if not isinstance(pending, list) or not all(
+                isinstance(m, dict) for m in pending
+            ):
+                raise ServiceError(
+                    "agent", ErrorSuffix.NOT_FOUND,
+                    f"checkpoint {run_id} 恢复快照损坏,不可恢复",
+                )
+            instance.resume_messages = [dict(m) for m in pending]
         instance.id = snap.instance_id  # 强制还原 id,避免 instances 里换 id 重复
         self.instances[instance.id] = instance
         return instance

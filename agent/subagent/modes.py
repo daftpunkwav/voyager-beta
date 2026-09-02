@@ -168,13 +168,16 @@ async def _react(
         for call in pending:
             result = await toolbelt.call(call)
             tool_calls_used += 1
-            await on_step("tool", call.name, result[:120])
+            # tool 行先入列再上报:mid-turn 快照(phase-71)在 on_step 里采集
+            # messages,必须能看到刚落地的结果;多 call 轮 on_step 时刻尾部
+            # 仍可能是残组,由快照侧 _paired_messages 成对回退兜底
             messages.append({
                 "role": "tool",
                 "tool_call_id": call.id,
                 "name": call.name,
                 "content": result,
             })
+            await on_step("tool", call.name, result[:120])
         if len(pending) < len(reply.tool_calls):
             return (
                 f"[中断] 已达工具调用上限({limits.max_tool_calls});"

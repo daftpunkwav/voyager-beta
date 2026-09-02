@@ -145,8 +145,10 @@ export function ResumableList() {
                   <button
                     type="button"
                     className="btn btn-sm btn-primary"
-                    disabled={busyRunId === item.run_id}
-                    title={`续跑 ${item.instance_name}`}
+                    disabled={busyRunId === item.run_id || item.status === 'running'}
+                    title={item.status === 'running'
+                      ? '任务仍在运行中,请先在实例列表急停或等待完成'
+                      : `续跑 ${item.instance_name}`}
                     onClick={() => void resume(item)}
                   >
                     继续

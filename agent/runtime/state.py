@@ -64,6 +64,11 @@ class ResumeSnapshot:
     conversational: bool = False
     history: list[dict[str, Any]] = field(default_factory=list)
     active_tools: list[str] = field(default_factory=list)
+    # mid-turn 快照(phase-71):ReAct 进行中的完整 messages(含 system / history /
+    # 本回合 tool 行);None = turn 边界快照(phase-69 行为)。已按 compress 预算
+    # 截断旧 tool 文本,并把尾部未成对的工具组回退(phase-71 写回披露)。
+    pending_messages: list[dict[str, Any]] | None = None
+    in_turn: bool = False  # True = 崩溃点在本 turn 的 ReAct 中途,resume 应续跑而非新开 turn
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

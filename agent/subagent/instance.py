@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from agent.context.compressor import COMPRESS_BUDGET, compress
 from agent.llm import LLMClient
 from agent.runtime.events import RuntimeEvents
 from agent.runtime.state import ResumeSnapshot, RunState, RunStatus
@@ -26,6 +27,27 @@ from agent.tools.base import Toolbelt
 #: 跨轮 history 硬上限(条数,phase-15):长对话不无限涨。
 #: history 里只有 user/assistant 行(本回合 tool 行只活在 messages),成对丢弃。
 HISTORY_MAX = 60
+
+
+def _paired_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """浅拷贝并把尾部回退到最后一处成对边界(§9.1 工具对不可拆散)。
+
+    崩在多工具轮中途时,messages 尾部可能是「assistant 带 tool_calls 但
+    tool 行未齐」的残组;端点要求成对,残组整体丢弃——这些调用本就没有
+    可复用的结果,续跑时重新执行不算重复。与 compressor._prune_span 同口径:
+    只数 assistant 之后**连续**的 tool 行。
+    """
+    out = [dict(m) for m in messages]
+    for i in range(len(out) - 1, -1, -1):
+        m = out[i]
+        if m.get("role") == "assistant" and m.get("tool_calls"):
+            j = i + 1
+            while j < len(out) and out[j].get("role") == "tool":
+                j += 1
+            if j - i - 1 < len(m["tool_calls"]):
+                del out[i:]
+            break
+    return out
 
 
 class SubStatus(str, Enum):
@@ -70,13 +92,43 @@ class SubagentInstance:
     # 风格/画像/页面/digest/skill 索引改动下一句即生效;不持有 builder 引用避免环导入
     sync_digest: Callable[..., None] | None = None
     # 步骤发生时同步刷新 DigestStore(phase-20);duck type,不 import digest.py
+    checkpoint_persist: Callable[[SubagentInstance], None] | None = None
+    # Spawner 注入的中途存盘(phase-71,§9.17):= checkpoints.save(state);
+    # 未注入(直建实例 / 旧装配)则 _on_step 不做 mid-save
+    resume_messages: list[dict[str, Any]] | None = None
+    # mid-turn 续跑载荷(phase-71):resume_from_checkpoint 从快照带回,
+    # run_turn 检测到即跳过 history 重建,从崩溃点的下一 complete 继续
+    _turn_messages: list[dict[str, Any]] | None = field(
+        default=None, init=False, repr=False
+    )
+    # 本回合 ReAct 进行中的 messages 活引用(run_mode 原地追加,§9.1);
+    # _on_step 据此采集中途快照,turn 结束置 None
 
     @property
     def status(self) -> RunStatus:
         return self.state.status
 
-    def build_resume_snapshot(self) -> ResumeSnapshot:
-        """从当前实例采集恢复快照(phase-69,§9.17):turn 结束存盘时进 checkpoint。"""
+    def build_resume_snapshot(
+        self,
+        *,
+        in_turn: bool = False,
+        pending_messages: list[dict[str, Any]] | None = None,
+    ) -> ResumeSnapshot:
+        """从当前实例采集恢复快照(phase-69/71,§9.17)。
+
+        pending_messages=None 为 turn 边界快照(与 69 行为相同);传当前
+        messages 则为 mid-turn 快照:先成对修复再按 compress 预算截断旧
+        tool 文本(phase-15 同口径,只截断不剪枝),防超大结果无界写盘。
+        """
+        pending = (
+            compress(
+                _paired_messages(pending_messages),
+                budget=COMPRESS_BUDGET,
+                prune=False,
+            )
+            if pending_messages is not None
+            else None
+        )
         return ResumeSnapshot(
             instance_id=self.id,
             instance_name=self.name,
@@ -95,6 +147,8 @@ class SubagentInstance:
             conversational=self.task.conversational,
             history=[dict(m) for m in self.history],
             active_tools=sorted(self.active) if self.active else [],
+            pending_messages=pending,
+            in_turn=in_turn,
         )
 
     async def run_turn(self, user_text: str | None = None) -> str:
@@ -103,9 +157,20 @@ class SubagentInstance:
         if self.build_system is not None:
             # 每回合重算 system(phase-15):跨回合后风格/画像/页面/digest 才不过期
             self.system_prompt = self.build_system(self.task, self.persona)
-        if user_text:
-            self.history.append({"role": "user", "content": user_text})
-        messages = [{"role": "system", "content": self.system_prompt}, *self.history]
+        if self.resume_messages:
+            # mid-turn 续跑(phase-71):pending_messages 已含 system / history /
+            # 本回合 tool 行,跳过 history 重建,从崩溃点的下一 complete 继续;
+            # system 行仍按 phase-15 口径现算,风格/画像改动对续跑生效。
+            # 续跑不带新输入:唯一入口 resume_run→start 不传 user_text
+            messages = [dict(m) for m in self.resume_messages]
+            self.resume_messages = None
+            if messages and messages[0].get("role") == "system":
+                messages[0] = {"role": "system", "content": self.system_prompt}
+        else:
+            if user_text:
+                self.history.append({"role": "user", "content": user_text})
+            messages = [{"role": "system", "content": self.system_prompt}, *self.history]
+        self._turn_messages = messages  # 中途快照引用(_on_step 采集,phase-71)
         belt = self.toolbelt
         if self.task.allowed_tools is None and self.toolbelt.names():
             # 对话实例(Lucien / tool_allow=None):工具表全量可调,但每轮 complete
@@ -141,6 +206,10 @@ class SubagentInstance:
             self.state.error = f"{type(exc).__name__}: {exc}"
             await self.events.emit("RunFailed", run_id=self.state.run_id, error=self.state.error)
             raise
+        finally:
+            # turn 已结束(成败皆然):盘上由 start() finally 落 turn 边界快照,
+            # 此后再无步骤事件,_turn_messages 置空防误采
+            self._turn_messages = None
         self.history.append({"role": "assistant", "content": result})
         self._bound_history()
         self.state.result = result
@@ -174,6 +243,12 @@ class SubagentInstance:
 
     async def _on_step(self, kind: str, name: str, summary: str) -> None:
         self.state.add_step(kind, name, summary)
+        # ReAct 轮数 / 工具调用计数(phase-71 同步;字段原先从未被写):
+        # round- 步 = 一轮 complete,tool 步 = 一次调用,续跑从盘上值继续累加
+        if kind == "llm" and name.startswith("round-"):
+            self.state.rounds += 1
+        elif kind == "tool":
+            self.state.tool_calls += 1
         # 步骤进事件流(gateway _STREAM_TYPES 的 agent.step):Chat 能看到
         # "正在调哪个工具";不进历史重建,只是实时进度。
         await self.events.emit(
@@ -186,3 +261,23 @@ class SubagentInstance:
         # 同步刷新 DigestStore(phase-20):master 全局层 render 保持最新。
         if self.sync_digest is not None:
             self.sync_digest(self)
+        self._mid_save_checkpoint()
+
+    def _mid_save_checkpoint(self) -> None:
+        """ReAct 中途增量存盘(phase-71,§9.17):每步刷新盘上快照,崩溃可从中途续。
+
+        仅任务型 REACT(对话型 / 其它模式仍只 turn 结束存盘,本刀范围);
+        persist 由 Spawner 注入(= checkpoints.save),未注入为 no-op。
+        每步同步写单份 JSON 文件,正确性优先,不做 debounce。
+        """
+        if (
+            self.checkpoint_persist is None
+            or self._turn_messages is None
+            or self.task.conversational
+            or (self.task.mode or Mode.REACT) is not Mode.REACT
+        ):
+            return
+        self.state.resume = self.build_resume_snapshot(
+            in_turn=True, pending_messages=self._turn_messages,
+        ).to_dict()
+        self.checkpoint_persist(self)
