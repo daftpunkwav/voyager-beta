@@ -137,10 +137,9 @@ def build_agent(
         settings=settings,  # 网络/app/fs(附加只读根)判定热读设置(§9.9):改设置不重启即生效
     )
     meter = Meter()
-    # token 日配额(phase-60,§9.9 资源维):主对话(直聊分支 + ReAct 实例)的
-    # LLM 经计量包装,每次 complete 前热读 agent.resource.daily_tokens,
-    # 当日累计超限不发起真实调用(0=不限)。Arbiter 判官与 proactive 仍用原 llm
-    # (本刀不拦,见 phase 写回);任务型 subagent 与主对话共用 spawner,顺带受拦。
+    # token 日配额(phase-60/64,§9.9 资源维):主对话、派单、仲裁判官与主动问候
+    # 的 LLM 均经同一 metered_llm 包装,complete 前热读 agent.resource.daily_tokens,
+    # 当日累计超限不发起真实调用(0=不限)。
     chat_llm = metered_llm(
         llm, meter, quota_fn=lambda: settings.get("agent.resource.daily_tokens") or 0
     )
@@ -245,14 +244,14 @@ def build_agent(
         quiet_end=int(settings.get("agent.proactive.quiet_end")),
     )
     proactive = ProactiveEngine(
-        bus=bus, llm=llm, memory=memory, scheduler=scheduler, budget=budget, settings=settings
+        bus=bus, llm=chat_llm, memory=memory, scheduler=scheduler, budget=budget, settings=settings
     )
     subagent_registry = SubagentRegistry(data_dir / "subagents")
     master = Master(
         llm=chat_llm,
         bus=bus,
         spawner=spawner,
-        arbiter=Arbiter(llm),
+        arbiter=Arbiter(chat_llm),
         digests=digests,
         settings=settings,
         proactive=proactive,

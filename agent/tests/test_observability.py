@@ -12,6 +12,7 @@ from platform_contracts import LOCAL_USER
 
 from agent.llm import FakeLLM, LLMReply, Usage
 from agent.main import build_agent
+from agent.master.arbiter import ArbiterMode
 from agent.runtime import Meter, MeterRecord, metered_llm
 
 
@@ -140,5 +141,49 @@ class TestBuildAgentQuota:
         )
         try:
             assert app.settings.get("agent.resource.daily_tokens") == 0
+        finally:
+            app.close()
+
+    async def test_arbiter_proactive_share_metered_llm(self, tmp_path) -> None:
+        """phase-64:仲裁判官与主动问候与 master 共用 chat_llm。"""
+        app = build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=FakeLLM()
+        )
+        try:
+            shared = app.master._llm
+            assert app.master._arbiter._llm is shared
+            assert app.proactive._llm is shared
+            assert app.spawner._llm is shared
+        finally:
+            app.close()
+
+    async def test_arbiter_quota_blocks_before_llm(self, tmp_path) -> None:
+        fake = FakeLLM(default="enqueue")
+        app = build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=fake
+        )
+        try:
+            await app.settings.set("agent.resource.daily_tokens", 100, LOCAL_USER)
+            app.meter.record(_rec(inp=100))  # 当日已满
+            await app.master._arbiter.decide(
+                "顺便帮我查天气", "写周报", mode=ArbiterMode.AUTO
+            )
+            assert len(fake.calls) == 0
+        finally:
+            app.close()
+
+    async def test_proactive_quota_blocks_before_llm(self, tmp_path) -> None:
+        fake = FakeLLM(default="你好呀")
+        app = build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=fake
+        )
+        try:
+            await app.settings.set("agent.resource.daily_tokens", 50, LOCAL_USER)
+            app.meter.record(_rec(inp=50))
+            # can_send 通过则进 _compose_greeting;配额满时 complete 不碰底层
+            text = await app.proactive.on_user_online()
+            assert len(fake.calls) == 0
+            # 降级文本有内容时会当问候文案返回(phase-60 同款行为)
+            assert text is not None and "配额" in text
         finally:
             app.close()
