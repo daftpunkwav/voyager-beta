@@ -25,6 +25,7 @@ def app(tmp_path):
 class TestRegistrySurface:
     async def test_capability_names_frozen(self, app) -> None:
         assert app.registry.names() == [
+            "abandon_resumable_checkpoint",
             "add_mcp_server",
             "answer_question",
             "approve_mcp_tools",

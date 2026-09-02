@@ -268,6 +268,101 @@ class TestResumeRejections:
             app.memory.close()
 
 
+class TestAbandonCheckpoint:
+    """放弃可恢复 checkpoint(phase-70,§9.17):删盘 + 清内存实例,口径同 resume_run。"""
+
+    async def test_abandon_deletes_file_and_empties_list(self, tmp_path) -> None:
+        rd = tmp_path / "rd"
+        state = _seed_checkpoint(rd, _snapshot())
+        app = _build(tmp_path)
+        try:
+            out = await execute(
+                app.registry, "abandon_resumable_checkpoint", USER_CTX,
+                {"run_id": state.run_id},
+            )
+            assert out == {"abandoned": state.run_id}
+            # 盘上文件已删,列表不再出现
+            assert not (rd / "checkpoints" / f"{state.run_id}.json").exists()
+            listed = await execute(
+                app.registry, "list_resumable_checkpoints", USER_CTX, {}
+            )
+            assert listed["items"] == []
+        finally:
+            app.memory.close()
+
+    async def test_abandon_missing_run_not_found(self, tmp_path) -> None:
+        app = _build(tmp_path)
+        try:
+            with pytest.raises(ServiceError) as exc:
+                await execute(
+                    app.registry, "abandon_resumable_checkpoint", USER_CTX,
+                    {"run_id": "nosuchrun1"},
+                )
+            assert exc.value.body.code == "AGENT.NOT_FOUND"
+        finally:
+            app.memory.close()
+
+    async def test_abandon_legacy_without_snapshot_not_found(self, tmp_path) -> None:
+        """legacy 无快照不可放弃,口径与 resume_run 一致(NOT_FOUND)。"""
+        rd = tmp_path / "rd"
+        state = _seed_checkpoint(rd, _snapshot(), run_id="legacy00001", with_resume=False)
+        app = _build(tmp_path)
+        try:
+            with pytest.raises(ServiceError) as exc:
+                await execute(
+                    app.registry, "abandon_resumable_checkpoint", USER_CTX,
+                    {"run_id": state.run_id},
+                )
+            assert exc.value.body.code == "AGENT.NOT_FOUND"
+            # 拒绝时不误删盘
+            assert (rd / "checkpoints" / "legacy00001.json").exists()
+        finally:
+            app.memory.close()
+
+    async def test_abandon_allows_conversational_snapshot(self, tmp_path) -> None:
+        """放弃比列表宽:对话型带合法快照的孤儿 checkpoint 列表不收,但可弃
+        (这是它们唯一的清理通道;行为钉住防未来无意收紧)。"""
+        rd = tmp_path / "rd"
+        _seed_checkpoint(
+            rd, _snapshot(conversational=True, instance_id="instchat1"),
+            run_id="convres001",
+        )
+        app = _build(tmp_path)
+        try:
+            listed = await execute(
+                app.registry, "list_resumable_checkpoints", USER_CTX, {}
+            )
+            assert listed["items"] == []  # 列表不收
+            out = await execute(
+                app.registry, "abandon_resumable_checkpoint", USER_CTX,
+                {"run_id": "convres001"},
+            )
+            assert out == {"abandoned": "convres001"}
+            assert not (rd / "checkpoints" / "convres001.json").exists()
+        finally:
+            app.memory.close()
+
+    async def test_abandon_after_resume_removes_instance(self, tmp_path) -> None:
+        """resume 重建(PAUSED=alive)后放弃:实例从 list_subagents 消失 + 删盘。"""
+        rd = tmp_path / "rd"
+        state = _seed_checkpoint(rd, _snapshot())
+        app = _build(tmp_path)
+        try:
+            await execute(app.registry, "resume_run", USER_CTX, {"run_id": state.run_id})
+            running = (await execute(app.registry, "list_subagents", USER_CTX, {}))["running"]
+            assert any(r["id"] == "instabcd" for r in running)
+
+            await execute(
+                app.registry, "abandon_resumable_checkpoint", USER_CTX,
+                {"run_id": state.run_id},
+            )
+            running = (await execute(app.registry, "list_subagents", USER_CTX, {}))["running"]
+            assert all(r["id"] != "instabcd" for r in running)
+            assert state.run_id not in app.spawner.instances
+        finally:
+            app.memory.close()
+
+
 class TestSnapshotOnSave:
     async def test_task_turn_end_checkpoint_has_snapshot(self, tmp_path) -> None:
         """A 验收:新 save 带 resume 快照;完成态不在 alive。"""

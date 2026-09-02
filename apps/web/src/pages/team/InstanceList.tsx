@@ -9,33 +9,8 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { EmptyState, EmptyStateIcons } from '@/components/common/EmptyState';
 import { extractErrorMessage } from '@/utils/errors';
 import { patchTeamSnapshot } from './provider';
+import { relativeTime, statusChipClass } from './instanceFormat';
 import type { RunningSubagent } from './types';
-
-/** started_ts 是秒级 unix 时间戳(agent/runtime/state.py time.time()) */
-function relativeTime(ts: number): string {
-  if (!ts) return '';
-  const diff = Math.max(0, Date.now() / 1000 - ts);
-  if (diff < 60) return '刚刚';
-  if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
-  return `${Math.floor(diff / 86400)} 天前`;
-}
-
-/** 实例状态 → 状态色片(shell.css .inst--*) */
-function statusChipClass(status: string): string {
-  switch (status) {
-    case 'running':
-      return 'inst--running';
-    case 'completed':
-      return 'inst--done';
-    case 'failed':
-      return 'inst--failed';
-    case 'paused':
-      return 'inst--paused';
-    default:
-      return 'inst--muted';
-  }
-}
 
 export function InstanceList() {
   const [instances, setInstances] = useState<RunningSubagent[]>([]);

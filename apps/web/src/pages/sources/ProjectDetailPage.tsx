@@ -284,28 +284,26 @@ export function ProjectDetailPage() {
     const projectLabel = project?.name ?? id;
     setActiveAgent(resolved);
     setTab('ai');
-    setAiLines((prev) => [
-      ...prev,
-      {
-        id: `u_${Date.now()}`,
-        role: 'user',
-        content: `请以${agentName}分析仓库 ${projectLabel}（id=${id}）`,
-      },
-      {
-        id: `sys_${Date.now()}`,
-        role: 'assistant',
-        content: '已发到主对话，请打开悬浮窗查看。',
-      },
-    ]);
     try {
+      // 发送成功后才落本地视图(phase-70 C,对齐 EmbedAgentChat):配额 block
+      // 抛错时不插 user / 系统行假阳性
       await sendUserTurn(`请以${agentName}分析仓库 ${projectLabel}（id=${id}）`);
+      setAiLines((prev) => [
+        ...prev,
+        {
+          id: `u_${Date.now()}`,
+          role: 'user',
+          content: `请以${agentName}分析仓库 ${projectLabel}（id=${id}）`,
+        },
+        {
+          id: `sys_${Date.now()}`,
+          role: 'assistant',
+          content: '已发到主对话，请打开悬浮窗查看。',
+        },
+      ]);
     } catch (err) {
       const message = err instanceof Error ? err.message : '发送失败';
       addToast({ type: 'error', message });
-      setAiLines((prev) => [
-        ...prev,
-        { id: `err_${Date.now()}`, role: 'assistant', content: `发送失败：${message}` },
-      ]);
     }
   };
 

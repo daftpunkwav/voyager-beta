@@ -1,12 +1,13 @@
 /** 团队 — Agent 与 subagent 管理(基于 agent.list_subagents / list_personas / list_tools)。
  *
- * 本页为纯组装壳,按业务顺序排五块;各块自己加载、自己持 state、自己 toast。
+ * 本页为纯组装壳,按业务顺序排六块;各块自己加载、自己持 state、自己 toast。
  */
 
 import { PersonaGrid } from './PersonaGrid';
 import { DefinitionGrid } from './DefinitionGrid';
 import { SpawnForm } from './SpawnForm';
 import { ToolCatalog } from './ToolCatalog';
+import { ResumableList } from './ResumableList';
 import { InstanceList } from './InstanceList';
 
 export function TeamPage() {
@@ -17,6 +18,7 @@ export function TeamPage() {
         <DefinitionGrid />
         <SpawnForm />
         <ToolCatalog />
+        <ResumableList />
         <InstanceList />
       </div>
     </div>

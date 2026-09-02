@@ -10,6 +10,18 @@ export interface RunningSubagent {
   last_step?: string;
 }
 
+/** 可恢复 checkpoint 条目(来自 list_resumable_checkpoints.items,phase-69/70;
+ *  仅任务型 REACT、带恢复快照;status 为盘上状态,boot 后为 paused)。 */
+export interface ResumableCheckpoint {
+  run_id: string;
+  status: string;
+  goal: string;
+  instance_name: string;
+  started_ts: number;
+  last_step?: string;
+  mode: string;
+}
+
 /** list_subagents.definitions 条目;allowed_tools 为 null 表示不裁剪(全部工具);
  *  轮数为 null 表示跟随全局,网络档位空串表示继承全局(phase-10)。 */
 export interface SubagentDef {

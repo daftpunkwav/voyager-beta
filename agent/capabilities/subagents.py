@@ -1,4 +1,4 @@
-"""subagent 相关能力:列出、注册、急停、可恢复 checkpoint 与恢复。"""
+"""subagent 相关能力:列出、注册、急停、可恢复 checkpoint 与恢复/放弃。"""
 
 from __future__ import annotations
 
@@ -108,6 +108,50 @@ def register(reg: Registry, deps: CapabilityDeps) -> None:
                 "mode": snap.mode,
             })
         return {"items": items}
+
+    @capability(reg, name="abandon_resumable_checkpoint",
+                description="放弃可恢复 checkpoint(删盘;内存实例一并停止并移除)", cost=1)
+    async def abandon_resumable_checkpoint(run_id: str) -> dict:
+        """放弃一个可恢复 checkpoint(phase-70,§9.17):删盘 + 清内存实例。
+
+        NOT_FOUND 口径与 resume_run 一致:文件不存在 / 无恢复快照(legacy)/
+        快照损坏都拒。有合法快照即可弃(比恢复列表宽:对话型 / 非 react 的
+        孤儿 checkpoint 列表不收,本能力是它们唯一的清理通道)。
+        内存里该 run 的实例:alive 先走 spawner.cancel(置 CANCELLED + 打断
+        底层任务 + AgentCancelled 事件),然后从 instances 移除,
+        list_subagents 不再出现。
+        """
+        from agent.runtime.state import ResumeSnapshot
+
+        try:
+            state = deps.checkpoints.load(run_id)
+        except (FileNotFoundError, ValueError) as exc:
+            raise ServiceError(
+                "agent", ErrorSuffix.NOT_FOUND, f"checkpoint 不存在: {run_id}"
+            ) from exc
+        snap = None
+        if isinstance(state.resume, dict):
+            try:
+                snap = ResumeSnapshot.from_dict(state.resume)
+            except TypeError:
+                snap = None
+        if snap is None:
+            raise ServiceError(
+                "agent", ErrorSuffix.NOT_FOUND,
+                f"checkpoint {run_id} 无恢复快照(legacy),不可放弃",
+            )
+        hits = [
+            inst.id for inst in deps.spawner.instances.values()
+            if inst.state.run_id == run_id
+        ]
+        for inst_id in hits:
+            inst = deps.spawner.instances.get(inst_id)  # await 间隙可能被并发移除
+            if inst is not None and inst.status.alive:
+                await deps.spawner.cancel(inst_id)
+        for inst_id in hits:
+            deps.spawner.instances.pop(inst_id, None)
+        deps.checkpoints.delete(run_id)
+        return {"abandoned": run_id}
 
     @capability(reg, name="resume_run",
                 description="从 checkpoint 恢复任务实例(任务型 REACT;continue_run=true 立即续跑)",
