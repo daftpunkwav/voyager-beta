@@ -137,7 +137,10 @@ def build_agent(
         ),
         settings=settings,  # 网络/app/fs(附加只读根)判定热读设置(§9.9):改设置不重启即生效
     )
-    meter = Meter(store=MeterStore(data_dir / "meter.db"))
+    meter_store = MeterStore(data_dir / "meter.db")
+    # 启动库维护(phase-68,§9.9):清 90 天前的历史日行,防 meter.db 随日期无限增长
+    meter_store.purge_older_than_days(90)
+    meter = Meter(store=meter_store)
     # token 日配额(phase-60/64,§9.9 资源维):主对话、派单、仲裁判官与主动问候
     # 的 LLM 均经同一 metered_llm 包装,complete 前热读 agent.resource.daily_tokens,
     # 当日累计超限不发起真实调用(0=不限)。

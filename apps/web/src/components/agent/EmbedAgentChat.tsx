@@ -74,25 +74,22 @@ export function EmbedAgentChat({
   const send = async () => {
     const text = input.trim();
     if (!text || sending || llmMissing) return;
-    setInput('');
     setSending(true);
-    setSent(false);
     const prompt = buildPrompt(text);
-    setLines((prev) => [
-      ...prev,
-      { id: `u_${Date.now()}`, role: 'user', content: text },
-      { id: `sys_${Date.now()}`, role: 'system', content: '已发到主对话，请打开悬浮窗查看。' },
-    ]);
     try {
+      // 发送成功后才落本地视图(phase-68 C):配额 block 抛错时输入保留、
+      // 不插「已发到主对话」假阳性系统行
       await sendUserTurn(prompt);
+      setInput('');
       setSent(true);
+      setLines((prev) => [
+        ...prev,
+        { id: `u_${Date.now()}`, role: 'user', content: text },
+        { id: `sys_${Date.now()}`, role: 'system', content: '已发到主对话，请打开悬浮窗查看。' },
+      ]);
     } catch (err) {
       const message = err instanceof Error ? err.message : '发送失败';
       addToast({ type: 'error', message });
-      setLines((prev) => [
-        ...prev,
-        { id: `err_${Date.now()}`, role: 'system', content: `发送失败：${message}` },
-      ]);
     } finally {
       setSending(false);
     }

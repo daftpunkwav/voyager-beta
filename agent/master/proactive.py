@@ -153,7 +153,13 @@ class ProactiveEngine:
 
         async def _followup() -> None:
             current_budget = self._current_budget()
-            if self._followups_sent >= current_budget.follow_up_max or not self.can_send():
+            # 配额满与预算/安静时段同口径拦截(§9.9 尾刀):不发 followup、
+            # 也不递归挂下一条,避免配额满时留一条空转定时器链
+            if (
+                self._followups_sent >= current_budget.follow_up_max
+                or not self.can_send()
+                or self.would_exceed_quota()
+            ):
                 return
             self._followups_sent += 1
             await self._send(

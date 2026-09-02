@@ -114,6 +114,18 @@ class TestQuotaGuard:
         assert engine._llm.calls == []
         assert engine._followup_timer == ""
 
+    async def test_quota_full_blocks_followup_chain(self, tmp_path) -> None:
+        """配额满(§9.9 尾刀):问候被拦;手动挂追问链,定时器触发也不发 followup。"""
+        meter = Meter()
+        meter.record(MeterRecord(kind="llm", name="default", ms=1.0, input_tokens=50))
+        settings = _FakeSettings({"agent.resource.daily_tokens": 50})
+        engine, log = _engine(tmp_path, settings=settings, meter=meter)
+        assert await engine.on_user_online() is None  # 问候被拦
+        engine.schedule_followup(delay_s=0.02)
+        await asyncio.sleep(0.3)  # 覆盖两条链的时长:触发时配额满,一条也不发、不续链
+        assert _messages(log) == []
+        assert engine._followups_sent == 0
+
     async def test_quota_headroom_greeting_unaffected(self, tmp_path) -> None:
         """配额未满:问候照常发出、文案不回落。"""
         meter = Meter()

@@ -65,5 +65,18 @@ class MeterStore:
             ).fetchone()
         return (row[0] + row[1]) if row else 0
 
+    def purge_older_than_days(self, days: int, *, now: float | None = None) -> int:
+        """删除 today_utc - days 之前的日行(严格小于),返回删除行数。
+
+        启动库维护(phase-68,§9.9):防 meter_tokens 随日期无限累积;
+        切日与 tokens_used_today 同口径(time.gmtime,UTC 自然日)。
+        """
+        base = time.time() if now is None else now
+        cutoff = time.strftime("%Y-%m-%d", time.gmtime(base - days * 86400))
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM meter_tokens WHERE day_utc < ?", (cutoff,))
+            self._conn.commit()
+            return cur.rowcount
+
     def close(self) -> None:
         self._conn.close()

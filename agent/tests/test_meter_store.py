@@ -72,6 +72,22 @@ class TestMeterStore:
         finally:
             store.close()
 
+    def test_purge_older_than_days(self, tmp_path) -> None:
+        """purge(90):删 today-90 之前的行;恰 90 天前的整日与今日保留(phase-68)。"""
+        store = MeterStore(tmp_path / "meter.db")
+        try:
+            now = _ts(2026, 1, 15, 12, 0)
+            store.add("llm", 100, 0, ts=_ts(2025, 10, 6, 8, 0))   # 101 天前 → 删
+            store.add("llm", 40, 0, ts=_ts(2025, 10, 16, 8, 0))   # 91 天前 → 删
+            store.add("llm", 7, 0, ts=_ts(2025, 10, 17, 8, 0))    # 恰 90 天前 → 保留
+            store.add("llm", 5, 3, ts=now)                        # 今日 → 保留
+            assert store.purge_older_than_days(90, now=now) == 2
+            assert store.tokens_used_today(now=now) == 8          # 今日合计不变
+            assert store.tokens_used_today(now=_ts(2025, 10, 17, 9, 0)) == 7
+            assert store.tokens_used_today(now=_ts(2025, 10, 6, 9, 0)) == 0
+        finally:
+            store.close()
+
 
 class TestMeterWithStore:
     def test_record_writes_through(self, tmp_path) -> None:
@@ -114,6 +130,22 @@ class TestMeterWithStore:
 
 class TestRestartPersistence:
     """build_agent 同 data_dir 重建(模拟重启):用量与配额拦截跨进程仍在。"""
+
+    async def test_boot_purges_stale_rows(self, tmp_path) -> None:
+        """build_agent 启动清理(phase-68):90 天前的日行在建 app 时被清,今日不动。"""
+        data, ws = tmp_path / "rd", tmp_path / "ws"
+        store = MeterStore(data / "meter.db")
+        store.add("llm", 100, 0, ts=time.time() - 100 * 86400)  # 100 天前的旧行
+        store.add("llm", 12, 6, ts=time.time())                 # 今日
+        store.close()
+        fake = FakeLLM(default="好")
+        app = build_agent(data_dir=data, workspace_dir=ws, llm=fake)
+        try:
+            assert app.meter.tokens_used_today() == 18
+            stale = time.time() - 100 * 86400
+            assert app.meter.tokens_used_today(now=stale) == 0  # 旧行已不在库
+        finally:
+            app.close()
 
     async def test_usage_survives_rebuild(self, tmp_path) -> None:
         data, ws = tmp_path / "rd", tmp_path / "ws"
