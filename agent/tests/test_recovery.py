@@ -5,7 +5,7 @@ recovery.py 此前没有调用方;本文件锁定接线后的行为:
 - 超时不重试(phase-43);按工具名熔断且按**每次 handler 尝试**计次(phase-43),
   打开后不再进 handler;
 - EventLoop 某 pattern 连续失败被跳过,其它 pattern 不受影响,loop 不炸;
-- 启动 reclaim 把磁盘上 alive 的 checkpoint 标 failed(不 resume)。
+- 启动时无 resume 快照的 alive checkpoint 标 failed;带快照的转 PAUSED 待恢复(phase-69)。
 """
 
 import sqlite3
@@ -23,7 +23,13 @@ from agent.main import build_agent
 from agent.memory import EpisodicMemory
 from agent.policy import FsPolicy, PolicyEngine
 from agent.runtime import EventLoop
-from agent.runtime.state import CheckpointStore, RunState, RunStatus, reclaim_alive
+from agent.runtime.state import (
+    CheckpointStore,
+    ResumeSnapshot,
+    RunState,
+    RunStatus,
+    reclaim_alive,
+)
 from agent.settings import DEFS as AGENT_SETTING_DEFS
 from agent.tools import AgentTool, Toolbelt, ensure_workdir
 
@@ -255,21 +261,36 @@ class TestReclaim:
         assert reclaim_alive(CheckpointStore(tmp_path / "cp")) == []
 
     async def test_build_agent_reclaims_on_boot(self, tmp_path) -> None:
-        """上次进程遗留的 RUNNING checkpoint 在 build_agent(启动装配)时被标 failed。"""
+        """build_agent(启动装配)phase-69 语义:无 resume 的 legacy alive → FAILED;
+        带 resume 快照的 alive → PAUSED 待恢复,仍在 list_alive。"""
         cp_dir = tmp_path / "rd" / "checkpoints"
         cp_dir.mkdir(parents=True)
         store = CheckpointStore(cp_dir)
-        state = RunState(task="t")
-        state.status = RunStatus.RUNNING
-        store.save(state)
+        legacy = RunState(task="t")
+        legacy.status = RunStatus.RUNNING
+        legacy.run_id = "legacy000001"
+        store.save(legacy)
+        snap = ResumeSnapshot(
+            instance_id="inst0001", instance_name="侦察", persona="recon", goal="索引仓库",
+            history=[{"role": "user", "content": "开始"}],
+        )
+        resumable = RunState(
+            task=snap.goal, run_id="resume00001", status=RunStatus.RUNNING,
+            resume=snap.to_dict(),
+        )
+        store.save(resumable)
 
         app = build_agent(
             data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=FakeLLM()
         )
         try:
-            assert store.list_alive() == []
-            loaded = store.load(state.run_id)
+            loaded = store.load(legacy.run_id)
             assert loaded.status is RunStatus.FAILED
+            assert loaded.error == "进程重启,任务未恢复"
+            kept = store.load(resumable.run_id)
+            assert kept.status is RunStatus.PAUSED
+            assert kept.error == "进程重启,可恢复"
+            assert {s.run_id for s in store.list_alive()} == {resumable.run_id}
         finally:
             app.memory.close()
 

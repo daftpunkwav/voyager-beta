@@ -27,7 +27,7 @@ from agent.observe import Observer
 from agent.personas import canonical_persona_key, resolve_persona
 from agent.policy import AppPolicy, FsPolicy, NetworkPolicy, PolicyEngine
 from agent.runtime import EventLoop, Meter, MeterStore, RuntimeEvents, Scheduler, metered_llm
-from agent.runtime.state import CheckpointStore, reclaim_alive
+from agent.runtime.state import CheckpointStore, prepare_resumable_checkpoints
 from agent.runtime.wire import bind_event_loop
 from agent.settings import DEFS as AGENT_SETTING_DEFS
 from agent.skills import SkillLoader
@@ -193,9 +193,9 @@ def build_agent(
 
     scheduler = Scheduler(max_concurrent=int(settings.get("agent.subagents.max_concurrent")))
     checkpoints = CheckpointStore(data_dir / "checkpoints")
-    # 启动 reclaim(§9.17,phase-12):上次进程遗留的 alive checkpoint 标 failed;
-    # 空目录 no-op,不据此重建实例(中途 resume 不在本阶段)
-    reclaim_alive(checkpoints)
+    # 启动恢复准备(§9.17,phase-69):有 resume 快照的 alive checkpoint 转 PAUSED 待恢复;
+    # 无快照的 legacy 仍标 failed。空目录 no-op;实例重建走 resume_run capability,不在启动时做
+    prepare_resumable_checkpoints(checkpoints)
     # 启动清理超期情节(phase-44,§9.11):retention>0 时按保留天数清;
     # 0 = 交 agent 管理,启动不自动清(与 get_memory 惰性 purge 同语义)
     retention = int(settings.get("agent.memory.retention_days") or 0)
@@ -279,6 +279,7 @@ def build_agent(
             toolbelt=toolbelt,
             mcp=mcp,
             meter=meter,  # 与 Toolbelt / metered_llm 同一实例(§9.9 配额查询读同一份计量)
+            checkpoints=checkpoints,  # 可恢复 checkpoint 列表(phase-69,§9.17)
         )
     )
     handlers, relay, hook_patterns = bind_event_loop(master, proactive, observer, hooks)

@@ -7,11 +7,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from platform_contracts import ErrorSuffix, ServiceError
+
 from agent.llm import LLMClient
 from agent.runtime.events import RuntimeEvents
 from agent.runtime.scheduler import Scheduler
-from agent.runtime.state import CheckpointStore, RunState
-from agent.subagent.instance import Mode, SubagentInstance, TaskBook
+from agent.runtime.state import CheckpointStore, ResumeSnapshot, RunState, RunStatus
+from agent.subagent.instance import Mode, ModeLimits, SubagentInstance, TaskBook
 from agent.tools.base import Toolbelt
 
 BuildSystemFn = Callable[[TaskBook, str], str]  # (任务书, 人格 key) → system prompt
@@ -66,14 +68,106 @@ class Spawner:
         return instance
 
     async def start(self, instance: SubagentInstance, user_text: str | None = None) -> str:
-        """在调度器并发上限内启动实例;每轮结束存 checkpoint(§9.17)。"""
+        """在调度器并发上限内启动实例;每轮结束存 checkpoint(§9.17)。
+
+        存盘前附恢复快照(phase-69):崩溃后可重建实例继续(仅 turn 结束存盘,
+        ReAct 循环中途崩溃丢当轮进度)。
+        """
         try:
             return await self._scheduler.run(
                 instance.id, instance.run_turn(user_text)
             )
         finally:
             if self._checkpoints is not None:
+                instance.state.resume = instance.build_resume_snapshot().to_dict()
                 self._checkpoints.save(instance.state)
+
+    def resume_from_checkpoint(self, run_id: str) -> SubagentInstance:
+        """从 checkpoint 重建实例(phase-69,§9.17):任务型 REACT、非对话型。
+
+        只重建不重跑:实例进 self.instances,状态保持盘上原样(boot 后为 PAUSED),
+        等显式续跑(resume_run continue_run=true);原 run_id / steps / started_ts 保留。
+        """
+        if self._checkpoints is None:
+            raise ServiceError("agent", ErrorSuffix.NOT_FOUND, "未启用 checkpoint 存储")
+        for inst in self.instances.values():
+            if inst.state.run_id == run_id and inst.status.alive:
+                raise ServiceError(
+                    "agent", ErrorSuffix.INVALID_INPUT,
+                    f"run {run_id} 已有存活实例,不可重复恢复",
+                    hint="list_subagents 查看运行中实例",
+                )
+        try:
+            state = self._checkpoints.load(run_id)
+        except (FileNotFoundError, ValueError) as exc:
+            raise ServiceError(
+                "agent", ErrorSuffix.NOT_FOUND, f"checkpoint 不存在: {run_id}"
+            ) from exc
+        if state.resume is None:
+            raise ServiceError(
+                "agent", ErrorSuffix.NOT_FOUND,
+                f"checkpoint {run_id} 无恢复快照(legacy),不可恢复",
+            )
+        try:
+            snap = ResumeSnapshot.from_dict(state.resume)
+        except TypeError as exc:  # 快照缺键/多键/非 dict:坏数据走 ServiceError,不裸抛
+            raise ServiceError(
+                "agent", ErrorSuffix.NOT_FOUND,
+                f"checkpoint {run_id} 恢复快照损坏,不可恢复",
+            ) from exc
+        if snap.conversational:
+            raise ServiceError(
+                "agent", ErrorSuffix.INVALID_INPUT,
+                "对话型实例不在恢复范围(主对话不 resume)",
+            )
+        if snap.mode != Mode.REACT.value:
+            raise ServiceError(
+                "agent", ErrorSuffix.INVALID_INPUT,
+                f"模式 {snap.mode} 不在恢复范围(仅 react)",
+            )
+        if state.status not in (RunStatus.PAUSED, RunStatus.WAITING_INPUT, RunStatus.RUNNING):
+            raise ServiceError(
+                "agent", ErrorSuffix.INVALID_INPUT,
+                f"状态 {state.status.value} 不可恢复(已完成/失败/取消)",
+            )
+        limits = None
+        if snap.max_rounds is not None or snap.max_tool_calls is not None:
+            fallback = ModeLimits()
+            limits = ModeLimits(
+                max_rounds=snap.max_rounds if snap.max_rounds is not None else fallback.max_rounds,
+                max_tool_calls=(
+                    snap.max_tool_calls if snap.max_tool_calls is not None else fallback.max_tool_calls
+                ),
+            )
+        task = TaskBook(
+            goal=snap.goal,
+            constraints=snap.constraints,
+            done_when=snap.done_when,
+            mode=Mode(snap.mode),
+            allowed_tools=tuple(snap.allowed_tools) if snap.allowed_tools is not None else None,
+            limits=limits,
+            conversational=snap.conversational,
+        )
+        instance = SubagentInstance(
+            task=task,
+            toolbelt=self._toolbelt.trimmed(task.allowed_tools),
+            llm=self._llm,
+            system_prompt=self._build_system(task, snap.persona),
+            events=self._events,
+            state=state,  # 盘上原样:run_id / steps / started_ts / status 全保留
+            reply_sink=None,
+            name=snap.instance_name,
+            pages=self._pages,
+            persona=snap.persona,
+            build_system=self._build_system,  # 续跑时每回合重算 system(与 spawn 同源)
+            sync_digest=self._sync_digest,
+        )
+        instance.history = [dict(m) for m in snap.history]
+        if snap.active_tools:
+            instance.active = set(snap.active_tools)
+        instance.id = snap.instance_id  # 强制还原 id,避免 instances 里换 id 重复
+        self.instances[instance.id] = instance
+        return instance
 
     def alive(self) -> list[SubagentInstance]:
         return [i for i in self.instances.values() if i.status.alive]

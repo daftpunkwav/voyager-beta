@@ -36,6 +36,7 @@ class TestRegistrySurface:
             "get_settings",
             "list_mcp_servers",
             "list_personas",
+            "list_resumable_checkpoints",
             "list_skills",
             "list_subagents",
             "list_tools",
@@ -45,6 +46,7 @@ class TestRegistrySurface:
             "register_subagent",
             "remove_mcp_server",
             "report_page_context",
+            "resume_run",
             "set_profile",
             "set_setting",
         ]

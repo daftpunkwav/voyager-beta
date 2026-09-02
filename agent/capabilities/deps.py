@@ -29,3 +29,4 @@ class CapabilityDeps:
     toolbelt: Any  # Toolbelt(list_tools 数据源,§9.4)
     mcp: Any  # McpClientPool(外接 MCP,phase-11b;配置写经 actor 落审计)
     meter: Any  # Meter(内存计量,§9.9 资源维;与 metered_llm 同一实例)
+    checkpoints: Any  # CheckpointStore(可恢复 checkpoint 列表,phase-69,§9.17)

@@ -1,6 +1,8 @@
-"""subagent 相关能力:列出、注册、急停。"""
+"""subagent 相关能力:列出、注册、急停、可恢复 checkpoint 与恢复。"""
 
 from __future__ import annotations
+
+import asyncio
 
 from platform_capability import Registry, capability
 from platform_contracts import ErrorSuffix, ServiceError
@@ -73,3 +75,63 @@ def register(reg: Registry, deps: CapabilityDeps) -> None:
         return {"name": d.name, "mode": d.mode, "allowed_tools": allowed_tools,
                 "max_rounds": d.max_rounds, "max_tool_calls": d.max_tool_calls,
                 "network_mode": d.network_mode}
+
+    @capability(reg, name="list_resumable_checkpoints",
+                description="可恢复的任务 checkpoint(进程重启后待恢复;任务型 REACT)")
+    def list_resumable_checkpoints() -> dict:
+        """盘上 alive 且带 resume 快照的 checkpoint(phase-69,§9.17)。
+
+        只列本刀范围:mode=react 且非对话型;快照按 ResumeSnapshot 解析,
+        残缺/非 dict 的坏条目跳过不给入口(与 37/38「坏文件不炸」同模式);
+        legacy 无快照已被启动标 failed,不在 alive。
+        """
+        from agent.runtime.state import ResumeSnapshot
+
+        items = []
+        for st in deps.checkpoints.list_alive():
+            raw = st.resume
+            if not isinstance(raw, dict):
+                continue
+            try:
+                snap = ResumeSnapshot.from_dict(raw)
+            except TypeError:
+                continue
+            if snap.mode != "react" or snap.conversational:
+                continue
+            items.append({
+                "run_id": st.run_id,
+                "status": st.status.value,
+                "goal": snap.goal or st.task,
+                "instance_name": snap.instance_name,
+                "started_ts": st.started_ts,
+                "last_step": (st.steps[-1].summary or "")[:120] if st.steps else "",
+                "mode": snap.mode,
+            })
+        return {"items": items}
+
+    @capability(reg, name="resume_run",
+                description="从 checkpoint 恢复任务实例(任务型 REACT;continue_run=true 立即续跑)",
+                cost=2)
+    async def resume_run(run_id: str, continue_run: bool = False) -> dict:
+        """重建实例进内存(continue_run=false,状态保持 PAUSED 供 UI 稍后继续);
+        continue_run=true 时后台续跑整轮 ReAct(与 dispatch_task 同为后台,不阻塞)。"""
+        inst = deps.spawner.resume_from_checkpoint(run_id)
+        out = {
+            "resumed": inst.id,
+            "run_id": run_id,
+            "status": inst.status.value,
+            "continuing": False,
+        }
+        if continue_run:
+
+            async def _run() -> None:
+                try:
+                    await deps.spawner.start(inst)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:  # noqa: BLE001, S110  # run_turn 已落状态并发 RunFailed;此处无 master 通道可报
+                    pass
+
+            asyncio.create_task(_run())
+            out["continuing"] = True
+        return out

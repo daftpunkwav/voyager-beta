@@ -45,6 +45,35 @@ class Step:
 
 
 @dataclass
+class ResumeSnapshot:
+    """恢复快照(phase-69,§9.17):重建 SubagentInstance 所需的最小全集。
+
+    存进 RunState.resume(dict 形态);旧 checkpoint 无该键 = legacy,不可恢复。
+    """
+
+    instance_id: str
+    instance_name: str
+    persona: str
+    goal: str
+    constraints: str = ""
+    done_when: str = ""
+    mode: str = "react"  # Mode.value
+    allowed_tools: list[str] | None = None
+    max_rounds: int | None = None
+    max_tool_calls: int | None = None
+    conversational: bool = False
+    history: list[dict[str, Any]] = field(default_factory=list)
+    active_tools: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ResumeSnapshot:
+        return cls(**data)
+
+
+@dataclass
 class RunState:
     task: str
     subagent_id: str = ""
@@ -56,6 +85,7 @@ class RunState:
     result: str | None = None
     error: str = ""
     started_ts: float = field(default_factory=time.time)  # 实例耗时展示用
+    resume: dict[str, Any] | None = None  # ResumeSnapshot.to_dict();None = legacy 不可恢复
 
     def add_step(self, kind: str, name: str, summary: str) -> Step:
         step = Step(n=len(self.steps) + 1, kind=kind, name=name, summary=summary)
@@ -119,6 +149,23 @@ def reclaim_alive(store: CheckpointStore) -> list[RunState]:
     for state in store.list_alive():
         state.status = RunStatus.FAILED
         state.error = "进程重启,任务未恢复"
+        store.save(state)
+        out.append(state)
+    return out
+
+
+def prepare_resumable_checkpoints(store: CheckpointStore) -> list[RunState]:
+    """进程重启(§9.17,phase-69):有 resume 快照的 alive → PAUSED 待恢复;
+    无快照的 legacy alive → 仍标 FAILED(与 reclaim_alive 旧行为一致)。
+    返回被处理的状态供启动日志/调用方知悉;不据此重建实例(resume 走 capability)。"""
+    out: list[RunState] = []
+    for state in store.list_alive():
+        if state.resume is not None:
+            state.status = RunStatus.PAUSED
+            state.error = "进程重启,可恢复"
+        else:
+            state.status = RunStatus.FAILED
+            state.error = "进程重启,任务未恢复"
         store.save(state)
         out.append(state)
     return out

@@ -14,7 +14,7 @@ from typing import Any
 
 from agent.llm import LLMClient
 from agent.runtime.events import RuntimeEvents
-from agent.runtime.state import RunState, RunStatus
+from agent.runtime.state import ResumeSnapshot, RunState, RunStatus
 from agent.subagent.modes import Mode, ModeLimits, run_mode
 from agent.tools.activate import (
     graded_toolbelt,
@@ -74,6 +74,28 @@ class SubagentInstance:
     @property
     def status(self) -> RunStatus:
         return self.state.status
+
+    def build_resume_snapshot(self) -> ResumeSnapshot:
+        """从当前实例采集恢复快照(phase-69,§9.17):turn 结束存盘时进 checkpoint。"""
+        return ResumeSnapshot(
+            instance_id=self.id,
+            instance_name=self.name,
+            persona=self.persona,
+            goal=self.task.goal,
+            constraints=self.task.constraints,
+            done_when=self.task.done_when,
+            mode=(self.task.mode or Mode.REACT).value,
+            allowed_tools=(
+                list(self.task.allowed_tools)
+                if self.task.allowed_tools is not None
+                else None
+            ),
+            max_rounds=self.task.limits.max_rounds if self.task.limits else None,
+            max_tool_calls=self.task.limits.max_tool_calls if self.task.limits else None,
+            conversational=self.task.conversational,
+            history=[dict(m) for m in self.history],
+            active_tools=sorted(self.active) if self.active else [],
+        )
 
     async def run_turn(self, user_text: str | None = None) -> str:
         """跑一轮(对话型=一轮问答;任务型=跑到完成)。"""
