@@ -90,6 +90,10 @@ export function LlmUsageDashboard() {
 
   return (
     <section className={`usage-dashboard ${GLASS_OUTER}`}>
+      {/* 今日配额块读 agent Meter,与 llm 历史统计是两条 query:
+          始终渲染,统计加载中/失败时不被连坐(phase-65)。 */}
+      <DailyTokenQuotaCard />
+
       {isLoading && (
         <div className="page-scaffold__state">
           <LoadingSpinner label="加载用量统计中…" />
@@ -139,7 +143,6 @@ export function LlmUsageDashboard() {
           </div>
 
           <div className="usage-dashboard-body">
-          <DailyTokenQuotaCard />
           <UsageKpiCards usage={usage} />
           <div className="usage-mid-row">
             <UsageHeatmap heatmap={usage.heatmap} />

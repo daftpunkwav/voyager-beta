@@ -244,7 +244,8 @@ def build_agent(
         quiet_end=int(settings.get("agent.proactive.quiet_end")),
     )
     proactive = ProactiveEngine(
-        bus=bus, llm=chat_llm, memory=memory, scheduler=scheduler, budget=budget, settings=settings
+        bus=bus, llm=chat_llm, memory=memory, scheduler=scheduler, budget=budget, settings=settings,
+        meter=meter,  # 配额预检用同一份计量(§9.9 phase-65)
     )
     subagent_registry = SubagentRegistry(data_dir / "subagents")
     master = Master(

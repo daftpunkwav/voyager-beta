@@ -8,12 +8,17 @@
 import time
 from datetime import UTC, datetime
 
-from platform_contracts import LOCAL_USER
+from platform_contracts import LOCAL_USER, DomainEvent
 
 from agent.llm import FakeLLM, LLMReply, Usage
 from agent.main import build_agent
 from agent.master.arbiter import ArbiterMode
-from agent.runtime import Meter, MeterRecord, metered_llm
+from agent.runtime import (
+    Meter,
+    MeterRecord,
+    is_quota_exceeded_reply,
+    metered_llm,
+)
 
 
 def _ts(*args: int) -> float:
@@ -180,10 +185,28 @@ class TestBuildAgentQuota:
         try:
             await app.settings.set("agent.resource.daily_tokens", 50, LOCAL_USER)
             app.meter.record(_rec(inp=50))
-            # can_send 通过则进 _compose_greeting;配额满时 complete 不碰底层
+            # 配额满:预检拦截,不进 _compose_greeting、不碰底层、不发问候(phase-65)
             text = await app.proactive.on_user_online()
+            assert text is None
             assert len(fake.calls) == 0
-            # 降级文本有内容时会当问候文案返回(phase-60 同款行为)
-            assert text is not None and "配额" in text
+            proactive_msgs = [
+                e for _, e in app.log.read_after(types=[DomainEvent.AGENT_MESSAGE])
+                if e.payload.get("proactive")
+            ]
+            assert proactive_msgs == []
         finally:
             app.close()
+
+
+class TestQuotaReplyDetection:
+    """is_quota_exceeded_reply(phase-65):识别 metered_llm 的降级句。"""
+
+    def test_matches_degradation_text(self) -> None:
+        assert is_quota_exceeded_reply(
+            "（今日 LLM token 配额已用完:明天自动恢复,或在设置里调高/关闭日配额。）"
+        )
+
+    def test_normal_text_not_matched(self) -> None:
+        assert not is_quota_exceeded_reply("你好呀,欢迎回来")
+        assert not is_quota_exceeded_reply("")
+        assert not is_quota_exceeded_reply(None)

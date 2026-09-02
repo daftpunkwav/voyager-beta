@@ -26,7 +26,9 @@ class TestStores:
         assert len(m.episodic.recent()) == 2
         assert len(m.episodic.recent(kind="tool")) == 1
         assert m.episodic.search("langgraph")[0]["run_id"] == "r1"
-        assert m.episodic.purge(older_than_days=0) == 2  # cutoff=now,全部超期
+        # -1 → cutoff 在未来 1 天,必删全部;不用 0(cutoff=now 与刚插入的 ts
+        # 同秒竞争,DELETE ts < cutoff 会 flaky,phase-65)
+        assert m.episodic.purge(older_than_days=-1) == 2
         assert m.episodic.recent() == []
         m.close()
 

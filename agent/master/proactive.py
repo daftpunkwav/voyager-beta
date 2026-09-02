@@ -17,6 +17,7 @@ from platform_eventbus import EventBus
 from agent.llm import LLMClient
 from agent.memory import Memory
 from agent.runtime.events import AGENT_MAIN
+from agent.runtime.observability import is_quota_exceeded_reply
 from agent.runtime.scheduler import Scheduler
 
 
@@ -48,6 +49,7 @@ class ProactiveEngine:
         budget: ProactiveBudget | None = None,
         clock: Callable[[], float] = time.time,
         settings=None,  # 可选设置句柄(有 get(key) 即可):预算热读当前值(§9.8)
+        meter=None,  # 可选计量句柄(有 tokens_used_today() 即可):配额预检(§9.9)
     ) -> None:
         self._bus = bus
         self._llm = llm
@@ -56,6 +58,7 @@ class ProactiveEngine:
         self.budget = budget or ProactiveBudget()
         self._clock = clock
         self._settings = settings
+        self._meter = meter
         self._session_sent = 0
         self._day_sent: dict[str, int] = {}
         self._followups_sent = 0
@@ -89,14 +92,37 @@ class ProactiveEngine:
             return False
         return self._session_sent < budget.per_session
 
-    async def on_user_online(self, *, trace_id: str = "") -> str | None:
-        """用户上线:根据记忆生成首条问候(§9.8)。被预算拦截则返回 None。
+    def would_exceed_quota(self) -> bool:
+        """token 日配额预检(§9.9):当日已用达到上限即 True。
 
-        成功发出问候后挂追问链;被预算拦截时则不挂。
+        只做 proactive 自己的预检,避免配额满时还发起一次注定被拒的
+        complete;不复制 metered_llm 的计量/包装逻辑。meter 或 settings
+        缺席时无法预检,返回 False(仍靠回复检测兜底)。
+        """
+        if self._meter is None or self._settings is None:
+            return False
+        try:
+            limit = int(self._settings.get("agent.resource.daily_tokens") or 0)
+        except (TypeError, ValueError):
+            limit = 0  # 脏值当不限,与 metered_llm 的容错同风格
+        if limit <= 0:
+            return False
+        return self._meter.tokens_used_today() >= limit
+
+    async def on_user_online(self, *, trace_id: str = "") -> str | None:
+        """用户上线:根据记忆生成首条问候(§9.8)。被预算/配额拦截则返回 None。
+
+        配额双保险:先 would_exceed_quota 预检(不发 complete);问候文案若
+        仍检出配额降级句(理论不可达,防 _compose_greeting 逻辑回退)也不发。
+        成功发出问候后挂追问链;被拦截时则不挂。
         """
         if not self.can_send():
             return None
+        if self.would_exceed_quota():
+            return None
         text = await self._compose_greeting()
+        if is_quota_exceeded_reply(text):
+            return None
         await self._send(
             text,
             kind="greeting",
@@ -154,7 +180,8 @@ class ProactiveEngine:
                     {"role": "user", "content": context or "(无画像)"},
                 ]
             )
-            if reply.text:
+            # 配额降级句不当问候发(§9.9):回落静态默认句,与无 LLM 时一致
+            if reply.text and not is_quota_exceeded_reply(reply.text):
                 return reply.text
         return "欢迎回来。要继续上次的事,还是开始点新的?"
 

@@ -4,6 +4,10 @@ get_usage_stats 汇总非零。
 注入方式(对应阶段手册坑 1"绕过能力直连 client 会漏计量"):
 不用 build(llm=FakeLLM)(那会让 agent 绕过 llm 服务能力,漏计量),
 而是替换服务内底层 client 返回固定补全——能力守卫链与计量直写全真。
+
+以上仅指 llm 服务 usage 表口径(下 TestUsageMetering);phase-65 起另有
+TestResourceQuotaFlow 断言 agent 进程内 Meter 口径,那一条链不经 llm
+服务能力,反用 build(llm=FakeLLM) 注入,两条流水不合并(§9.9 任务书钉死)。
 """
 
 import time
@@ -11,6 +15,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
+from agent.llm import FakeLLM, LLMReply, Usage
 from deploy.backend import build
 
 
@@ -67,3 +72,38 @@ class TestUsageMetering:
             models = {m["model"] for m in stats["by_model"]}
             assert "meter-model" in models  # 按模型分组可用(用量页表数据源)
             assert len(stub_llm_client) >= 2  # 底层确实被调,链路闭合
+
+
+class TestResourceQuotaFlow:
+    def test_get_resource_quota_grows_with_chat(self, tmp_path) -> None:
+        """agent Meter 配额能力随对话增长(phase-65,§9.9 资源维):
+        build(llm=FakeLLM) 注入的 client 仍经 build_agent 的 metered_llm 包装,
+        每轮 complete 的 usage 计入当日用量,get_resource_quota 读同一份 Meter。
+
+        注意口径:这里断言的是 agent Meter(进程内),与上面 TestUsageMetering
+        断言的 llm 服务 usage 表(经 llm.complete 能力持久化)是两条独立流水,
+        不合并(任务书钉死)。"""
+        llm = FakeLLM(dynamic=lambda m, t: LLMReply(
+            text="好的。", usage=Usage(input_tokens=12, output_tokens=6)
+        ))
+        app = build(tmp_path / "data", tmp_path / "ws", llm=llm)
+        with TestClient(app) as client:
+            # 配额设为大数,避免对话中途被拦(user_only 项;测试身份即本机用户)
+            r = client.post("/api/agent/capabilities/set_setting",
+                            json={"key": "agent.resource.daily_tokens",
+                                  "value": 1_000_000})
+            assert r.status_code == 200
+
+            client.post("/api/chat/messages", json={"content": "在吗"})
+
+            # agent 处理是异步的:轮询等 meter 计入
+            deadline = time.time() + 8
+            quota = {}
+            while time.time() < deadline:
+                quota = client.post("/api/agent/capabilities/get_resource_quota",
+                                    json={}).json()["result"]
+                if quota.get("tokens_used_today", 0) > 0:
+                    break
+                time.sleep(0.05)
+            assert quota["tokens_used_today"] >= 18, f"配额未随对话增长: {quota}"
+            assert quota["daily_tokens"] == 1_000_000  # 热读设置生效

@@ -1,4 +1,4 @@
-"""主动触达测试(§9.8):上线问候、防轰炸预算、安静时段、追问链。"""
+"""主动触达测试(§9.8):上线问候、防轰炸预算、安静时段、追问链、配额拦截(§9.9)。"""
 
 import asyncio
 import time
@@ -8,6 +8,7 @@ from platform_eventbus import EventBus, EventLog
 
 from agent.llm import FakeLLM
 from agent.master.proactive import ProactiveBudget, ProactiveEngine
+from agent.runtime import Meter, MeterRecord
 from agent.runtime.scheduler import Scheduler
 from agent.tools.reach_out import reach_out_tool
 
@@ -27,7 +28,8 @@ class _FakeSettings:
         return self._values.get(key)
 
 
-def _engine(tmp_path, *, hour: int = 12, budget: ProactiveBudget | None = None, settings=None):
+def _engine(tmp_path, *, hour: int = 12, budget: ProactiveBudget | None = None,
+            settings=None, meter=None):
     log = EventLog(tmp_path / "events.db")
     bus = EventBus(log)
     engine = ProactiveEngine(
@@ -38,6 +40,7 @@ def _engine(tmp_path, *, hour: int = 12, budget: ProactiveBudget | None = None, 
         budget=budget or ProactiveBudget(),
         clock=_clock(hour),
         settings=settings,
+        meter=meter,
     )
     return engine, log
 
@@ -94,6 +97,53 @@ class TestGreeting:
         settings._values["agent.proactive.per_session"] = 0
         assert await engine.on_user_online() is None
         assert len(_messages(log)) == 1
+
+
+class TestQuotaGuard:
+    """配额双保险(phase-65,§9.9):预检拦截 + 降级句不当问候发。"""
+
+    async def test_quota_full_blocks_greeting_before_llm(self, tmp_path) -> None:
+        """配额满 + 预算允许:预检拦截,不发问候、不碰 LLM、不挂追问链。"""
+        meter = Meter()
+        meter.record(MeterRecord(kind="llm", name="default", ms=1.0, input_tokens=50))
+        settings = _FakeSettings({"agent.resource.daily_tokens": 50})
+        engine, log = _engine(tmp_path, settings=settings, meter=meter)
+        assert engine.would_exceed_quota() is True
+        assert await engine.on_user_online() is None
+        assert _messages(log) == []
+        assert engine._llm.calls == []
+        assert engine._followup_timer == ""
+
+    async def test_quota_headroom_greeting_unaffected(self, tmp_path) -> None:
+        """配额未满:问候照常发出、文案不回落。"""
+        meter = Meter()
+        meter.record(MeterRecord(kind="llm", name="default", ms=1.0, input_tokens=10))
+        settings = _FakeSettings({"agent.resource.daily_tokens": 50})
+        engine, log = _engine(tmp_path, settings=settings, meter=meter)
+        assert engine.would_exceed_quota() is False
+        text = await engine.on_user_online()
+        assert text == "欢迎回来,接着看 langgraph 吗?"
+        assert len(_messages(log)) == 1
+
+    async def test_quota_reply_falls_back_to_static_greeting(self, tmp_path) -> None:
+        """无 meter 可预检时,LLM 返回的配额降级句不当问候发,回落静态默认句。"""
+        settings = _FakeSettings({"agent.resource.daily_tokens": 50})
+        log = EventLog(tmp_path / "events.db")
+        engine = ProactiveEngine(
+            bus=EventBus(log),
+            llm=FakeLLM(default=(
+                "（今日 LLM token 配额已用完:明天自动恢复,或在设置里调高/关闭日配额。）"
+            )),
+            memory=None,
+            scheduler=Scheduler(),
+            clock=_clock(12),
+            settings=settings,
+        )
+        text = await engine.on_user_online()
+        assert text == "欢迎回来。要继续上次的事,还是开始点新的?"
+        msgs = _messages(log)
+        assert len(msgs) == 1
+        assert "配额" not in msgs[0]["content"]
 
 
 class TestFollowUp:

@@ -63,6 +63,18 @@ _QUOTA_EXCEEDED = (
 )
 
 
+def is_quota_exceeded_reply(text: str | None) -> bool:
+    """识别文本是否为配额超限降级句(§9.9)。
+
+    metered_llm 超限时返回可读降级文本而非异常,调用方(如 proactive 问候)
+    需要区分「真回复」与「降级句」。按「配额」+「用完」两个关键子串判定,
+    与 _QUOTA_EXCEEDED 措辞解耦:改文案不动检测。
+    """
+    if not text:
+        return False
+    return "配额" in text and "用完" in text
+
+
 def metered_llm(
     llm: LLMClient,
     meter: Meter,
