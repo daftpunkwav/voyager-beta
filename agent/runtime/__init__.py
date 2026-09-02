@@ -2,6 +2,7 @@
 
 from agent.runtime.events import AGENT_MAIN, RuntimeEvents
 from agent.runtime.loop import EventLoop
+from agent.runtime.meter_store import MeterStore
 from agent.runtime.observability import (
     Meter,
     MeterRecord,
@@ -21,6 +22,7 @@ __all__ = [
     "EventLoop",
     "Meter",
     "MeterRecord",
+    "MeterStore",
     "RunState",
     "RunStatus",
     "RuntimeEvents",

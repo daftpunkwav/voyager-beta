@@ -107,3 +107,34 @@ class TestResourceQuotaFlow:
                 time.sleep(0.05)
             assert quota["tokens_used_today"] >= 18, f"配额未随对话增长: {quota}"
             assert quota["daily_tokens"] == 1_000_000  # 热读设置生效
+
+    def test_quota_survives_backend_restart(self, tmp_path) -> None:
+        """重启部署根(同 data_root 再 build,phase-66,§9.9 资源维):
+        agent Meter 的 llm 计量经 metered_llm 同步落 data_root/agent/meter.db,
+        TestClient 关停后再装配,当日用量不归零(不重放对话)。"""
+        llm = FakeLLM(dynamic=lambda m, t: LLMReply(
+            text="好的。", usage=Usage(input_tokens=12, output_tokens=6)
+        ))
+        app = build(tmp_path / "data", tmp_path / "ws", llm=llm)
+        with TestClient(app) as client:
+            r = client.post("/api/agent/capabilities/set_setting",
+                            json={"key": "agent.resource.daily_tokens",
+                                  "value": 1_000_000})
+            assert r.status_code == 200
+            client.post("/api/chat/messages", json={"content": "在吗"})
+            first = {}
+            deadline = time.time() + 8
+            while time.time() < deadline:
+                first = client.post("/api/agent/capabilities/get_resource_quota",
+                                    json={}).json()["result"]
+                if first.get("tokens_used_today", 0) > 0:
+                    break
+                time.sleep(0.05)
+            assert first["tokens_used_today"] >= 18, f"重启前配额未累计: {first}"
+
+        # 重启:同一 data_root 再装配,直接读配额,不重放对话
+        app2 = build(tmp_path / "data", tmp_path / "ws", llm=llm)
+        with TestClient(app2) as client:
+            quota = client.post("/api/agent/capabilities/get_resource_quota",
+                                json={}).json()["result"]
+            assert quota["tokens_used_today"] >= first["tokens_used_today"] >= 18

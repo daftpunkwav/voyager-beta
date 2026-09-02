@@ -48,7 +48,7 @@ export function TokenQuotaBlock() {
     <div className="agent-settings-block">
       <h3 className="agent-settings-subtitle">Token 日配额</h3>
       <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
-        当日（UTC 自然日切日）所有 LLM 调用的输入 + 输出 token 合计上限；0 表示不限。保存后下一句对话即按新配额生效。
+        当日（UTC 自然日切日）所有 LLM 调用的输入 + 输出 token 合计上限；0 表示不限。保存后下一句对话即按新配额生效；服务重启后当日用量仍累计。
       </p>
       {loadFailed ? (
         <p className="muted" style={{ fontSize: 12 }}>读取失败请刷新。</p>

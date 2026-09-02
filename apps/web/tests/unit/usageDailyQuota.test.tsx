@@ -38,6 +38,7 @@ describe('用量页今日 token 配额(phase-63)', () => {
 
     expect(await screen.findByText(/已用 1\.2K/)).toBeInTheDocument();
     expect(screen.getByText(/上限 5\.0K/)).toBeInTheDocument();
+    expect(screen.getByText(/服务重启后当日用量仍累计/)).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '24');
     expect(callCapabilityMock).toHaveBeenCalledWith('agent', 'get_resource_quota', {});
   });

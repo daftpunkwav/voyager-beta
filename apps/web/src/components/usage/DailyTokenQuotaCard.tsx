@@ -76,7 +76,7 @@ export function DailyTokenQuotaCard() {
             {limited
               ? `剩余 ${formatTokenCount(Math.max(0, limit - used))} · ${formatTokenPercent(used, limit)}`
               : '未设上限，不计进度'}
-            ；当日（UTC 自然日切日）输入 + 输出 token 合计，仅统计 agent 进程内 Meter，与下方「最近 N 天」历史用量口径不同。
+            ；当日（UTC 自然日切日）输入 + 输出 token 合计，仅统计 agent 进程内 Meter，与下方「最近 N 天」历史用量口径不同；服务重启后当日用量仍累计。
           </p>
         </>
       )}

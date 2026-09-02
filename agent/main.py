@@ -26,7 +26,7 @@ from agent.memory import Memory
 from agent.observe import Observer
 from agent.personas import canonical_persona_key, resolve_persona
 from agent.policy import AppPolicy, FsPolicy, NetworkPolicy, PolicyEngine
-from agent.runtime import EventLoop, Meter, RuntimeEvents, Scheduler, metered_llm
+from agent.runtime import EventLoop, Meter, MeterStore, RuntimeEvents, Scheduler, metered_llm
 from agent.runtime.state import CheckpointStore, reclaim_alive
 from agent.runtime.wire import bind_event_loop
 from agent.settings import DEFS as AGENT_SETTING_DEFS
@@ -77,6 +77,7 @@ class AgentApp:
         """关闭持有文件句柄的组件(测试与关停路径用)。"""
         # 外接 MCP 会话:有 loop 就挂 task aclose,没有则同步尽力杀(不卡 pytest)
         self.mcp.close_best_effort()
+        self.meter.close()  # meter.db 持久化连接(phase-66);纯内存 Meter 为 no-op
         self.memory.close()
         if self.owns_settings:
             self.settings.close()
@@ -136,7 +137,7 @@ def build_agent(
         ),
         settings=settings,  # 网络/app/fs(附加只读根)判定热读设置(§9.9):改设置不重启即生效
     )
-    meter = Meter()
+    meter = Meter(store=MeterStore(data_dir / "meter.db"))
     # token 日配额(phase-60/64,§9.9 资源维):主对话、派单、仲裁判官与主动问候
     # 的 LLM 均经同一 metered_llm 包装,complete 前热读 agent.resource.daily_tokens,
     # 当日累计超限不发起真实调用(0=不限)。

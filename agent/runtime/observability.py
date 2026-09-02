@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agent.llm import LLMClient, LLMReply, Usage
+from agent.runtime.meter_store import MeterStore
 
 
 @dataclass(frozen=True)
@@ -22,14 +23,19 @@ class MeterRecord:
 
 
 class Meter:
-    """内存计量;持久化(→ 用量页)由 sink 回调承接。"""
+    """内存计量 + 可选持久化 store(phase-66,§9.9 跨重启日配额);流水导出仍由 sink 承接。"""
 
-    def __init__(self, sink: Any = None) -> None:
+    def __init__(self, sink: Any = None, store: MeterStore | None = None) -> None:
         self.records: list[MeterRecord] = []
         self._sink = sink
+        self._store = store
 
     def record(self, rec: MeterRecord) -> None:
         self.records.append(rec)
+        # llm token 同步落库(§9.9 跨重启日配额);ok=False 的失败调用与现行为
+        # 一致照记(finally 里 record),ts 用 rec.ts 保证按记录时刻切日
+        if self._store is not None and rec.kind == "llm":
+            self._store.add("llm", rec.input_tokens, rec.output_tokens, ts=rec.ts)
         if self._sink is not None:
             self._sink(rec)
 
@@ -44,9 +50,12 @@ class Meter:
     def tokens_used_today(self, *, now: float | None = None) -> int:
         """当日已用 token(input+output 合计);自然日按 UTC 切日(单测钉死)。
 
-        MeterRecord.ts 是 time.time() 秒级 UNIX 时间戳,换算成 UTC (年,月,日)
-        后聚合;now 供测试注入当前时刻,不传取真实时钟。
+        有持久化 store(phase-66)时只读 store:record 已同步落库,store 即权威,
+        不再叠加内存 records 以免双计。无 store 保持纯内存聚合(按 rec.ts 的
+        UTC 日比较;now 供测试注入当前时刻,不传取真实时钟)。
         """
+        if self._store is not None:
+            return self._store.tokens_used_today(now=now)
         current = time.time() if now is None else now
         today = time.gmtime(current)[:3]
         return sum(
@@ -54,6 +63,11 @@ class Meter:
             for r in self.records
             if time.gmtime(r.ts)[:3] == today
         )
+
+    def close(self) -> None:
+        """关闭持久化 store(测试与进程退出用);纯内存 Meter 无操作。"""
+        if self._store is not None:
+            self._store.close()
 
 
 #: 日配额超限的降级文本:与 ServiceLLM 的错误呈现同款(LLMReply 可读文本,
