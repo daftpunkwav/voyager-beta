@@ -204,7 +204,8 @@ def build_agent(
     plugins_root = Path(plugins_dir) if plugins_dir else (
         Path(__file__).resolve().parents[1] / "plugins"
     )
-    plugins = PluginManager(plugins_root, settings=settings, skills=skills, hooks=hooks, mcp=mcp)
+    plugins = PluginManager(plugins_root, settings=settings, skills=skills, hooks=hooks,
+                            mcp=mcp, workspace=workspace)
     for plugin_name in plugins.loadable_names():
         if plugins.find(plugin_name) is not None:
             plugins.apply(plugin_name)

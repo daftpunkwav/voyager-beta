@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { callCapability } from '@/bridge/client';
+import { callCapability, uploadFile } from '@/bridge/client';
 import { useUIStore } from '@/stores/uiStore';
 import { extractErrorMessage } from '@/utils/errors';
-import type { PluginApproveResult, PluginItem } from './types';
+import type { PluginApproveResult, PluginInstallResult, PluginItem } from './types';
 
 /** 权限摘要:scopes 逐个列出,网络/文件档位非空才显示(批准前清单强调) */
 function permissionSummary(p: PluginItem): string {
@@ -162,13 +162,21 @@ function PluginPicker({
   );
 }
 
-/** 插件(§9.13):发现 plugins/ 下的清单;整包或分项批准后其 skill/hook 即装,MCP 只登记待批准条目 */
+/** 插件(§9.13):发现 plugins/ 下的清单;整包或分项批准后其 skill/hook 即装,MCP 只登记待批准条目。
+ *  phase-77:提供 zip(经 /api/uploads 运输)与本机目录两个安装入口,装完未批准、可立即批准;
+ *  未批准插件可删除目录(已批准须先撤销)。 */
 export function PluginsBlock() {
   const addToast = useUIStore((s) => s.addToast);
   const [plugins, setPlugins] = useState<PluginItem[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [busyName, setBusyName] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null); // 正在分项勾选的插件名
+  // 安装向导(phase-77):zip 文件 / 目录路径 / 覆盖开关;zipKey 用于装完清空文件框
+  const [zipFile, setZipFile] = useState<File | null>(null);
+  const [zipKey, setZipKey] = useState(0);
+  const [dirPath, setDirPath] = useState('');
+  const [overwrite, setOverwrite] = useState(false);
+  const [installing, setInstalling] = useState(false); // busy 态防双提交
 
   const reload = () =>
     callCapability<{ items: PluginItem[] }>('agent', 'list_plugins', {})
@@ -207,6 +215,47 @@ export function PluginsBlock() {
     }
   };
 
+  const onInstall = async () => {
+    if (installing || (!zipFile && !dirPath.trim())) return;
+    if (overwrite && !window.confirm('覆盖安装将先删除同名插件目录再装入新内容，确定覆盖？')) return;
+    setInstalling(true);
+    try {
+      // zip 走既有上传运输(/api/uploads → workspace/imports),回传服务端路径;
+      // 目录则直接传用户粘贴的绝对路径,来源合法性由后端按允许根校验
+      const args = zipFile
+        ? { zip_path: (await uploadFile(zipFile)).file_path, overwrite }
+        : { source_dir: dirPath.trim(), overwrite };
+      const res = await callCapability<PluginInstallResult>('agent', 'install_plugin', args);
+      addToast({
+        type: 'success',
+        message: `已安装插件「${res.name}」${res.version ? ` v${res.version}` : ''}，尚未批准；在下方批准后才会装载`,
+      });
+      setZipFile(null);
+      setZipKey((k) => k + 1); // 重挂载文件框,清掉已安装的文件名
+      setDirPath('');
+      setOverwrite(false);
+      await reload();
+    } catch (err) {
+      addToast({ type: 'error', message: `安装失败：${extractErrorMessage(err)}` });
+    } finally {
+      setInstalling(false);
+    }
+  };
+
+  const onDelete = async (p: PluginItem) => {
+    if (!window.confirm(`删除插件「${p.name}」（目录 ${p.path}）？该操作不可恢复。`)) return;
+    setBusyName(p.name);
+    try {
+      await callCapability('agent', 'uninstall_plugin', { name: p.name });
+      addToast({ type: 'success', message: `已删除插件「${p.name}」` });
+      await reload();
+    } catch (err) {
+      addToast({ type: 'error', message: `删除失败：${extractErrorMessage(err)}` });
+    } finally {
+      setBusyName(null);
+    }
+  };
+
   const onBundle = (p: PluginItem) => void run('批准', p, { granularity: 'bundle' });
   const onUnapprove = (p: PluginItem) => {
     // phase-76(选型 S3):撤销会回收其登记、尚未批准任何工具的外接 MCP;
@@ -230,13 +279,67 @@ export function PluginsBlock() {
         随插件的 MCP 配置只会登记为待批准条目，工具仍需在外接 MCP 里逐台批准；
         撤销批准时会同步移除其登记、且工具还没批准过的外接 MCP（已批准工具的保留）。
       </p>
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            type="file"
+            accept=".zip"
+            aria-label="选择 zip 安装包"
+            key={zipKey}
+            disabled={installing}
+            onChange={(e) => setZipFile(e.target.files?.[0] ?? null)}
+            style={{ fontSize: 12 }}
+          />
+          <input
+            type="text"
+            aria-label="插件目录路径"
+            placeholder="或粘贴本机插件目录的绝对路径（须在工作目录或附加根内）"
+            value={dirPath}
+            disabled={installing}
+            onChange={(e) => setDirPath(e.target.value)}
+            style={{ flex: 1, minWidth: 220, fontSize: 12 }}
+          />
+        </div>
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, flexWrap: 'wrap',
+          }}
+        >
+          <label
+            className="plugin-picker-option"
+            style={{ fontSize: 12, margin: 0 }}
+          >
+            <input
+              type="checkbox"
+              aria-label="覆盖同名插件"
+              checked={overwrite}
+              disabled={installing}
+              onChange={(e) => setOverwrite(e.target.checked)}
+            />
+            覆盖同名插件
+          </label>
+          <span className="muted" style={{ fontSize: 11 }}>
+            同名默认拒绝覆盖；已批准的同名插件不会被覆盖，须先撤销批准。
+          </span>
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            aria-label="安装插件"
+            disabled={installing || (!zipFile && !dirPath.trim())}
+            onClick={() => void onInstall()}
+          >
+            {installing ? '安装中…' : '安装插件'}
+          </button>
+        </div>
+      </div>
       {loadFailed ? (
         <p className="muted" style={{ fontSize: 12 }}>读取失败请刷新。</p>
       ) : plugins === null ? (
         <p className="muted" style={{ fontSize: 12 }}>插件清单加载中…</p>
       ) : plugins.length === 0 ? (
         <p className="muted" style={{ fontSize: 12 }}>
-          还没有发现插件。把含 plugin.json 的插件目录放进仓库根的 plugins/ 下即可出现在这里。
+          还没有发现插件。把含 plugin.json 的插件目录放进仓库根的 plugins/ 下即可出现在这里，
+          也可以用上方安装入口从 zip 或本机目录安装。
         </p>
       ) : (
         <ul className="memory-entry-list">
@@ -306,6 +409,15 @@ export function PluginsBlock() {
                         onClick={() => setEditing(p.name)}
                       >
                         自定义批准
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-ghost"
+                        aria-label={`删除插件 ${p.name}`}
+                        disabled={busyName === p.name}
+                        onClick={() => void onDelete(p)}
+                      >
+                        删除
                       </button>
                     </>
                   )}

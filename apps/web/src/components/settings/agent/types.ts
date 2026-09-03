@@ -137,3 +137,12 @@ export interface PluginApproveResult {
   /** phase-76:未回收的外接 MCP 及原因(工具已批准 / 他插件仍用 / 配置不符等) */
   mcp_reclaim_skipped?: { id: string; reason: string }[];
 }
+
+/** install_plugin 回包(phase-77):安装成功但未批准,批准仍走 set_plugin_approval */
+export interface PluginInstallResult {
+  name: string;
+  version: string;
+  path: string;
+  permissions: PluginPermissions;
+  contains_summary: { skills: number; hooks: number; mcp: boolean };
+}

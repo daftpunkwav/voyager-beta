@@ -31,12 +31,24 @@ HookRegistry / MCP 只登记待批准条目(不自动 approve_mcp_tools)。
   跳过并在返回体 mcp_reclaim_skipped 披露。回收路径与 remove_mcp_server
   等价(unmount + drop_session + delete_config),禁止只删配置留挂载幽灵。
 - contains 路径 jail:声明相对路径 resolve 后必须仍在插件目录内(拒 `../` 逃逸)。
+- 安装/卸载(phase-77):install(zip_path 或 source_dir)把 zip(服务端绝对
+  路径,通常经 /api/uploads 落 workspace/imports/)或本机目录**复制**到
+  plugins/<manifest.name>/;来源须落在允许根内(workspace、agent.fs.read_roots、
+  agent.fs.write_roots,安装时热读,与 fs 工具 jail 同语义)。校验链:manifest
+  可解析 → name 可作目录名 → contains 过 jail → zip slip / 符号链接 / 限额
+  (install.py)→ 同名冲突(默认拒,显式 overwrite=true 才覆盖;已批准插件
+  一律拒覆盖)。安装不写批准名单、不登记 MCP——发现可见、未批准不装载。
+  uninstall 只删未批准插件目录;已批准须先撤销(名单清理与 MCP 回收仍走
+  unapprove 的安全链)。审计:capability 调用经守卫链落 audit.db(deploy 已接
+  SqliteAuditSink),manager 另记一行日志便于排查。
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import shutil
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -47,6 +59,12 @@ from platform_contracts import ActorRef, ErrorSuffix, ServiceError
 from agent.clients.pool import validate_server_config
 from agent.hooks.loader import HookLoader
 from agent.hooks.triggers import HookRegistry
+from agent.plugins.install import (
+    extract_plugin_zip,
+    place_plugin,
+    prepare_source_dir,
+    safe_plugin_name,
+)
 from agent.skills.loader import SkillLoader
 
 log = logging.getLogger("agent.plugins")
@@ -283,6 +301,7 @@ class PluginManager:
         mcp: Any | None = None,  # McpClientPool(批准时登记 MCP 条目;可省)
         set_subscription_sync: Callable[[tuple[str, ...]], None] | None = None,
         # phase-75:EventLoop 注入的订阅同步入口(装载/热卸后推 hooks.event_patterns)
+        workspace: str | Path | None = None,  # phase-77:安装来源允许根之一
     ) -> None:
         self._root = Path(root)
         self._settings = settings
@@ -290,6 +309,7 @@ class PluginManager:
         self._hooks = hooks
         self._mcp = mcp
         self._set_subscription_sync = set_subscription_sync
+        self._workspace = Path(workspace) if workspace is not None else None
 
     def set_subscription_sync(
         self, sync: Callable[[tuple[str, ...]], None] | None
@@ -598,6 +618,158 @@ class PluginManager:
             "mcp_reclaimed": reclaimed,
             "mcp_reclaim_skipped": reclaim_skipped,
         }
+
+    # ---- 安装 / 卸载(phase-77;capability 层入口) ----
+
+    def install(
+        self, *, zip_path: str = "", source_dir: str = "", overwrite: bool = False
+    ) -> dict:
+        """从 zip(服务端绝对路径)或本机目录安装插件到 plugins/<name>/。
+
+        复制非移动;校验链失败 / 冲突 / 超限一律整包拒,不留半安装目录(B3)。
+        不写批准名单、不登记 MCP、不装 skill/hook(B6:发现可见、未批准不装载)。
+        """
+        has_zip = bool(str(zip_path or "").strip())
+        has_dir = bool(str(source_dir or "").strip())
+        if has_zip == has_dir:
+            raise ServiceError(
+                "agent", ErrorSuffix.INVALID_INPUT,
+                "zip_path 与 source_dir 恰须提供一个",
+            )
+        if has_zip:
+            src = self._resolve_source(zip_path, "zip_path")
+            with tempfile.TemporaryDirectory(prefix="plugin-install-") as tmp:
+                plugin_root = extract_plugin_zip(src, Path(tmp))
+                return self._place_validated(plugin_root, overwrite)
+        plugin_root = prepare_source_dir(self._resolve_source(source_dir, "source_dir"))
+        return self._place_validated(plugin_root, overwrite)
+
+    def uninstall(self, name: str) -> dict:
+        """删除**未批准**插件的目录(B7);已批准须先撤销批准(名单清理与 MCP 回收
+        走 unapprove 的安全链,这里不重复)。目录不存在 → NOT_FOUND。"""
+        manifest = self._require(name)
+        if self._approval_of(manifest) is not None:
+            raise ServiceError(
+                "agent", ErrorSuffix.CONFLICT,
+                f"插件 {name} 已批准;先撤销批准再删除",
+            )
+        target = manifest.path
+        if target.is_symlink():  # 拒删链接:穿过链接会删掉链接目标的内容树
+            raise ServiceError(
+                "agent", ErrorSuffix.INVALID_INPUT,
+                f"插件目录是符号链接,拒绝删除(请手工处理): {target}",
+            )
+        shutil.rmtree(target)
+        log.info("插件 %s 已卸载(目录 %s 已删除)", name, target)
+        return {"name": name, "uninstalled": True, "path": target.name}
+
+    def _resolve_source(self, raw: object, field: str) -> Path:
+        """安装来源路径(A1/E2):须为绝对路径,且落在允许根内(安装时热读)。"""
+        text = str(raw or "").strip()
+        if not text:
+            raise ServiceError("agent", ErrorSuffix.INVALID_INPUT, f"{field} 不能为空")
+        candidate = Path(text)
+        if not candidate.is_absolute():
+            raise ServiceError(
+                "agent", ErrorSuffix.INVALID_INPUT, f"{field} 须为绝对路径: {text!r}"
+            )
+        resolved = candidate.resolve()
+        roots = self._allowed_source_roots()
+        if not any(resolved == r or r in resolved.parents for r in roots):
+            raise ServiceError(
+                "agent", ErrorSuffix.FORBIDDEN,
+                "安装来源须在工作目录或附加只读/读写根内"
+                "(设置页「文件访问」可配置允许根)",
+            )
+        return resolved
+
+    def _allowed_source_roots(self) -> list[Path]:
+        """安装来源允许根:workspace + agent.fs.read_roots + agent.fs.write_roots。"""
+        roots: list[Path] = []
+        if self._workspace is not None:
+            roots.append(self._workspace)
+        for key in ("agent.fs.read_roots", "agent.fs.write_roots"):
+            value = self._settings.get(key)
+            if isinstance(value, (list, tuple)):
+                roots.extend(Path(str(r)) for r in value if str(r).strip())
+        return [r.resolve() for r in roots]
+
+    def _place_validated(self, plugin_root: Path, overwrite: bool) -> dict:
+        """清单/名称/jail/冲突校验通过后落盘,返回安装回包(B2 稳定形状)。"""
+        manifest = load_manifest(plugin_root)
+        if manifest is None:
+            raise ServiceError(
+                "agent", ErrorSuffix.INVALID_INPUT,
+                "plugin.json 缺失或无效(须为含 name 的 JSON 对象)",
+            )
+        name = safe_plugin_name(manifest.name)
+        self._check_contains_jail(manifest)
+        dest = self._root / name
+        # 源即目标(用已安装目录自身当安装源):place_plugin 会先清空 dest(=源)
+        # 再复制,等于自毁;显式拒,保护源目录
+        if plugin_root.resolve() == dest.resolve():
+            raise ServiceError(
+                "agent", ErrorSuffix.INVALID_INPUT,
+                f"安装源与目标目录 plugins/{name} 相同(插件已在此);"
+                "请改用其它来源,或删除后重装",
+            )
+        existing = self.find(name)
+        # 已批准插件一律拒覆盖(A5:禁止静默覆盖已批准插件,overwrite 也不行)
+        if existing is not None and self._approval_of(existing) is not None:
+            raise ServiceError(
+                "agent", ErrorSuffix.CONFLICT,
+                f"插件 {name} 已批准;覆盖安装前须先撤销批准",
+            )
+        if not overwrite and (existing is not None or dest.exists()):
+            raise ServiceError(
+                "agent", ErrorSuffix.CONFLICT,
+                f"已存在同名插件 {name};确要覆盖请显式传 overwrite=true",
+            )
+        try:
+            place_plugin(plugin_root, dest)
+        except Exception:
+            shutil.rmtree(dest, ignore_errors=True)  # B3:失败不留半安装目录
+            raise
+        # 同名但目录名不同(如 `_` 前缀别名目录)的旧拷贝:落盘成功后清理,
+        # 避免同名双身份;删不掉(文件被占用)只记日志不回滚安装
+        if existing is not None and existing.path != dest and existing.path.is_dir():
+            shutil.rmtree(existing.path, ignore_errors=True)
+            if existing.path.exists():
+                log.warning("插件 %s 的旧目录删除失败: %s", name, existing.path)
+        final = load_manifest(dest) or manifest
+        log.info("插件 %s v%s 已安装到 %s(未批准,待用户批准后装载)",
+                 name, final.version, dest)
+        return {
+            "name": name,
+            "version": final.version,
+            "path": dest.name,
+            "permissions": {
+                "scopes": [str(s) for s in _items(final.permissions.get("scopes"))],
+                "network": str(final.permissions.get("network") or ""),
+                "fs": str(final.permissions.get("fs") or ""),
+            },
+            "contains_summary": {
+                "skills": len(manifest_skills(final)),
+                "hooks": len(manifest_hook_entries(final)),
+                "mcp": bool(manifest_mcp_servers(final)),
+            },
+        }
+
+    def _check_contains_jail(self, manifest: PluginManifest) -> None:
+        """安装时主动校验 contains 全部声明过 jail(C2):越狱整包拒,不带病落盘。"""
+        escaped: list[str] = []
+        for field in ("skills", "hooks"):
+            for rel in _items(manifest.contains.get(field)):
+                if resolve_within(manifest.path, rel) is None:
+                    escaped.append(str(rel))
+        raw_mcp = manifest.contains.get("mcp")
+        if raw_mcp and resolve_within(manifest.path, raw_mcp) is None:
+            escaped.append(str(raw_mcp))
+        if escaped:
+            raise ServiceError(
+                "agent", ErrorSuffix.INVALID_INPUT,
+                f"contains 路径越出插件目录,整包拒绝: {escaped}",
+            )
 
     # ---- 内部 ----
 

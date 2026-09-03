@@ -1,18 +1,20 @@
-/** 设置页插件块单测(phase-72 整包 + phase-74 分项):挂载打 list_plugins、渲染
- *  名称/版本/批准状态/权限清单/明细、整包批准、自定义分项勾选、撤销;
- *  成功/失败 toast;不调 getApi()。 */
+/** 设置页插件块单测(phase-72 整包 + phase-74 分项 + phase-77 安装/删除):挂载打
+ *  list_plugins、渲染名称/版本/批准状态/权限清单/明细、整包批准、自定义分项勾选、
+ *  撤销、zip/目录安装与删除;成功/失败 toast;不调 getApi()。 */
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { callCapabilityMock, getApiMock } = vi.hoisted(() => ({
+const { callCapabilityMock, getApiMock, uploadFileMock } = vi.hoisted(() => ({
   callCapabilityMock: vi.fn(),
   getApiMock: vi.fn(),
+  uploadFileMock: vi.fn(),
 }));
 
 vi.mock('@/bridge/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/bridge/client')>()),
   callCapability: callCapabilityMock,
+  uploadFile: uploadFileMock,
 }));
 
 vi.mock('@/api/client', () => ({ getApi: getApiMock }));
@@ -71,6 +73,7 @@ function backend(
   overrides: Record<string, unknown> = {},
   failList = false,
   failApproval = false,
+  failInstall = false,
 ) {
   return (_domain: string, name: string, args: Record<string, unknown>) => {
     switch (name) {
@@ -82,6 +85,17 @@ function backend(
       case 'set_plugin_approval':
         if (failApproval) return Promise.reject(new Error('仅限用户操作'));
         return Promise.resolve({ ...RESULT, name: args.name, approved: args.approved });
+      case 'install_plugin':
+        if (failInstall) return Promise.reject(new Error('同名插件已存在；确要覆盖请显式传 overwrite=true'));
+        return Promise.resolve({
+          name: 'fresh',
+          version: '0.1.0',
+          path: 'fresh',
+          permissions: { scopes: [], network: '', fs: '' },
+          contains_summary: { skills: 1, hooks: 0, mcp: false },
+        });
+      case 'uninstall_plugin':
+        return Promise.resolve({ name: args.name, uninstalled: true, path: args.name });
       case 'get_memory':
         return Promise.resolve(SNAPSHOT);
       case 'get_setting':
@@ -104,6 +118,7 @@ let confirmMock: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   callCapabilityMock.mockReset();
   getApiMock.mockReset();
+  uploadFileMock.mockReset();
   useUIStore.setState({ toasts: [] });
   // 撤销批准走 window.confirm(phase-76):默认确认,个别用例改返回值
   confirmMock = vi.spyOn(window, 'confirm').mockReturnValue(true);
@@ -382,5 +397,159 @@ describe('设置页插件块撤销回收 MCP(phase-76)', () => {
         true,
       ),
     );
+  });
+});
+
+describe('设置页插件安装/删除(phase-77)', () => {
+  it('选 zip 点安装:先 uploadFile 运输再 install_plugin{zip_path};成功 toast 含插件名且刷新列表', async () => {
+    uploadFileMock.mockResolvedValue({
+      file_path: 'C:/ws/imports/example.zip',
+      filename: 'example.zip',
+      size: 12,
+    });
+    renderSection(backend());
+    await waitFor(() => expect(screen.getByLabelText('选择 zip 安装包')).toBeTruthy());
+    const file = new File(['PK'], 'example.zip');
+    fireEvent.change(screen.getByLabelText('选择 zip 安装包'), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole('button', { name: '安装插件' }));
+    await waitFor(() => expect(uploadFileMock).toHaveBeenCalledWith(file));
+    await waitFor(() =>
+      expect(callCapabilityMock).toHaveBeenCalledWith('agent', 'install_plugin', {
+        zip_path: 'C:/ws/imports/example.zip',
+        overwrite: false,
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        toastTexts().some((m) => m.includes('已安装插件「fresh」') && m.includes('尚未批准')),
+      ).toBe(true),
+    );
+    // 列表刷新:install 之后又打了一次 list_plugins
+    const listCalls = callCapabilityMock.mock.calls.filter((c) => c[1] === 'list_plugins');
+    expect(listCalls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('粘贴目录路径点安装:install_plugin{source_dir},不走上传', async () => {
+    renderSection(backend());
+    await waitFor(() => expect(screen.getByLabelText('插件目录路径')).toBeTruthy());
+    fireEvent.change(screen.getByLabelText('插件目录路径'), {
+      target: { value: 'C:/plugins-src/example' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '安装插件' }));
+    await waitFor(() =>
+      expect(callCapabilityMock).toHaveBeenCalledWith('agent', 'install_plugin', {
+        source_dir: 'C:/plugins-src/example',
+        overwrite: false,
+      }),
+    );
+    expect(uploadFileMock).not.toHaveBeenCalled();
+  });
+
+  it('没选 zip 也没填路径时安装按钮禁用', async () => {
+    renderSection(backend());
+    await waitFor(() => expect(screen.getByRole('button', { name: '安装插件' })).toBeTruthy());
+    expect((screen.getByRole('button', { name: '安装插件' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it('安装失败弹 error toast,文案为后端可读消息', async () => {
+    renderSection(backend({}, false, false, true));
+    await waitFor(() => expect(screen.getByLabelText('插件目录路径')).toBeTruthy());
+    fireEvent.change(screen.getByLabelText('插件目录路径'), { target: { value: 'C:/x' } });
+    fireEvent.click(screen.getByRole('button', { name: '安装插件' }));
+    await waitFor(() =>
+      expect(
+        toastTexts().some((m) => m.startsWith('安装失败：') && m.includes('同名插件已存在')),
+      ).toBe(true),
+    );
+  });
+
+  it('勾选「覆盖同名插件」提交前 confirm;取消不发请求,确认后带 overwrite:true 重发', async () => {
+    confirmMock.mockReturnValue(false);
+    renderSection(backend());
+    await waitFor(() => expect(screen.getByLabelText('覆盖同名插件')).toBeTruthy());
+    fireEvent.click(screen.getByLabelText('覆盖同名插件'));
+    fireEvent.change(screen.getByLabelText('插件目录路径'), { target: { value: 'C:/x' } });
+    fireEvent.click(screen.getByRole('button', { name: '安装插件' }));
+    await waitFor(() => expect(confirmMock).toHaveBeenCalled());
+    expect(
+      callCapabilityMock,
+    ).not.toHaveBeenCalledWith('agent', 'install_plugin', expect.anything());
+    confirmMock.mockReturnValue(true);
+    fireEvent.click(screen.getByRole('button', { name: '安装插件' }));
+    await waitFor(() =>
+      expect(callCapabilityMock).toHaveBeenCalledWith('agent', 'install_plugin', {
+        source_dir: 'C:/x',
+        overwrite: true,
+      }),
+    );
+  });
+
+  it('安装请求未返回前进 busy:按钮禁用,双击只发一次', async () => {
+    let resolveInstall!: (v: unknown) => void;
+    callCapabilityMock.mockImplementation(
+      (_domain: string, name: string, _args: Record<string, unknown>) => {
+        if (name === 'list_plugins') return Promise.resolve({ items: [{ ...PLUGIN }] });
+        if (name === 'install_plugin') {
+          return new Promise((resolve) => {
+            resolveInstall = resolve;
+          });
+        }
+        if (name === 'get_memory') return Promise.resolve(SNAPSHOT);
+        return Promise.resolve({});
+      },
+    );
+    render(<AgentSettingsSection />);
+    await waitFor(() => expect(screen.getByLabelText('插件目录路径')).toBeTruthy());
+    fireEvent.change(screen.getByLabelText('插件目录路径'), { target: { value: 'C:/x' } });
+    fireEvent.click(screen.getByRole('button', { name: '安装插件' }));
+    await waitFor(() =>
+      expect((screen.getByRole('button', { name: '安装插件' }) as HTMLButtonElement).disabled).toBe(
+        true,
+      ),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '安装插件' })); // 禁用态:不产生第二次请求
+    const installCalls = callCapabilityMock.mock.calls.filter((c) => c[1] === 'install_plugin');
+    expect(installCalls).toHaveLength(1);
+    resolveInstall({
+      name: 'fresh',
+      version: '0.1.0',
+      path: 'fresh',
+      permissions: { scopes: [], network: '', fs: '' },
+      contains_summary: { skills: 0, hooks: 0, mcp: false },
+    });
+    // 流程走完:成功 toast 出现;此时来源已清空,按钮回到「无来源禁用」初态
+    await waitFor(() =>
+      expect(toastTexts().some((m) => m.includes('已安装插件「fresh」'))).toBe(true),
+    );
+    expect((screen.getByRole('button', { name: '安装插件' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it('未批准行有「删除」:confirm 提示不可恢复后 uninstall_plugin + toast', async () => {
+    renderSection(backend());
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '删除插件 example' })).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '删除插件 example' }));
+    expect(String(confirmMock.mock.calls[0]?.[0])).toContain('不可恢复');
+    await waitFor(() =>
+      expect(callCapabilityMock).toHaveBeenCalledWith('agent', 'uninstall_plugin', {
+        name: 'example',
+      }),
+    );
+    await waitFor(() =>
+      expect(toastTexts().some((m) => m.includes('已删除插件「example」'))).toBe(true),
+    );
+  });
+
+  it('已批准插件不显示「删除」按钮(须先撤销)', async () => {
+    renderSection(backend({ plugin: { approved: true, granularity: 'bundle' } }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '撤销批准 example' })).toBeTruthy(),
+    );
+    expect(screen.queryByRole('button', { name: '删除插件 example' })).toBeNull();
   });
 });

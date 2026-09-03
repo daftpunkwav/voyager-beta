@@ -9,7 +9,9 @@ loop.patterns 装配期快照不再定死;旧「须重启才进 loop.patterns」
 
 import asyncio
 import json
+import os
 import shutil
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -1076,5 +1078,387 @@ class TestMcpReclaim:
             assert not [n for n in app.spawner._toolbelt.names() if n.startswith("mcp__")]
         finally:
             app.close()
+
+
+# ---- phase-77:zip / 目录安装向导(§9.13 发现前一步) ----
+
+
+def build_plugin_src(tmp_path: Path, name: str = "example", **kw) -> Path:
+    """在 workspace/src 下造插件源目录(打包 / 目录安装用,允许根内)。"""
+    return make_plugin(tmp_path / "ws" / "src", name, **kw)
+
+
+def zip_dir(src: Path, zip_path: Path, *, prefix: str = "") -> Path:
+    """把目录打成 zip;prefix 控制根布局("pkg/" = 单顶层目录布局)。"""
+    zip_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for p in sorted(src.rglob("*")):
+            if p.is_file():
+                zf.write(p, prefix + p.relative_to(src).as_posix())
+    return zip_path
+
+
+async def _install(app, **args) -> dict:
+    return await execute(app.registry, "install_plugin", USER_CTX, args)
+
+
+def plugin_names(app) -> list[str]:
+    return [i["name"] for i in app.plugins.list()]
+
+
+class TestInstallZip:
+    """B1/B2/B5:zip 安装契约、根布局约定、安装后可走既有批准链。"""
+
+    async def test_zip_root_layout_contract(self, app, tmp_path) -> None:
+        src = build_plugin_src(tmp_path)
+        z = zip_dir(src, tmp_path / "ws" / "imports" / "example.zip")
+        out = await _install(app, zip_path=str(z))
+        assert out == {
+            "name": "example",
+            "version": "0.1.0",
+            "path": "example",
+            "permissions": {"scopes": ["notes.write"], "network": "off", "fs": "none"},
+            "contains_summary": {"skills": 1, "hooks": 1, "mcp": True},
+        }
+        assert (tmp_path / "plugins" / "example" / "plugin.json").is_file()
+        items = app.plugins.list()
+        assert [i["name"] for i in items] == ["example"]
+        assert items[0]["approved"] is False  # B6:安装不自动批准
+
+    async def test_zip_then_approve_full_cycle(self, app, tmp_path) -> None:
+        """安装 → list 可见 → 既有整包批准即装载(向导闭环)。"""
+        src = build_plugin_src(tmp_path, hook_enabled=True)
+        z = zip_dir(src, tmp_path / "ws" / "example.zip")
+        await _install(app, zip_path=str(z))
+        out = await _approve(app, "example")
+        assert out["approved"] is True
+        assert "daily-note" in [e["name"] for e in app.skills.index()]
+
+    async def test_zip_single_toplevel_dir_layout(self, app, tmp_path) -> None:
+        src = build_plugin_src(tmp_path)
+        z = zip_dir(src, tmp_path / "ws" / "pkg.zip", prefix="pkg/")
+        out = await _install(app, zip_path=str(z))
+        assert out["name"] == "example" and out["path"] == "example"
+
+    async def test_zip_no_manifest_rejected(self, app, tmp_path) -> None:
+        d = tmp_path / "ws" / "plain"
+        d.mkdir(parents=True)
+        (d / "readme.txt").write_text("不是插件", encoding="utf-8")
+        z = zip_dir(d, tmp_path / "ws" / "plain.zip")
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, zip_path=str(z))
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+        assert plugin_names(app) == []  # B3:不落盘
+
+    async def test_zip_two_toplevel_dirs_rejected(self, app, tmp_path) -> None:
+        d = tmp_path / "ws" / "amb"
+        (d / "one").mkdir(parents=True)
+        (d / "one" / "plugin.json").write_text('{"name": "one"}', encoding="utf-8")
+        (d / "two").mkdir()
+        (d / "two" / "plugin.json").write_text('{"name": "two"}', encoding="utf-8")
+        z = zip_dir(d, tmp_path / "ws" / "amb.zip")
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, zip_path=str(z))
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+        assert plugin_names(app) == []
+
+    async def test_zip_bad_manifest_rejected(self, app, tmp_path) -> None:
+        src = build_plugin_src(tmp_path)
+        (src / "plugin.json").write_text("{坏", encoding="utf-8")
+        z = zip_dir(src, tmp_path / "ws" / "bad.zip")
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, zip_path=str(z))
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+        assert plugin_names(app) == []
+
+    async def test_zip_contains_escape_rejected(self, app, tmp_path) -> None:
+        """C2:contains 越狱 → 安装时整包拒(C1 jail 主动校验),不带病落盘。"""
+        src = build_plugin_src(tmp_path, "escapee",
+                               skills=("../outside/skill-a",), hooks=(), mcp=None)
+        z = zip_dir(src, tmp_path / "ws" / "escapee.zip")  # 只打包插件目录本身
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, zip_path=str(z))
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+        assert "outside" in exc.value.body.message
+        assert plugin_names(app) == []
+
+    async def test_zip_slip_rejected_whole(self, app, tmp_path) -> None:
+        """A2:../ 与绝对路径条目 → 整包中止,root 外无文件、plugins/ 无残留。"""
+        z = tmp_path / "ws" / "evil.zip"
+        z.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(z, "w") as zf:
+            zf.writestr("../evil.txt", "越狱内容")
+            zf.writestr("/abs/evil.txt", "绝对路径")
+            zf.writestr("plugin.json", json.dumps({"name": "slippery"}))
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, zip_path=str(z))
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+        assert not (tmp_path / "evil.txt").exists()
+        assert plugin_names(app) == []
+
+    async def test_empty_zip_rejected(self, app, tmp_path) -> None:
+        """空 zip:可读 INVALID_INPUT 而非 INTERNAL(解压根需先建)。"""
+        z = tmp_path / "ws" / "empty.zip"
+        z.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(z, "w"):
+            pass
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, zip_path=str(z))
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+        assert plugin_names(app) == []
+
+    async def test_zip_over_limits(self, app, tmp_path, monkeypatch) -> None:
+        """A4:zip 体积 / 文件数 / 单文件三限(常量注入钉行为)。"""
+        from agent.plugins import install as install_mod
+
+        src = build_plugin_src(tmp_path)
+        z = zip_dir(src, tmp_path / "ws" / "big.zip")
+        monkeypatch.setattr(install_mod, "MAX_ZIP_BYTES", 4)  # 真实 zip > 4 字节
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, zip_path=str(z))
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+        assert plugin_names(app) == []
+
+        d = tmp_path / "ws" / "many"
+        d.mkdir(parents=True)
+        for i in range(3):
+            (d / f"f{i}.txt").write_text("x", encoding="utf-8")
+        z2 = zip_dir(d, tmp_path / "ws" / "many.zip")
+        monkeypatch.setattr(install_mod, "MAX_FILES", 2)
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, zip_path=str(z2))
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+        assert plugin_names(app) == []
+
+        d2 = tmp_path / "ws" / "fat"
+        d2.mkdir(parents=True)
+        (d2 / "fat.bin").write_bytes(b"x" * 16)
+        z3 = zip_dir(d2, tmp_path / "ws" / "fat.zip")
+        monkeypatch.setattr(install_mod, "MAX_FILE_BYTES", 8)
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, zip_path=str(z3))
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+        assert plugin_names(app) == []
+
+
+class TestInstallDir:
+    """B4:目录复制非移动;来源允许根(workspace / read_roots);源校验。"""
+
+    async def test_dir_install_copies_not_moves(self, app, tmp_path) -> None:
+        src = build_plugin_src(tmp_path)
+        out = await _install(app, source_dir=str(src))
+        assert out["name"] == "example"
+        assert src.exists()  # 复制非移动
+        assert plugin_names(app) == ["example"]
+
+    async def test_dir_outside_roots_rejected_then_read_root_ok(self, app, tmp_path) -> None:
+        """来源在允许根外拒;配置 read_roots 后同一来源可装(B4 源可在 workspace 外)。"""
+        outside = make_plugin(tmp_path / "outside", "faraway")
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, source_dir=str(outside))
+        assert exc.value.body.code == "AGENT.FORBIDDEN"
+        assert plugin_names(app) == []
+        await execute(app.registry, "set_setting", USER_CTX,
+                      {"key": "agent.fs.read_roots", "value": [str(tmp_path / "outside")]})
+        out = await _install(app, source_dir=str(outside))
+        assert out["name"] == "faraway"
+        assert outside.exists()  # 仍是复制
+
+    async def test_relative_path_rejected(self, app) -> None:
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, source_dir="src/example")
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+
+    async def test_missing_source_or_manifest_rejected(self, app, tmp_path) -> None:
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, source_dir=str(tmp_path / "ws" / "ghost"))
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+        empty = tmp_path / "ws" / "empty"
+        empty.mkdir(parents=True)
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, source_dir=str(empty))
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+        assert plugin_names(app) == []
+
+    async def test_symlink_in_source_rejected(self, app, tmp_path) -> None:
+        """E2:源内符号链接拒(防把允许根外内容拷进 plugins/)。"""
+        src = build_plugin_src(tmp_path)
+        target = tmp_path / "ws" / "secret.txt"
+        target.write_text("机密", encoding="utf-8")
+        try:
+            os.symlink(target, src / "link.txt")
+        except OSError:
+            pytest.skip("当前环境无符号链接权限")
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, source_dir=str(src))
+        assert exc.value.body.code == "AGENT.FORBIDDEN"
+        assert plugin_names(app) == []
+
+
+class TestInstallConflicts:
+    """A5 选型 O2:默认拒;显式 overwrite 才覆盖;已批准插件一律拒覆盖。"""
+
+    async def test_conflict_requires_overwrite(self, app, tmp_path) -> None:
+        src = build_plugin_src(tmp_path)
+        await _install(app, source_dir=str(src))
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, source_dir=str(src))
+        assert exc.value.body.code == "AGENT.CONFLICT"
+
+    async def test_overwrite_replaces_content(self, app, tmp_path) -> None:
+        src = build_plugin_src(tmp_path, version="0.1.0")
+        await _install(app, source_dir=str(src))
+        newer = make_plugin(tmp_path / "ws" / "src2", version="0.2.0")
+        out = await _install(app, source_dir=str(newer), overwrite=True)
+        assert out["version"] == "0.2.0"
+        assert plugin_names(app) == ["example"]  # 单一身份,不双份
+
+    async def test_overwrite_approved_plugin_rejected(self, app, tmp_path) -> None:
+        """A5:已批准插件即便 overwrite=true 也拒(先撤销批准);内容不动。"""
+        src = build_plugin_src(tmp_path, version="0.1.0")
+        await _install(app, source_dir=str(src))
+        await _approve(app, "example")
+        newer = make_plugin(tmp_path / "ws" / "src2", version="0.2.0")
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, source_dir=str(newer), overwrite=True)
+        assert exc.value.body.code == "AGENT.CONFLICT"
+        item = app.plugins.list()[0]
+        assert item["version"] == "0.1.0" and item["approved"] is True
+
+    async def test_source_same_as_dest_rejected(self, app, tmp_path) -> None:
+        """源目录=已安装目标目录自身:拒(否则 place 先清空 dest=源,自毁数据)。
+
+        plugins 根默认不在允许根内,先把根配进 read_roots 让该路径可达
+        (plugins_dir 可配置进 workspace/附加根时的纵深防御)。
+        """
+        src = build_plugin_src(tmp_path)
+        await _install(app, source_dir=str(src))
+        dest = tmp_path / "plugins" / "example"
+        await execute(app.registry, "set_setting", USER_CTX,
+                      {"key": "agent.fs.read_roots", "value": [str(tmp_path / "plugins")]})
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, source_dir=str(dest), overwrite=True)
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+        assert (dest / "plugin.json").is_file()  # 源(即目标)未被清空
+        assert plugin_names(app) == ["example"]
+
+    async def test_alias_dir_same_name_conflict(self, app, tmp_path) -> None:
+        """同名插件目录名不同(如 `_` 别名目录)也算冲突;覆盖后旧目录清掉。"""
+        make_plugin(tmp_path / "plugins", "aliasdir",
+                    raw_manifest={"name": "clash", "version": "0.0.1"})
+        src = make_plugin(tmp_path / "ws" / "src", "clash")
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, source_dir=str(src))
+        assert exc.value.body.code == "AGENT.CONFLICT"
+        out = await _install(app, source_dir=str(src), overwrite=True)
+        assert out["path"] == "clash"
+        assert not (tmp_path / "plugins" / "aliasdir").exists()
+        assert plugin_names(app) == ["clash"]
+
+
+class TestInstallSemantics:
+    """B3/B6/C4/E1:失败无半安装、不自动批准、`_` 前缀可装、USER-only。"""
+
+    async def test_agent_actor_rejected(self, app, tmp_path) -> None:
+        src = build_plugin_src(tmp_path)
+        with pytest.raises(ServiceError) as exc:
+            await execute(app.registry, "install_plugin", AGENT_CTX,
+                          {"source_dir": str(src)})
+        assert exc.value.body.code == "AGENT.FORBIDDEN"
+        with pytest.raises(ServiceError) as exc:
+            await execute(app.registry, "uninstall_plugin", AGENT_CTX, {"name": "example"})
+        assert exc.value.body.code == "AGENT.FORBIDDEN"
+        assert plugin_names(app) == []
+
+    async def test_no_actor_auth_required(self, app, tmp_path) -> None:
+        src = build_plugin_src(tmp_path)
+        with pytest.raises(ServiceError) as exc:
+            await execute(app.registry, "install_plugin", None, {"source_dir": str(src)})
+        assert exc.value.body.code == "CAPABILITY.AUTH_REQUIRED"
+
+    async def test_install_not_auto_approved_anything(self, app, tmp_path) -> None:
+        """B6:不批准不装载——skill 不进索引、hook 不注册、MCP 不登记。"""
+        src = build_plugin_src(tmp_path, hook_enabled=True)
+        await _install(app, source_dir=str(src))
+        assert "daily-note" not in [e["name"] for e in app.skills.index()]
+        assert app.hooks.registered() == {}
+        assert await execute(app.registry, "list_mcp_servers", USER_CTX, {}) == []
+
+    async def test_copy_failure_leaves_no_half_install(self, app, tmp_path, monkeypatch) -> None:
+        """B3:落盘中途失败 → 目标目录回滚清空。"""
+        import agent.plugins.manager as manager_mod
+
+        src = build_plugin_src(tmp_path)
+        dest = tmp_path / "plugins" / "example"
+
+        def boom(plugin_root: Path, target: Path) -> None:
+            target.mkdir(parents=True)
+            (target / "half.txt").write_text("半截", encoding="utf-8")
+            raise RuntimeError("盘炸了")
+
+        monkeypatch.setattr(manager_mod, "place_plugin", boom)
+        with pytest.raises(RuntimeError):
+            await _install(app, source_dir=str(src))
+        assert not dest.exists()
+        assert plugin_names(app) == []
+
+    async def test_both_sources_or_neither_rejected(self, app, tmp_path) -> None:
+        src = build_plugin_src(tmp_path)
+        z = zip_dir(src, tmp_path / "ws" / "x.zip")
+        with pytest.raises(ServiceError) as exc:
+            await _install(app, zip_path=str(z), source_dir=str(src))
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+        with pytest.raises(ServiceError) as exc:
+            await _install(app)
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+
+    async def test_underscore_name_installable(self, app, tmp_path) -> None:
+        """C4:`_` 前缀 name 照常安装(与 discover 语义一致)。"""
+        src = build_plugin_src(tmp_path, "_dashed")
+        out = await _install(app, source_dir=str(src))
+        assert out["name"] == "_dashed" and out["path"] == "_dashed"
+        assert plugin_names(app) == ["_dashed"]
+
+
+class TestUninstall:
+    """B7:仅删未批准插件目录;已批准须先撤销;未知 NOT_FOUND。"""
+
+    async def test_uninstall_removes_installed_dir(self, app, tmp_path) -> None:
+        src = build_plugin_src(tmp_path)
+        await _install(app, source_dir=str(src))
+        out = await execute(app.registry, "uninstall_plugin", USER_CTX,
+                            {"name": "example"})
+        assert out == {"name": "example", "uninstalled": True, "path": "example"}
+        assert not (tmp_path / "plugins" / "example").exists()
+        assert plugin_names(app) == []
+        assert src.exists()  # 原始源目录不受影响
+
+    async def test_uninstall_approved_rejected(self, app, tmp_path) -> None:
+        src = build_plugin_src(tmp_path)
+        await _install(app, source_dir=str(src))
+        await _approve(app, "example")
+        with pytest.raises(ServiceError) as exc:
+            await execute(app.registry, "uninstall_plugin", USER_CTX, {"name": "example"})
+        assert exc.value.body.code == "AGENT.CONFLICT"
+        assert (tmp_path / "plugins" / "example" / "plugin.json").is_file()
+
+    async def test_uninstall_symlinked_dir_rejected(self, app, tmp_path) -> None:
+        """插件目录本身是符号链接:拒删(穿过链接会删掉链接目标的内容树)。"""
+        real = make_plugin(tmp_path / "outside", "linked")
+        link = tmp_path / "plugins" / "linked"
+        try:
+            os.symlink(real, link, target_is_directory=True)
+        except OSError:
+            pytest.skip("当前环境无符号链接权限")
+        assert app.plugins.find("linked") is not None  # discover 经链接可见
+        with pytest.raises(ServiceError) as exc:
+            await execute(app.registry, "uninstall_plugin", USER_CTX, {"name": "linked"})
+        assert exc.value.body.code == "AGENT.INVALID_INPUT"
+        assert real.is_dir()  # 链接目标原样保留
+
+    async def test_uninstall_unknown_not_found(self, app) -> None:
+        with pytest.raises(ServiceError) as exc:
+            await execute(app.registry, "uninstall_plugin", USER_CTX, {"name": "ghost"})
+        assert exc.value.body.code == "AGENT.NOT_FOUND"
 
 

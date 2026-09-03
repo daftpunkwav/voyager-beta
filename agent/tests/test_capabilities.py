@@ -36,6 +36,7 @@ class TestRegistrySurface:
             "get_memory",
             "get_resource_quota",
             "get_settings",
+            "install_plugin",
             "list_mcp_servers",
             "list_personas",
             "list_plugins",
@@ -53,6 +54,7 @@ class TestRegistrySurface:
             "set_plugin_approval",
             "set_profile",
             "set_setting",
+            "uninstall_plugin",
         ]
 
 
