@@ -20,6 +20,7 @@ from agent.capabilities import (
     skills,
     subagents,
     tool_catalog,
+    user_hooks,
 )
 from agent.capabilities.deps import CapabilityDeps
 
@@ -34,6 +35,7 @@ def build_agent_registry(deps: CapabilityDeps) -> Registry:
     tool_catalog.register(reg, deps)
     mcp.register(reg, deps)
     plugins.register(reg, deps)
+    user_hooks.register(reg, deps)
     memory.register(reg, deps)
     pages.register(reg, deps)
     ask.register(reg, deps)

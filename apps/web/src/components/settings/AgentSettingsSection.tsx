@@ -13,6 +13,7 @@ import { RoundsBlock } from './agent/RoundsBlock';
 import { SkillsBlock } from './agent/SkillsBlock';
 import { StyleBlock } from './agent/StyleBlock';
 import { TokenQuotaBlock } from './agent/TokenQuotaBlock';
+import { UserHooksBlock } from './agent/UserHooksBlock';
 import { WorkspaceBlock } from './agent/WorkspaceBlock';
 import { WriteRootsBlock } from './agent/WriteRootsBlock';
 
@@ -36,6 +37,7 @@ export function AgentSettingsSection() {
       <ProactiveBlock />
       <ObserveBlock />
       <SkillsBlock />
+      <UserHooksBlock />
       <PluginsBlock />
       <McpBlock />
       <MemoryBlock />

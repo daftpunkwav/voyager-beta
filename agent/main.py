@@ -20,7 +20,7 @@ from agent.clients import McpClientPool
 from agent.clients.pool import ConnectFn
 from agent.context import ContextBuilder, OnDemandLoader, PageContextRegistry
 from agent.context.rules import GLOBAL_RULES
-from agent.hooks import HookLoader, HookRegistry
+from agent.hooks import HookLoader, HookRegistry, UserHookReloader
 from agent.llm import FakeLLM, LLMClient
 from agent.master import Arbiter, DigestStore, Master, ProactiveBudget, ProactiveEngine
 from agent.memory import Memory
@@ -73,6 +73,7 @@ class AgentApp:
     mcp: McpClientPool  # 外接 MCP 连接池(phase-11b;空池合法)
     meter: Meter  # 内存计量(§9.9 资源维;metered_llm 与配额查询 capability 共用)
     plugins: PluginManager  # 插件发现与整包批准(phase-72,§9.13)
+    user_hooks: UserHookReloader  # 用户 workspace/hooks 热装热卸(phase-78,§9.13)
     owns_settings: bool = True  # 共享 store(聚合运行)时为 False,close 不关它
     owns_log: bool = True  # 共享 bus(聚合运行共用 EventLog)时为 False
 
@@ -210,6 +211,12 @@ def build_agent(
         if plugins.find(plugin_name) is not None:
             plugins.apply(plugin_name)
 
+    # 用户 hooks 热装热卸(phase-78,§9.13):目录钉死本文件的 workspace/hooks,
+    # reload 能力不接路径参数;启动装载已在上方 load_dir 完成一次,这里是
+    # 运行期增量运维入口。订阅同步回调与 PluginManager 同一入口(EventLoop
+    # 构造后注入,见下方 set_subscription_sync)。
+    user_hooks = UserHookReloader(hooks, workspace / "hooks", plugins=plugins)
+
     scheduler = Scheduler(max_concurrent=int(settings.get("agent.subagents.max_concurrent")))
     checkpoints = CheckpointStore(data_dir / "checkpoints")
     # 启动清扫孤儿 .tmp(phase-76,§9.17):save 原子写崩溃残留;清不掉的下次启动再试
@@ -304,6 +311,7 @@ def build_agent(
             meter=meter,  # 与 Toolbelt / metered_llm 同一实例(§9.9 配额查询读同一份计量)
             checkpoints=checkpoints,  # 可恢复 checkpoint 列表(phase-69,§9.17)
             plugins=plugins,  # 插件发现与批准(phase-72,§9.13)
+            user_hooks=user_hooks,  # 用户 workspace/hooks 热装热卸(phase-78,§9.13)
         )
     )
     handlers, relay, hook_patterns = bind_event_loop(master, proactive, observer, hooks)
@@ -317,6 +325,9 @@ def build_agent(
     # 运行期订阅同步(phase-75):启动装载阶段 pattern 已随 extra_patterns 到位,
     # 注入后每次批准/撤销都由 PluginManager 推最新 event_patterns 给 loop
     plugins.set_subscription_sync(loop.sync_extra_patterns)
+    # 用户 hooks 热重载共用同一订阅入口(phase-78):reload 后由它推最新
+    # event_patterns,禁另起第二套订阅通道
+    user_hooks.set_subscription_sync(loop.sync_extra_patterns)
     return AgentApp(
         bus=bus,
         log=log,
@@ -335,6 +346,7 @@ def build_agent(
         mcp=mcp,
         meter=meter,
         plugins=plugins,
+        user_hooks=user_hooks,
         owns_settings=owns_settings,
         owns_log=owns_log,
     )

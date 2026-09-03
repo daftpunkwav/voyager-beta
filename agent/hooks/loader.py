@@ -62,6 +62,7 @@ class HookLoader:
 
             self._registry.register("on_event", _on_event_hook, source=src)
             # 记下声明的事件 pattern,供 EventLoop 精确订阅(phase-28);
-            # 生命周期点(on ∈ HOOK_POINTS)不是事件类型,不记
-            self._registry.record_event_pattern(on)
+            # 生命周期点(on ∈ HOOK_POINTS)不是事件类型,不记。
+            # 带 source 记归属(phase-78):热卸用户/插件一方时判定订阅归属
+            self._registry.record_event_pattern(on, source=src)
         return 1

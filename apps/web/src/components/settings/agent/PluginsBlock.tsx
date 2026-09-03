@@ -40,14 +40,6 @@ function resultMessage(verb: string, res: PluginApproveResult): string {
   return msg;
 }
 
-interface PluginRowProps {
-  p: PluginItem;
-  busy: boolean;
-  onBundle: (p: PluginItem) => void;
-  onUnapprove: (p: PluginItem) => void;
-  onItem: (p: PluginItem, picks: PluginPicks) => void;
-}
-
 export interface PluginPicks {
   skills: string[];
   hooks: string[];

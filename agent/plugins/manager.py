@@ -835,6 +835,15 @@ class PluginManager:
                     return True
         return False
 
+    def pattern_still_wanted(self, pattern: str) -> bool:
+        """任一已批准插件仍会装载声明该 pattern 的 hook(phase-78)。
+
+        用户 hooks 热重载撤订阅前的兜底判定:与 `_pattern_still_wanted`
+        同一文件级语义,只是不排除任何插件;与 HookRegistry 的 owner 记录
+        取合取,两类判定任一为真都保留订阅,不误撤插件依赖。
+        """
+        return self._pattern_still_wanted("", pattern)
+
     def _mcp_still_wanted(self, name: str, sid: str) -> bool:
         """其他已批准插件是否仍需要该 mcp server id(A5;_pattern_still_wanted 同精神)。
 

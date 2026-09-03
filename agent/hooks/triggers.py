@@ -28,21 +28,44 @@ class HookRegistry:
         # 声明式 hook 声明过的领域事件 pattern(保声明顺序,去重;phase-28):
         # 供 EventLoop 精确订阅;register("on_event") 的纯 Python 钩子不在此列
         self._event_patterns: list[str] = []
+        # pattern → 声明过它的已装载 source 集合(phase-78):用户 hooks 热重载
+        # 判定「除用户侧外是否还有插件需要该订阅」用;只随 record/forget 增删
+        self._pattern_owners: dict[str, set[str]] = {}
 
-    def record_event_pattern(self, pattern: str) -> None:
-        """Loader 包装 on_event 时登记领域事件类型(支持 fnmatch 通配),供订阅。"""
+    def record_event_pattern(self, pattern: str, source: str = "") -> None:
+        """Loader 包装 on_event 时登记领域事件类型(支持 fnmatch 通配),供订阅。
+
+        source 非空时同时记归属(phase-78):同一 pattern 可由用户 hooks 与
+        多个插件共同声明,热卸一方时据此判定订阅是否仍被别人需要。
+        """
         if pattern not in self._event_patterns:
             self._event_patterns.append(pattern)
+        if source:
+            self._pattern_owners.setdefault(pattern, set()).add(source)
 
     def forget_event_pattern(self, pattern: str) -> None:
         """撤销插件批准时撤回其声明的事件订阅(不存在的 pattern 是空操作)。"""
         if pattern in self._event_patterns:
             self._event_patterns.remove(pattern)
+        self._pattern_owners.pop(pattern, None)
 
     @property
     def event_patterns(self) -> tuple[str, ...]:
         """声明式 hook 声明过的领域事件类型;生命周期点不记。"""
         return tuple(self._event_patterns)
+
+    def pattern_owner_sources(self, pattern: str) -> tuple[str, ...]:
+        """声明过该 pattern 的已装载 source(排序稳定;未声明 → 空)。"""
+        return tuple(sorted(self._pattern_owners.get(pattern, ())))
+
+    @property
+    def sources(self) -> tuple[str, ...]:
+        """当前注册过的全部 source(去重保序;list_user_hooks 判定已装载用)。"""
+        seen: dict[str, None] = {}
+        for entries in self._hooks.values():
+            for source, _fn in entries:
+                seen.setdefault(source, None)
+        return tuple(seen)
 
     def register(self, point: str, fn: HookFn, *, source: str = "local") -> None:
         if point not in self._hooks:

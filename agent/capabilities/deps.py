@@ -31,3 +31,4 @@ class CapabilityDeps:
     meter: Any  # Meter(内存计量,§9.9 资源维;与 metered_llm 同一实例)
     checkpoints: Any  # CheckpointStore(可恢复 checkpoint 列表,phase-69,§9.17)
     plugins: Any  # PluginManager(插件发现与整包批准,phase-72,§9.13)
+    user_hooks: Any  # UserHookReloader(用户 workspace/hooks 热装热卸,phase-78,§9.13)

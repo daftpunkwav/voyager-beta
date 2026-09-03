@@ -146,3 +146,19 @@ export interface PluginInstallResult {
   permissions: PluginPermissions;
   contains_summary: { skills: number; hooks: number; mcp: boolean };
 }
+
+/** list_user_hooks 每项(phase-78):workspace/hooks 下的声明式 hook json */
+export interface UserHookItem {
+  path: string;
+  on: string;
+  enabled: boolean;
+  description: string;
+  loaded: boolean;
+}
+
+/** reload_user_hooks 回包(phase-78):热装热卸结果,免重启生效 */
+export interface UserHooksReloadResult {
+  loaded: number;
+  event_patterns: string[];
+  skipped?: { path: string; reason: string }[];
+}
