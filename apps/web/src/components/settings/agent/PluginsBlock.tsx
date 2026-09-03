@@ -14,13 +14,25 @@ function permissionSummary(p: PluginItem): string {
 }
 
 function resultMessage(verb: string, res: PluginApproveResult): string {
-  if (verb === '撤销') return `已撤销插件「${res.name}」，其技能与钩子已从系统移除`;
+  // phase-76:撤销 / 改勾会按安全规则回收该插件登记的外接 MCP,回包披露结果
+  const reclaimed = res.mcp_reclaimed ?? [];
+  const reclaimSkipped = res.mcp_reclaim_skipped ?? [];
+  if (verb === '撤销') {
+    let msg = `已撤销插件「${res.name}」，其技能与钩子已从系统移除`;
+    if (reclaimed.length > 0) msg += `；已同步移除其外接 MCP：${reclaimed.join('、')}`;
+    if (reclaimSkipped.length > 0) {
+      const detail = reclaimSkipped.map((s) => `${s.id}（${s.reason}）`).join('、');
+      msg += `；未回收：${detail}`;
+    }
+    return msg;
+  }
   const loaded = res.loaded;
   const skipped = res.skipped;
   let msg = `已${verb}插件「${res.name}」：技能 ${loaded.skills.length} 个、钩子 ${loaded.hooks} 个已装载`;
   if (loaded.mcp_registered > 0) {
     msg += `；${loaded.mcp_registered} 条 MCP 配置已登记，工具还需在「外接 MCP」里批准`;
   }
+  if (reclaimed.length > 0) msg += `；已移除取消勾选的 MCP：${reclaimed.join('、')}`;
   if (skipped) {
     const n = skipped.skills.length + skipped.hooks.length + skipped.mcp.length;
     if (n > 0) msg += `；${n} 个勾选项当前在插件里不存在，已跳过（勾选会保留，恢复后生效）`;
@@ -196,7 +208,17 @@ export function PluginsBlock() {
   };
 
   const onBundle = (p: PluginItem) => void run('批准', p, { granularity: 'bundle' });
-  const onUnapprove = (p: PluginItem) => void run('撤销', p, { granularity: 'bundle' });
+  const onUnapprove = (p: PluginItem) => {
+    // phase-76(选型 S3):撤销会回收其登记、尚未批准任何工具的外接 MCP;
+    // 工具已批准或他插件共用的由后端保留,结果在 toast 里披露。confirm 列出将回收的候选。
+    const reclaimable = p.mcp
+      .filter((m) => m.registered && m.tools_approved.length === 0)
+      .map((m) => m.id);
+    const note =
+      reclaimable.length > 0 ? `撤销后将同时移除其登记的外接 MCP：${reclaimable.join('、')}。` : '';
+    if (!window.confirm(`撤销批准「${p.name}」？其技能与钩子将立即卸载。${note}`)) return;
+    void run('撤销', p, { granularity: 'bundle' });
+  };
   const onItem = (p: PluginItem, picks: PluginPicks) =>
     void run('批准', p, { granularity: 'item', skills: picks.skills, hooks: picks.hooks, mcp: picks.mcp });
 
@@ -205,7 +227,8 @@ export function PluginsBlock() {
       <h3 className="agent-settings-subtitle">插件</h3>
       <p className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
         仓库根 plugins/ 下的声明式插件。整包批准后它的技能与钩子进入系统；也可以展开逐项勾选。
-        随插件的 MCP 配置只会登记为待批准条目，工具仍需在外接 MCP 里逐台批准。
+        随插件的 MCP 配置只会登记为待批准条目，工具仍需在外接 MCP 里逐台批准；
+        撤销批准时会同步移除其登记、且工具还没批准过的外接 MCP（已批准工具的保留）。
       </p>
       {loadFailed ? (
         <p className="muted" style={{ fontSize: 12 }}>读取失败请刷新。</p>

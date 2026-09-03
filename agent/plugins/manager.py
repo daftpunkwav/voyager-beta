@@ -25,6 +25,11 @@ HookRegistry / MCP 只登记待批准条目(不自动 approve_mcp_tools)。
   build_agent 在 EventLoop 构造后注入 `set_subscription_sync`,本管理器在
   热卸/装载完成后把当前 event_patterns 全量推给 loop(批准即订 / 撤销即退,
   免重启;loop 侧幂等 diff,启动装载阶段 sync 未注入是 no-op)。
+- MCP 回收(phase-76,选型 S3):撤销插件 / 分项去勾时回收本插件登记过的
+  外接 MCP——仅限「未批准任何工具」的条目;工具已批准(用户显式依赖)、
+  其他已批准插件仍声明勾选、配置与插件声明对不上(疑为手工同 id)的一律
+  跳过并在返回体 mcp_reclaim_skipped 披露。回收路径与 remove_mcp_server
+  等价(unmount + drop_session + delete_config),禁止只删配置留挂载幽灵。
 - contains 路径 jail:声明相对路径 resolve 后必须仍在插件目录内(拒 `../` 逃逸)。
 """
 
@@ -247,6 +252,17 @@ def manifest_mcp_servers(manifest: PluginManifest) -> dict[str, dict]:
         return {}
     servers = data.get("servers") if isinstance(data, dict) else None
     return servers if isinstance(servers, dict) else {}
+
+
+def _plugin_server_config(sid: str, raw: object) -> dict:
+    """mcp.json 的单条 server 声明 → 归一配置(登记与回收守卫共用同一变换)。
+
+    非法声明(缺 command / 坏 url 等)抛 AGENT.INVALID_INPUT,调用方按跳过处理。
+    """
+    entry = dict(raw) if isinstance(raw, dict) else {}
+    entry["id"] = str(sid)
+    entry.setdefault("kind", "url" if entry.get("url") else "stdio")
+    return validate_server_config({**entry, "approval": "item"})
 
 
 def skill_names_in(skill_dir: Path) -> list[str]:
@@ -506,8 +522,13 @@ class PluginManager:
         hooks: object = None,
         mcp: object = None,
     ) -> dict:
-        """分项批准:只装载勾选的 skill / hook / MCP;空提交拒绝;未知名跳过披露。"""
+        """分项批准:只装载勾选的 skill / hook / MCP;空提交拒绝;未知名跳过披露。
+
+        改勾去掉了原先勾选的 mcp id(phase-76 A4):与整包撤销同一套安全规则
+        回收被去掉的 id,结果在返回体 mcp_reclaimed / mcp_reclaim_skipped 披露。
+        """
         manifest = self._require(name)
+        old = self._approval_of(manifest)  # 改勾前的生效批准(A4 去勾回收要对比)
         skills_all, skills_set = parse_choice(skills, "skills")
         hooks_all, hooks_set = parse_choice(hooks, "hooks")
         mcp_all, mcp_set = parse_choice(mcp, "mcp")
@@ -523,7 +544,7 @@ class PluginManager:
             )
         loaded = self._apply_selected(manifest, approval)
         skipped = self._skipped_for(manifest, approval)
-        registered, mcp_skipped = await self._register_mcp(manifest, actor, approval)
+        registered, mcp_reg_skipped = await self._register_mcp(manifest, actor, approval)
         payload = {
             "skills": "*" if skills_all else sorted(skills_set),
             "hooks": "*" if hooks_all else sorted(hooks_set),
@@ -536,18 +557,34 @@ class PluginManager:
         if manifest.name in self.approved_names():
             names = [n for n in self.approved_names() if n != manifest.name]
             await self._settings.set(APPROVED_KEY, names, actor)
+        # A4 去勾回收:原勾选 − 现勾选的 mcp id,按与撤销相同的安全链处理
+        reclaimed, reclaim_skipped = await self._reclaim_mcp_servers(
+            name, manifest,
+            self._mcp_selected_ids(name, manifest, old)
+            - self._mcp_selected_ids(name, manifest, approval),
+            actor,
+        )
         return {
-            **self._approval_result(manifest.name, loaded, registered, mcp_skipped),
+            **self._approval_result(manifest.name, loaded, registered, mcp_reg_skipped),
             "skipped": skipped,
             "granularity": "item",
+            "mcp_reclaimed": reclaimed,
+            "mcp_reclaim_skipped": reclaim_skipped,
         }
 
     async def unapprove(self, name: str, actor: ActorRef) -> dict:
-        """撤销(整包或分项都走这里):清两键名单 + 热卸;目录被删也不炸。"""
-        # 插件目录可能已被删(名单残留):撤销仍须清名单,否则死条目永远清不掉;
-        # 清单在就照常热卸,不在则跳过热卸(unloaded 计 0)
+        """撤销(整包或分项都走这里):清两键名单 + 热卸 + 按安全规则回收登记的 MCP。
+
+        插件目录可能已被删(名单残留):撤销仍须清名单,否则死条目永远清不掉;
+        清单在就照常热卸,不在则跳过热卸(unloaded 计 0)。MCP 回收(phase-76,
+        选型 S3)只动「本插件登记过且未批准任何工具」的条目,其余跳过披露。
+        """
         manifest = self.find(name)
+        approval = self._approval_of(manifest) if manifest is not None else None
         unloaded = self._unload_manifest(manifest) if manifest else {"skills": 0, "hooks": 0}
+        reclaimed, reclaim_skipped = await self._reclaim_mcp_servers(
+            name, manifest, self._mcp_selected_ids(name, manifest, approval), actor
+        )
         names = [n for n in self.approved_names() if n != name]
         await self._settings.set(APPROVED_KEY, names, actor)
         if name in self.approvals():
@@ -558,6 +595,8 @@ class PluginManager:
             "loaded": {"skills": [], "hooks": 0, "mcp_registered": 0, "mcp_skipped": False},
             "unloaded": unloaded,
             "skipped": {"skills": [], "hooks": [], "mcp": []},
+            "mcp_reclaimed": reclaimed,
+            "mcp_reclaim_skipped": reclaim_skipped,
         }
 
     # ---- 内部 ----
@@ -624,6 +663,107 @@ class PluginManager:
                     return True
         return False
 
+    def _mcp_still_wanted(self, name: str, sid: str) -> bool:
+        """其他已批准插件是否仍需要该 mcp server id(A5;_pattern_still_wanted 同精神)。
+
+        「仍需要」= 其他插件已批准、其 mcp.json 声明了该 id,且(整包 mcp_all
+        或分项勾了该 id);只声明但没勾的不算,与 74 分项装载语义一致。
+        """
+        for other in self.manifests():
+            if other.name == name:
+                continue
+            approval = self._approval_of(other)
+            if approval is None:
+                continue
+            if sid in manifest_mcp_servers(other) and (
+                approval.mcp_all or sid in approval.mcp
+            ):
+                return True
+        return False
+
+    def _mcp_selected_ids(
+        self, name: str, manifest: PluginManifest | None, approval: Approval | None
+    ) -> set[str]:
+        """该插件按当前审批实际登记过的 mcp server id(A1/A2 判定,写回钉死)。
+
+        manifest 在场:声明集 ∩ 审批勾选(整包 mcp_all = 全部声明,分项取勾选
+        且仍需在声明集内);目录已删(B4):退化为审批记录 approvals[name].mcp
+        的 id 列表——"*" 或整包旧键没有 id 记录,无法判定归属,返回空集不回收。
+        """
+        if manifest is not None:
+            if approval is None:
+                return set()
+            declared = set(manifest_mcp_servers(manifest))
+            return declared if approval.mcp_all else (set(approval.mcp) & declared)
+        raw = self.approvals().get(name)
+        mcp_raw = raw.get("mcp") if isinstance(raw, dict) else None
+        if not isinstance(mcp_raw, list):
+            return set()
+        return {str(x) for x in mcp_raw if str(x).strip()}
+
+    async def _reclaim_mcp_servers(
+        self,
+        name: str,
+        manifest: PluginManifest | None,
+        selected: set[str],
+        actor: ActorRef,
+    ) -> tuple[list[str], list[dict]]:
+        """按安全链回收候选 mcp server(phase-76,选型 S3);返回 (回收 id, 跳过披露)。
+
+        候选 = selected ∩ 当前 agent.mcp.servers;逐条过安全链,任一不满足跳过
+        并披露 reason,绝不静默误删(A2):
+        - 配置匹配守卫(manifest 在场):当前配置须与插件 mcp.json 声明经同一
+          归一变换后一致——同 id 但用户手工添加过不同参数的不回收;
+        - 其他已批准插件仍需要(A5)不回收;
+        - 工具已被批准(S3)不回收:用户显式依赖,保留并可在外接 MCP 手动移除。
+        回收路径与 remove_mcp_server 等价(A3):unmount + drop_session +
+        delete_config;单台失败(C3)记入 skipped,不回滚撤销、不影响其余条目。
+        """
+        if self._mcp is None or not selected:
+            return [], []
+        declared = manifest_mcp_servers(manifest) if manifest is not None else {}
+        reclaimed: list[str] = []
+        skipped: list[dict] = []
+        for sid in sorted(selected):
+            try:
+                cfg = self._mcp.find_config(sid)
+                if cfg is None:
+                    skipped.append({"id": sid, "reason": "配置已不存在"})
+                    continue
+                if manifest is not None:
+                    try:
+                        expected = _plugin_server_config(sid, declared.get(sid))
+                    except ServiceError:
+                        # 声明非法(登记时已被跳过,该配置必为手工同 id):诚实跳过,
+                        # 不落「回收失败」兜底把有意保留误报成异常
+                        skipped.append({
+                            "id": sid,
+                            "reason": "插件声明无效(登记时已跳过),未回收",
+                        })
+                        continue
+                    if {k: cfg.get(k) for k in expected} != expected:
+                        skipped.append({
+                            "id": sid,
+                            "reason": "配置与插件声明不一致(疑为手工添加),未回收",
+                        })
+                        continue
+                if self._mcp_still_wanted(name, sid):
+                    skipped.append({"id": sid, "reason": "其他已批准插件仍在使用"})
+                    continue
+                if list(cfg.get("approved") or []):
+                    skipped.append({
+                        "id": sid,
+                        "reason": "MCP 工具已批准,已保留;可在「外接 MCP」手动移除",
+                    })
+                    continue
+                self._mcp.unmount(sid)
+                await self._mcp.drop_session(sid)
+                await self._mcp.delete_config(sid, actor)
+                reclaimed.append(sid)
+            except Exception as exc:  # noqa: BLE001  # C3:单台回收失败不回滚撤销
+                skipped.append({"id": sid, "reason": f"回收失败: {exc}"})
+        return reclaimed, skipped
+
     async def _register_mcp(
         self, manifest: PluginManifest, actor: ActorRef, approval: Approval
     ) -> tuple[int, bool]:
@@ -640,11 +780,8 @@ class PluginManager:
         for sid, raw in servers.items():
             if not approval.mcp_all and sid not in approval.mcp:
                 continue
-            entry = dict(raw) if isinstance(raw, dict) else {}
-            entry["id"] = str(sid)
-            entry.setdefault("kind", "url" if entry.get("url") else "stdio")
             try:
-                cfg = validate_server_config({**entry, "approval": "item"})
+                cfg = _plugin_server_config(sid, raw)
             except ServiceError as exc:
                 log.warning("插件 %s 的 MCP 条目 %r 跳过: %s", manifest.name, sid, exc)
                 continue

@@ -156,6 +156,26 @@ class CheckpointStore:
     def delete(self, run_id: str) -> None:
         (self._root / f"{_safe_run_id(run_id)}.json").unlink(missing_ok=True)
 
+    def purge_tmp(self) -> int:
+        """启动清扫孤儿 .tmp(phase-76,§9.17):删 save 原子写崩溃残留的临时文件。
+
+        只清 checkpoints 根一层(不递归)、只删与 save 命名一致的
+        `.{run_id}.json.{8位hex}.tmp` 形状;合法 *.json 与其他 .tmp 不动。
+        启动时点本进程尚无并发 save(写盘只发生在装配之后),故不加
+        mtime 阈值;多进程共享同一 runtime-data 不在部署范围。
+        单个文件删不掉(被占用等)跳过不挡启动,下次启动再清。
+        """
+        removed = 0
+        for path in sorted(self._root.glob(".*.json.*.tmp")):
+            if not path.is_file():
+                continue
+            try:
+                path.unlink()
+                removed += 1
+            except OSError:
+                continue
+        return removed
+
 
 def reclaim_alive(store: CheckpointStore) -> list[RunState]:
     """启动 reclaim(§9.17,phase-12):进程重启时把磁盘上仍 alive 的 checkpoint

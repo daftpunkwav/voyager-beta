@@ -28,7 +28,10 @@ def register(reg: Registry, deps: CapabilityDeps) -> None:
                 description="批准/撤销插件。granularity='bundle' 整包(三类全装,MCP 只登记"
                             "待批准);granularity='item' 分项:只装载勾选的 skills/hooks/mcp"
                             "列表(或 '*' 全选),空勾选拒绝,勾了但清单没有的名字跳过并返回"
-                            "skipped。撤销清全部勾选并热卸。MCP 工具仍需在外接 MCP 里批准",
+                            "skipped。撤销清全部勾选并热卸,且回收该插件登记、尚未批准任何"
+                            "工具的外接 MCP(工具已批准或他插件仍在用的保留,结果在"
+                            "mcp_reclaimed / mcp_reclaim_skipped 披露)。MCP 工具仍需在外接"
+                            "MCP 里批准",
                 cost=1)
     async def set_plugin_approval(name: str, approved: bool, granularity: str = "bundle",
                                   skills: object = None, hooks: object = None,

@@ -34,6 +34,8 @@ from agent.runtime.state import (
     reclaim_alive,
 )
 from agent.settings import DEFS as AGENT_SETTING_DEFS
+from agent.subagent.instance import TaskBook
+from agent.subagent.spawn import TERMINAL_INSTANCE_CAP
 from agent.tools import AgentTool, Toolbelt, ensure_workdir
 
 
@@ -553,6 +555,111 @@ class TestCheckpointAtomicWrites:
         # 目录里只有一份目标文件;残留 .tmp 不影响 list_alive(只 glob *.json)
         assert [p.name for p in (tmp_path / "cp").glob("*.json")] == ["concurrent1.json"]
         assert {s.run_id for s in store.list_alive()} == {"concurrent1"}
+
+
+class TestCheckpointTmpPurge:
+    """.tmp 孤儿启动清扫(phase-76,§9.17 D):只清 save 命名形状,一层目录。"""
+
+    def test_purge_tmp_removes_only_orphan_tmp(self, tmp_path) -> None:
+        """删 `.{run_id}.json.{hex}.tmp` 形状;合法 json、无关 .tmp、子目录不动。"""
+        cp = tmp_path / "cp"
+        store = CheckpointStore(cp)
+        state = RunState(task="t", status=RunStatus.PAUSED)
+        store.save(state)  # 原子写落位,无残留
+        (cp / f".{state.run_id}.json.deadbeef.tmp").write_text("残留1", encoding="utf-8")
+        (cp / ".abc123.json.cafe1234.tmp").write_text("残留2", encoding="utf-8")
+        (cp / "foo.tmp").write_text("非 save 形状", encoding="utf-8")
+        (cp / "broken.json").write_text("{bad", encoding="utf-8")
+        sub = cp / "sub"
+        sub.mkdir()
+        (sub / ".x.json.aaaabbbb.tmp").write_text("子目录不清", encoding="utf-8")
+
+        removed = store.purge_tmp()
+
+        assert removed == 2
+        assert (cp / f"{state.run_id}.json").is_file()  # 合法 checkpoint 不动
+        assert (cp / "broken.json").is_file()  # 坏 json 也不动(D2)
+        assert (cp / "foo.tmp").is_file()  # 非 save 形状不删
+        assert (sub / ".x.json.aaaabbbb.tmp").is_file()  # 不递归(D2)
+        assert list(cp.glob(".*.json.*.tmp")) == []
+
+    def test_purge_tmp_noop_on_empty_store(self, tmp_path) -> None:
+        assert CheckpointStore(tmp_path / "cp").purge_tmp() == 0
+
+    async def test_build_agent_purges_tmp_on_boot(self, tmp_path) -> None:
+        """D3:build_agent 装配时清一次孤儿 .tmp,不挡启动。"""
+        cp_dir = tmp_path / "rd" / "checkpoints"
+        cp_dir.mkdir(parents=True)
+        (cp_dir / ".orphan000001.json.deadbeef.tmp").write_text("{}", encoding="utf-8")
+
+        app = build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=FakeLLM()
+        )
+        try:
+            assert list(cp_dir.glob(".*.json.*.tmp")) == []
+        finally:
+            app.memory.close()
+
+
+class TestTerminalInstanceCap:
+    """spawner 终态实例驻留上限(phase-76,§9.17 E):只淘汰终态,alive/PENDING 不动。"""
+
+    @staticmethod
+    def _spawn_many(app, n: int, *, status: RunStatus) -> list:
+        insts = []
+        for i in range(n):
+            inst = app.spawner.spawn(TaskBook(goal=f"任务{i}"))
+            inst.state.status = status
+            insts.append(inst)
+        return insts
+
+    def test_trim_evicts_oldest_terminal_keeps_alive(self, tmp_path) -> None:
+        app = build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=FakeLLM()
+        )
+        try:
+            alive = self._spawn_many(app, 2, status=RunStatus.RUNNING)
+            terminal = self._spawn_many(
+                app, TERMINAL_INSTANCE_CAP + 2, status=RunStatus.COMPLETED
+            )
+            evicted = app.spawner._trim_terminal_instances()
+            assert evicted == [i.id for i in terminal[:2]]  # 插入序淘汰最旧(E1)
+            assert len(app.spawner.instances) == TERMINAL_INSTANCE_CAP + len(alive)
+            assert all(i.id in app.spawner.instances for i in alive)  # alive 不淘汰
+            assert terminal[-1].id in app.spawner.instances  # 最新终态保留
+        finally:
+            app.memory.close()
+
+    def test_trim_never_touches_pending_or_alive(self, tmp_path) -> None:
+        """PENDING 是调度队列里还没跑的实例,不算终态(E1 不变量)。"""
+        app = build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=FakeLLM()
+        )
+        try:
+            self._spawn_many(app, 40, status=RunStatus.PENDING)
+            alive = self._spawn_many(app, 5, status=RunStatus.WAITING_INPUT)
+            assert app.spawner._trim_terminal_instances() == []
+            assert len(app.spawner.instances) == 45
+            assert all(i.id in app.spawner.instances for i in alive)
+        finally:
+            app.memory.close()
+
+    async def test_cancel_triggers_trim(self, tmp_path) -> None:
+        """E2 触发点:cancel 急停落 CANCELLED 后超限即淘汰最旧终态。"""
+        app = build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=FakeLLM()
+        )
+        try:
+            terminal = self._spawn_many(app, TERMINAL_INSTANCE_CAP, status=RunStatus.COMPLETED)
+            (stop,) = self._spawn_many(app, 1, status=RunStatus.RUNNING)
+            cancelled = await app.spawner.cancel(stop.id)
+            assert cancelled == [stop.id]
+            # 终态 33 > 32:最旧的 1 个被淘汰
+            assert len(app.spawner.instances) == TERMINAL_INSTANCE_CAP
+            assert terminal[0].id not in app.spawner.instances
+            assert terminal[-1].id in app.spawner.instances
+        finally:
+            app.memory.close()
 
 
 class TestBootEpisodicPurge:

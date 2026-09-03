@@ -132,4 +132,8 @@ export interface PluginApproveResult {
   loaded: { skills: string[]; hooks: number; mcp_registered: number; mcp_skipped: boolean };
   granularity?: 'bundle' | 'item';
   skipped?: { skills: string[]; hooks: string[]; mcp: string[] };
+  /** phase-76:撤销 / 改勾时按安全规则被回收的外接 MCP server id */
+  mcp_reclaimed?: string[];
+  /** phase-76:未回收的外接 MCP 及原因(工具已批准 / 他插件仍用 / 配置不符等) */
+  mcp_reclaim_skipped?: { id: string; reason: string }[];
 }

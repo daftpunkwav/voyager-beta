@@ -869,7 +869,212 @@ class TestRunTimeSubscription:
         finally:
             app.loop.stop()
             task.cancel()
-            app.log.close()
+            app.log.close()  # build_agent 内部自建的空 EventLog(owns_log=False)
             app.memory.close()
+
+
+# ---- phase-76:撤销 / 分项去勾回收插件登记的外接 MCP(选型 S3) ----
+
+
+class TestMcpReclaim:
+    """phase-76 §9.13 MCP 回收:只回收「本插件登记过且未批准任何工具」的条目;
+    手工添加、工具已批准、其他插件仍用、配置对不上的跳过并披露,绝不误删。"""
+
+    async def test_unapprove_reclaims_registered_unused(self, app, tmp_path) -> None:
+        make_plugin(tmp_path / "plugins", "example")
+        await _approve(app)  # 登记 example-search,approved=[]
+        out = await execute(app.registry, "set_plugin_approval", USER_CTX,
+                            {"name": "example", "approved": False})
+        assert out["approved"] is False
+        assert out["mcp_reclaimed"] == ["example-search"]
+        assert out["mcp_reclaim_skipped"] == []
+        assert await execute(app.registry, "list_mcp_servers", USER_CTX, {}) == []
+
+    async def test_unapprove_keeps_user_manual_mcp(self, app, tmp_path) -> None:
+        """A2:手工 add、插件清单没声明的 server 不受插件撤销影响。"""
+        make_plugin(tmp_path / "plugins", "example")
+        await execute(app.registry, "add_mcp_server", USER_CTX,
+                      {"id": "manual-srv", "kind": "stdio", "command": "uvx"})
+        await _approve(app)
+        out = await execute(app.registry, "set_plugin_approval", USER_CTX,
+                            {"name": "example", "approved": False})
+        assert out["mcp_reclaimed"] == ["example-search"]
+        servers = await execute(app.registry, "list_mcp_servers", USER_CTX, {})
+        assert [s["id"] for s in servers] == ["manual-srv"]
+
+    async def test_unapprove_skips_same_id_user_config(self, app, tmp_path) -> None:
+        """A2 守卫:同 id 但配置与插件声明不一致(用户先手工加)→ 跳过披露不删。"""
+        make_plugin(tmp_path / "plugins", "example")  # mcp.json: npx -y x
+        await execute(app.registry, "add_mcp_server", USER_CTX,
+                      {"id": "example-search", "kind": "stdio", "command": "npx"})
+        await _approve(app)  # 同 id 已存在:登记被跳过
+        out = await execute(app.registry, "set_plugin_approval", USER_CTX,
+                            {"name": "example", "approved": False})
+        assert out["mcp_reclaimed"] == []
+        assert [s["id"] for s in out["mcp_reclaim_skipped"]] == ["example-search"]
+        assert out["mcp_reclaim_skipped"][0]["reason"]
+        servers = await execute(app.registry, "list_mcp_servers", USER_CTX, {})
+        assert [s["id"] for s in servers] == ["example-search"]  # 手工配置还在
+
+    async def test_unapprove_invalid_declaration_skips_honestly(self, app, tmp_path) -> None:
+        """声明非法(登记时必被跳过)且同 id 有配置(必为手工)→ 诚实跳过不误删。"""
+        root = tmp_path / "plugins"
+        d = make_plugin(root, "example")
+        (d / "mcp.json").write_text(
+            json.dumps({"servers": {"example-search": {"command": ""}}}), encoding="utf-8"
+        )
+        await execute(app.registry, "add_mcp_server", USER_CTX,
+                      {"id": "example-search", "kind": "stdio", "command": "npx"})
+        out = await _approve(app)
+        assert out["loaded"]["mcp_registered"] == 0  # 非法声明登记被跳过
+        out = await execute(app.registry, "set_plugin_approval", USER_CTX,
+                            {"name": "example", "approved": False})
+        assert out["mcp_reclaimed"] == []
+        (skip,) = out["mcp_reclaim_skipped"]
+        assert skip["id"] == "example-search"
+        assert "无效" in skip["reason"]  # 不落「回收失败」兜底误报
+        assert app.mcp.find_config("example-search") is not None
+
+    async def test_unapprove_skips_when_tools_approved(self, app, tmp_path) -> None:
+        """S3:工具已被批准(用户显式依赖)→ 保留并披露;名单照清不回滚(C3)。"""
+        make_plugin(tmp_path / "plugins", "example")
+        await _approve(app)
+        cfg = app.mcp.find_config("example-search")
+        await app.mcp.upsert_config({**cfg, "approved": ["*"]}, LOCAL_USER)
+        out = await execute(app.registry, "set_plugin_approval", USER_CTX,
+                            {"name": "example", "approved": False})
+        assert out["mcp_reclaimed"] == []
+        assert [s["id"] for s in out["mcp_reclaim_skipped"]] == ["example-search"]
+        assert app.mcp.find_config("example-search") is not None
+        assert app.settings.get("agent.plugins.approved") == []
+
+    async def test_unapprove_shared_server_waits_for_last_plugin(self, app, tmp_path) -> None:
+        """A5:两个插件声明同一 server id,撤一个不回收,撤最后一个才回收。"""
+        root = tmp_path / "plugins"
+        shared = {"shared-search": {"command": "npx", "args": ["-y", "x"]}}
+        make_plugin(root, "alpha", mcp_servers=shared)
+        make_plugin(root, "beta", mcp_servers=shared)
+        await _approve(app, "alpha")
+        await _approve(app, "beta")
+        await execute(app.registry, "set_plugin_approval", USER_CTX,
+                      {"name": "alpha", "approved": False})
+        assert app.mcp.find_config("shared-search") is not None  # beta 还在用
+        out = await execute(app.registry, "set_plugin_approval", USER_CTX,
+                            {"name": "beta", "approved": False})
+        assert out["mcp_reclaimed"] == ["shared-search"]
+        assert app.mcp.find_config("shared-search") is None
+
+    async def test_item_deselect_reclaims_removed_mcp(self, app, tmp_path) -> None:
+        """A4:分项改勾去掉 mcp id 与整包撤销同一套安全规则;撤销清最后剩余。"""
+        make_two_of_each(tmp_path / "plugins")
+        await _approve_item(app, "multi", skills=["alpha"], mcp=["multi-s1", "multi-s2"])
+        out = await _approve_item(app, "multi", skills=["alpha"], mcp=["multi-s1"])
+        assert out["mcp_reclaimed"] == ["multi-s2"]
+        assert app.mcp.find_config("multi-s1") is not None
+        out2 = await execute(app.registry, "set_plugin_approval", USER_CTX,
+                             {"name": "multi", "approved": False})
+        assert out2["mcp_reclaimed"] == ["multi-s1"]
+        assert await execute(app.registry, "list_mcp_servers", USER_CTX, {}) == []
+
+    async def test_unapprove_deleted_dir_reclaims_from_item_record(self, tmp_path) -> None:
+        """B4:目录已删但分项审批记录有 id 列表 → 仍按记录回收;名单照清。"""
+        root = tmp_path / "plugins"
+        make_two_of_each(root)
+        app1 = build(tmp_path)
+        try:
+            await _approve_item(app1, "multi", mcp=["multi-s1", "multi-s2"])
+        finally:
+            app1.close()
+        shutil.rmtree(root / "multi")
+        app2 = build(tmp_path)
+        try:
+            out = await execute(app2.registry, "set_plugin_approval", USER_CTX,
+                                {"name": "multi", "approved": False})
+            assert sorted(out["mcp_reclaimed"]) == ["multi-s1", "multi-s2"]
+            assert app2.settings.get("agent.plugins.approvals") == {}
+            assert await execute(app2.registry, "list_mcp_servers", USER_CTX, {}) == []
+        finally:
+            app2.close()
+
+    async def test_unapprove_deleted_dir_bundle_no_reclaim(self, tmp_path) -> None:
+        """B4:整包(旧键)没有 id 记录,目录删后撤销只清名单,不猜 id、不炸。"""
+        root = tmp_path / "plugins"
+        make_plugin(root, "example")
+        app1 = build(tmp_path)
+        try:
+            await _approve(app1)
+        finally:
+            app1.close()
+        shutil.rmtree(root / "example")
+        app2 = build(tmp_path)
+        try:
+            out = await execute(app2.registry, "set_plugin_approval", USER_CTX,
+                                {"name": "example", "approved": False})
+            assert out["mcp_reclaimed"] == []
+            assert out["mcp_reclaim_skipped"] == []
+            assert app2.settings.get("agent.plugins.approved") == []
+        finally:
+            app2.close()
+
+    async def test_reclaim_failure_disclosed_not_rolled_back(
+        self, app, tmp_path, monkeypatch
+    ) -> None:
+        """C3:单台回收异常 → 记入 skipped,名单照清、其余 id 照常回收。"""
+        make_two_of_each(tmp_path / "plugins")
+        await _approve_item(app, "multi", mcp=["multi-s1", "multi-s2"])
+        real_delete = app.mcp.delete_config
+
+        async def flaky_delete(sid: str, actor: object) -> None:
+            if sid == "multi-s1":
+                raise RuntimeError("盘坏了")
+            await real_delete(sid, actor)
+
+        monkeypatch.setattr(app.mcp, "delete_config", flaky_delete)
+        out = await execute(app.registry, "set_plugin_approval", USER_CTX,
+                            {"name": "multi", "approved": False})
+        assert out["mcp_reclaimed"] == ["multi-s2"]
+        assert out["mcp_reclaim_skipped"] == [
+            {"id": "multi-s1", "reason": "回收失败: 盘坏了"}
+        ]
+        assert app.settings.get("agent.plugins.approvals") == {}  # 撤销不回滚
+
+    async def test_reclaim_uses_full_remove_path(self, tmp_path) -> None:
+        """A3:回收 = unmount + drop_session + delete_config(remove_mcp_server 同路径)。"""
+
+        class Session:
+            def __init__(self) -> None:
+                self.closed = False
+
+            async def list_remote_tools(self) -> list[dict]:
+                return []
+
+            async def call_tool(self, name: str, arguments: dict) -> str:
+                return ""
+
+            async def aclose(self) -> None:
+                self.closed = True
+
+        sessions: dict[str, Session] = {}
+
+        async def connect(cfg: dict) -> Session:
+            s = Session()
+            sessions[cfg["id"]] = s
+            return s
+
+        make_plugin(tmp_path / "plugins", "example")
+        app = build(tmp_path, mcp_connect=connect)
+        try:
+            await _approve(app)
+            await execute(app.registry, "preview_mcp_tools", USER_CTX,
+                          {"id": "example-search"})
+            assert "example-search" in sessions  # 会话已开
+            out = await execute(app.registry, "set_plugin_approval", USER_CTX,
+                                {"name": "example", "approved": False})
+            assert out["mcp_reclaimed"] == ["example-search"]
+            assert sessions["example-search"].closed  # drop_session 走到了
+            assert app.mcp.find_config("example-search") is None
+            assert not [n for n in app.spawner._toolbelt.names() if n.startswith("mcp__")]
+        finally:
+            app.close()
 
 

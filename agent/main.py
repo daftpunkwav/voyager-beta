@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -210,6 +211,10 @@ def build_agent(
 
     scheduler = Scheduler(max_concurrent=int(settings.get("agent.subagents.max_concurrent")))
     checkpoints = CheckpointStore(data_dir / "checkpoints")
+    # 启动清扫孤儿 .tmp(phase-76,§9.17):save 原子写崩溃残留;清不掉的下次启动再试
+    purged_tmp = checkpoints.purge_tmp()
+    if purged_tmp:
+        logging.getLogger("agent.runtime").info("启动清扫 checkpoint 孤儿 .tmp:%d 个", purged_tmp)
     # 启动恢复准备(§9.17,phase-69):有 resume 快照的 alive checkpoint 转 PAUSED 待恢复;
     # 无快照的 legacy 仍标 failed。空目录 no-op;实例重建走 resume_run capability,不在启动时做
     prepare_resumable_checkpoints(checkpoints)

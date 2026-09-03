@@ -99,10 +99,15 @@ function renderSection(impl: ReturnType<typeof backend>) {
 
 const toastTexts = () => useUIStore.getState().toasts.map((t) => t.message);
 
+let confirmMock: ReturnType<typeof vi.spyOn>;
+
 beforeEach(() => {
   callCapabilityMock.mockReset();
   getApiMock.mockReset();
   useUIStore.setState({ toasts: [] });
+  // 撤销批准走 window.confirm(phase-76):默认确认,个别用例改返回值
+  confirmMock = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  confirmMock.mockClear(); // spy 复用同一 mock:清掉上一用例的 calls
 });
 
 describe('设置页插件块(phase-72)', () => {
@@ -265,6 +270,117 @@ describe('设置页插件块自定义分项(phase-74)', () => {
     fireEvent.click(screen.getByRole('button', { name: '自定义批准' }));
     await waitFor(() =>
       expect(toastTexts().some((m) => m.startsWith('批准失败：'))).toBe(true),
+    );
+  });
+});
+
+describe('设置页插件块撤销回收 MCP(phase-76)', () => {
+  it('撤销弹 confirm,列出将回收的「已登记且未批准工具」MCP id 后再提交', async () => {
+    renderSection(
+      backend({
+        plugin: {
+          approved: true,
+          granularity: 'bundle',
+          mcp: [{ id: 'example-search', approved: true, registered: true, tools_approved: [] }],
+        },
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '撤销批准 example' })).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '撤销批准 example' }));
+    expect(String(confirmMock.mock.calls[0]?.[0])).toContain('example-search');
+    await waitFor(() =>
+      expect(callCapabilityMock).toHaveBeenCalledWith('agent', 'set_plugin_approval', {
+        name: 'example',
+        approved: false,
+        granularity: 'bundle',
+      }),
+    );
+  });
+
+  it('confirm 取消则不发撤销请求', async () => {
+    confirmMock.mockReturnValue(false);
+    renderSection(backend({ plugin: { approved: true, granularity: 'bundle' } }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '撤销批准 example' })).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '撤销批准 example' }));
+    await waitFor(() => expect(confirmMock).toHaveBeenCalled());
+    expect(
+      callCapabilityMock,
+    ).not.toHaveBeenCalledWith(
+      'agent',
+      'set_plugin_approval',
+      expect.objectContaining({ approved: false }),
+    );
+  });
+
+  it('撤销回包披露回收结果:已回收列 id、未回收列原因', async () => {
+    callCapabilityMock.mockImplementation(
+      (_domain: string, name: string, args: Record<string, unknown>) => {
+        if (name === 'list_plugins') {
+          return Promise.resolve({ items: [{ ...PLUGIN, approved: true, granularity: 'bundle' }] });
+        }
+        if (name === 'set_plugin_approval') {
+          return Promise.resolve({
+            ...RESULT,
+            name: args.name,
+            approved: false,
+            mcp_reclaimed: ['example-search'],
+            mcp_reclaim_skipped: [{ id: 'manual-srv', reason: 'MCP 工具已批准，已保留' }],
+          });
+        }
+        if (name === 'get_memory') return Promise.resolve(SNAPSHOT);
+        return Promise.resolve({});
+      },
+    );
+    render(<AgentSettingsSection />);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '撤销批准 example' })).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '撤销批准 example' }));
+    await waitFor(() =>
+      expect(toastTexts().some((m) => m.includes('已同步移除其外接 MCP：example-search'))).toBe(
+        true,
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        toastTexts().some((m) => m.includes('未回收：manual-srv（MCP 工具已批准，已保留）')),
+      ).toBe(true),
+    );
+  });
+
+  it('分项改勾回包带 mcp_reclaimed 时,批准 toast 一并披露被移除的 MCP', async () => {
+    callCapabilityMock.mockImplementation(
+      (_domain: string, name: string, args: Record<string, unknown>) => {
+        if (name === 'list_plugins') {
+          return Promise.resolve({ items: [{ ...PLUGIN }] });
+        }
+        if (name === 'set_plugin_approval') {
+          return Promise.resolve({
+            ...RESULT,
+            name: args.name,
+            approved: true,
+            mcp_reclaimed: ['example-search'],
+          });
+        }
+        if (name === 'get_memory') return Promise.resolve(SNAPSHOT);
+        return Promise.resolve({});
+      },
+    );
+    render(<AgentSettingsSection />);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '自定义批准 example' })).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '自定义批准 example' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'daily-note' }));
+    fireEvent.click(screen.getByRole('button', { name: '自定义批准' }));
+    await waitFor(() =>
+      expect(toastTexts().some((m) => m.includes('已移除取消勾选的 MCP：example-search'))).toBe(
+        true,
+      ),
     );
   });
 });

@@ -18,6 +18,15 @@ from agent.tools.base import Toolbelt
 
 BuildSystemFn = Callable[[TaskBook, str], str]  # (任务书, 人格 key) → system prompt
 
+#: 终态实例驻留上限(phase-76,§9.17 运行时卫生):COMPLETED / FAILED /
+#: CANCELLED 实例超过该数时按插入序淘汰最旧,防长跑进程 instances 无界增长。
+#: 硬编码常量不做 settings 键(本刀范围);alive / PENDING 永不淘汰——
+#: PENDING 是调度队列里还没跑的实例,淘汰会弄丢待执行任务。
+TERMINAL_INSTANCE_CAP = 32
+_TERMINAL_STATUSES = frozenset(
+    {RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED}
+)
+
 
 class Spawner:
     def __init__(
@@ -88,6 +97,8 @@ class Spawner:
             if self._checkpoints is not None:
                 instance.state.resume = instance.build_resume_snapshot().to_dict()
                 self._checkpoints.save(instance.state)
+            # turn 已终态(成败皆然):终态驻留超上限时淘汰最旧(phase-76)
+            self._trim_terminal_instances()
 
     def resume_from_checkpoint(self, run_id: str) -> SubagentInstance:
         """从 checkpoint 重建实例(phase-69,§9.17):任务型 REACT、非对话型。
@@ -192,6 +203,22 @@ class Spawner:
     def alive(self) -> list[SubagentInstance]:
         return [i for i in self.instances.values() if i.status.alive]
 
+    def _trim_terminal_instances(self) -> list[str]:
+        """终态实例超过 TERMINAL_INSTANCE_CAP 时按插入序淘汰最旧(phase-76)。
+
+        只动 COMPLETED / FAILED / CANCELLED;alive(RUNNING/WAITING_INPUT/PAUSED)
+        与 PENDING(排队未跑)永不淘汰。返回被淘汰的实例 id(供测试断言)。
+        """
+        terminal_ids = [
+            iid for iid, inst in self.instances.items()
+            if inst.status in _TERMINAL_STATUSES
+        ]
+        overflow = len(terminal_ids) - TERMINAL_INSTANCE_CAP
+        evicted = terminal_ids[:overflow] if overflow > 0 else []
+        for iid in evicted:
+            self.instances.pop(iid, None)
+        return evicted
+
     async def cancel(self, id_or_name: str) -> list[str]:
         """急停(§9.2):按 id 或 name 取消存活实例(含对话型 chat)。
 
@@ -210,6 +237,8 @@ class Spawner:
                                     name=inst.name)
         for inst in hits:
             await self._scheduler.cancel(inst.id)
+        # 急停落 CANCELLED:终态驻留超上限时淘汰最旧(phase-76)
+        self._trim_terminal_instances()
         return [i.id for i in hits]
 
 
