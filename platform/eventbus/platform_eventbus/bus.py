@@ -20,15 +20,37 @@ from platform_eventbus.log import EventLog
 @dataclass
 class Subscription:
     """进程内订阅。lagged=True 表示有事件因队列满未直推,需 read_missed 补读。
-    last_seq 记录已消费的最大 seq,供消费方推进游标(崩溃不重复消费)。"""
+    last_seq 记录已消费的最大 seq,供消费方推进游标(崩溃不重复消费)。
 
-    patterns: tuple[str, ...]
+    patterns 运行期可增删(phase-75):add_patterns / drop_patterns 立即反映到
+    matches(),已 publish 的事件不回溯、未来事件按新 pattern 直推,无需换订。
+    事件按入队时刻的 patterns 判定,list 与迭代都在事件循环同步段完成
+    (无 await),单线程约定下无竞争。"""
+
+    _pattern_list: list[str] = field(default_factory=list)
     queue: asyncio.Queue = field(default_factory=asyncio.Queue)
     lagged: bool = False
     last_seq: int = 0
 
+    @property
+    def patterns(self) -> tuple[str, ...]:
+        """当前订阅 pattern 快照(增删即时反映;顺序即添加序)。"""
+        return tuple(self._pattern_list)
+
     def matches(self, event_type: str) -> bool:
-        return any(fnmatch.fnmatchcase(event_type, p) for p in self.patterns)
+        return any(fnmatch.fnmatchcase(event_type, p) for p in self._pattern_list)
+
+    def add_patterns(self, *patterns: str) -> None:
+        """运行期追加订阅 pattern(去重,保序);已存在的 pattern 是空操作。"""
+        for p in patterns:
+            if p not in self._pattern_list:
+                self._pattern_list.append(p)
+
+    def drop_patterns(self, *patterns: str) -> None:
+        """运行期撤销订阅 pattern;不在列表中的 pattern 是空操作。"""
+        for p in patterns:
+            if p in self._pattern_list:
+                self._pattern_list.remove(p)
 
     async def get(self, timeout: float | None = None) -> Event:
         """取下一条直推事件。"""
@@ -65,7 +87,7 @@ class EventBus:
         return seq
 
     def subscribe(self, *patterns: str) -> Subscription:
-        sub = Subscription(patterns=tuple(patterns), queue=asyncio.Queue(self._queue_size))
+        sub = Subscription(_pattern_list=list(patterns), queue=asyncio.Queue(self._queue_size))
         self._subs.append(sub)
         return sub
 

@@ -21,6 +21,10 @@ HookRegistry / MCP 只登记待批准条目(不自动 approve_mcp_tools)。
   空提交(三类全空)拒绝 INVALID_INPUT;非法参数值拒绝;禁止静默装错名。
 - 装载幂等:每次批准/分项修改都先整插件热卸再按当前勾选装载
   (72 自审:先 unload 再 apply,重复批准不重复注册)。
+- 运行期订阅同步(phase-75):装载/热卸 hook 会改 HookRegistry.event_patterns,
+  build_agent 在 EventLoop 构造后注入 `set_subscription_sync`,本管理器在
+  热卸/装载完成后把当前 event_patterns 全量推给 loop(批准即订 / 撤销即退,
+  免重启;loop 侧幂等 diff,启动装载阶段 sync 未注入是 no-op)。
 - contains 路径 jail:声明相对路径 resolve 后必须仍在插件目录内(拒 `../` 逃逸)。
 """
 
@@ -28,6 +32,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -260,12 +265,36 @@ class PluginManager:
         skills: SkillLoader,
         hooks: HookRegistry,
         mcp: Any | None = None,  # McpClientPool(批准时登记 MCP 条目;可省)
+        set_subscription_sync: Callable[[tuple[str, ...]], None] | None = None,
+        # phase-75:EventLoop 注入的订阅同步入口(装载/热卸后推 hooks.event_patterns)
     ) -> None:
         self._root = Path(root)
         self._settings = settings
         self._skills = skills
         self._hooks = hooks
         self._mcp = mcp
+        self._set_subscription_sync = set_subscription_sync
+
+    def set_subscription_sync(
+        self, sync: Callable[[tuple[str, ...]], None] | None
+    ) -> None:
+        """注入/替换订阅同步回调(build_agent 在 EventLoop 构造后调用)。
+
+        sync 每次收到当前 hooks.event_patterns 全量;注入后先同步一次基线,
+        避免注入前已装载插件(启动装载)的 pattern 缺同步。
+        """
+        self._set_subscription_sync = sync
+        if sync is not None:
+            self._sync_subscription()
+
+    def _sync_subscription(self) -> None:
+        """把当前声明式 hook 领域事件订阅推给 EventLoop(未注入时 no-op)。
+
+        装载(apply/_apply_selected)或热卸(unload/_unload_manifest)都会改
+        event_patterns,结束后全量同步一次;loop 侧幂等 diff,只动差异。
+        """
+        if self._set_subscription_sync is not None:
+            self._set_subscription_sync(self._hooks.event_patterns)
 
     # ---- 发现与清单形状(list_plugins 数据源) ----
 
@@ -431,6 +460,7 @@ class PluginManager:
                 )
             except Exception:  # noqa: BLE001  # 单文件坏 json 不炸批准;记日志披露,计数不计
                 log.warning("插件 %s 的 hook 文件装载失败: %s", manifest.name, rel)
+        self._sync_subscription()  # phase-75:装载改了事件订阅,同步给 EventLoop
         return {"skills": skill_names, "hooks": hook_count}
 
     def unload(self, name: str) -> dict:
@@ -449,6 +479,7 @@ class PluginManager:
         for on in self._declared_ons(manifest):
             if not self._pattern_still_wanted(manifest.name, on):
                 self._hooks.forget_event_pattern(on)
+        self._sync_subscription()  # phase-75:热卸改了事件订阅,同步给 EventLoop
         return {"skills": removed_skills, "hooks": removed_hooks}
 
     # ---- 批准 / 撤销(capability 层入口;actor 落审计) ----

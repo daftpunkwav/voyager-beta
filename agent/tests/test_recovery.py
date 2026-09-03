@@ -8,6 +8,8 @@ recovery.py 此前没有调用方;本文件锁定接线后的行为:
 - 启动时无 resume 快照的 alive checkpoint 标 failed;带快照的转 PAUSED 待恢复(phase-69)。
 """
 
+import asyncio
+import contextlib
 import os
 import sqlite3
 import time
@@ -16,7 +18,7 @@ from pathlib import Path
 import httpx
 import pytest
 from platform_contracts import LOCAL_USER, Event
-from platform_eventbus import EventBus, EventLog
+from platform_eventbus import CursorStore, EventBus, EventLog
 from platform_settings import SettingsStore
 
 from agent.llm import FakeLLM, ToolCall
@@ -158,6 +160,30 @@ def _event(type_: str) -> Event:
     return Event(type=type_, actor=LOCAL_USER, payload={})
 
 
+@contextlib.asynccontextmanager
+async def _running_loop(loop: EventLoop):
+    """起 loop.run() 任务,结束时 cancel(loop.stop 不唤醒 sub.get,需 cancel 收尾)。
+
+    等 run 真正进入直推 while(run() 先做同步补读、再 subscribe、再进 while;
+    create_task + 单次 sleep(0) 只跑到第一个 await 即让出,不能保证已装配)。
+    """
+    task = asyncio.create_task(loop.run())
+    for _ in range(100):  # 轮询 _sub 装配(纯内存,毫秒级就位)
+        if loop._sub is not None:
+            break
+        await asyncio.sleep(0)
+    else:
+        raise AssertionError("loop.run() 未装配运行期订阅(sub 仍为 None)")
+    await asyncio.sleep(0)  # 确保 run 已从 read_missed 返回并阻塞在 sub.get
+    try:
+        yield
+    finally:
+        loop.stop()
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
 class TestLoopBreaker:
     async def test_consecutive_failures_skip_handler(self, tmp_path) -> None:
         """同一 handler 连续抛错 3 次后熔断,第 4 个事件不再进入;loop 不炸。"""
@@ -241,6 +267,137 @@ class TestLoopSubscribe:
         assert calls["good"] == 5
         assert calls["relay"] == 3  # open_after 默认 3,熔断后不再进入
         log.close()
+
+
+class TestLoopDynamicSubscribe:
+    """phase-75:运行期 hook 事件订阅动态增删(批准即订 / 撤销即退,免重启)。
+
+    方案 R1:EventLoop 自持运行期 Subscription,`sync_extra_patterns` 幂等收敛
+    到 handlers + extra;无换订间隙、无双订。handlers 领域绑定恒不可撤。
+    """
+
+    async def test_sync_adds_extra_pattern_and_keeps_handlers(self, tmp_path) -> None:
+        log = EventLog(tmp_path / "events.db")
+
+        async def noop(_ev: Event) -> None:
+            return None
+
+        loop = EventLoop(EventBus(log), {"user.message": noop}, extra_patterns=())
+        assert loop.patterns == ("user.message",)
+        loop.sync_extra_patterns(("note.created",))
+        assert loop.patterns == ("user.message", "note.created")
+
+    async def test_sync_removes_only_extra_handlers_untouchable(self, tmp_path) -> None:
+        log = EventLog(tmp_path / "events.db")
+
+        async def noop(_ev: Event) -> None:
+            return None
+
+        loop = EventLoop(EventBus(log), {"user.message": noop}, extra_patterns=("note.created",))
+        loop.sync_extra_patterns(())  # 撤全部 extra
+        assert loop.patterns == ("user.message",)  # 领域绑定不可撤
+        log.close()
+
+    async def test_sync_rejects_star(self, tmp_path) -> None:
+        """动态 API 与构造同禁令:pattern 出现 "*" 一律拒绝(phase-28 保留)。"""
+        log = EventLog(tmp_path / "events.db")
+
+        async def noop(_ev: Event) -> None:
+            return None
+
+        loop = EventLoop(EventBus(log), {"user.message": noop})
+        with pytest.raises(ValueError, match="relay"):
+            loop.sync_extra_patterns(("*",))
+        log.close()
+
+    async def test_run_started_sync_updates_live_sub(self, tmp_path) -> None:
+        """已启动后 sync 直接改运行期 sub:未来发布的新 pattern 事件即达,不换订。"""
+        log = EventLog(tmp_path / "events.db")
+        bus = EventBus(log)
+        seen: list[str] = []
+
+        async def noop(ev: Event) -> None:
+            seen.append(ev.type)
+
+        loop = EventLoop(bus, {"user.message": noop}, relay=noop)
+        async with _running_loop(loop):
+            assert loop._sub is not None and loop.patterns == ("user.message",)
+            loop.sync_extra_patterns(("note.created",))
+            await bus.publish(_event("note.created"))  # 新 pattern:直推应达
+            await asyncio.sleep(0)
+            assert seen == ["note.created"]  # hook 领域事件经 relay 可见
+            assert loop.patterns == ("user.message", "note.created")
+
+    async def test_run_started_drop_stops_new_events(self, tmp_path) -> None:
+        """已启动后撤订:再发布该类型不再直推(注册已卸 + 订阅 pattern 已退)。"""
+        log = EventLog(tmp_path / "events.db")
+        bus = EventBus(log)
+        seen: list[str] = []
+
+        async def noop(ev: Event) -> None:
+            seen.append(ev.type)
+
+        loop = EventLoop(bus, {"user.message": noop}, extra_patterns=("note.created",))
+        async with _running_loop(loop):
+            loop.sync_extra_patterns(())
+            await bus.publish(_event("note.created"))
+            await bus.publish(_event("user.message"))
+            await asyncio.sleep(0)
+            assert seen == ["user.message"]  # 已撤的 note.created 不进 loop
+
+    async def test_sync_before_run_affects_boot_subscription(self, tmp_path) -> None:
+        """未启动时 sync 只更新快照,run() 按最新 patterns 订阅(补读与直推一致)。"""
+        log = EventLog(tmp_path / "events.db")
+        bus = EventBus(log)
+        seen: list[str] = []
+
+        async def noop(ev: Event) -> None:
+            seen.append(ev.type)
+
+        loop = EventLoop(
+            bus, {"user.message": noop},
+            cursors=CursorStore(log.conn), relay=noop,
+        )
+        # 先落一条 note.created:未 run 时它在游标之后,启动补读应按最新订阅读到
+        await bus.publish(_event("note.created"))
+        loop.sync_extra_patterns(("note.created",))  # run 前动态增订
+        async with _running_loop(loop):
+            await asyncio.sleep(0)
+            assert seen == ["note.created"]  # 补读 types=最新快照,含动态新增(经 relay)
+
+    async def test_extra_patterns_snapshot_backfill_disclosed(self, tmp_path) -> None:
+        """披露:补读 types 取启动快照;run 已启动后动态新增的 pattern 只走直推。
+
+        单测断言限制:进程内同事件循环可夹出直推子集,但进程内事件不可能
+        「落日志于 run 启动之后、sync 新增之前、且直推因尚未订阅而漏掉」——
+        直推与订阅在同一事件循环同步段判定,不存在该竞态窗口(见写回 E3)。
+        此处验证:同类型事件在动态撤订前后发布,不双处理、撤订后不达;
+        sync 撤订前的已订事件仍经 relay 恰一次(直推一次、relay 一次)。
+        """
+        log = EventLog(tmp_path / "events.db")
+        bus = EventBus(log)
+        seen: list[str] = []
+        # relay 兼当观察者(与 loop 实际装配形态一致:领域事件走 relay→on_event)
+        async def on_activity(ev: Event) -> None:
+            seen.append(ev.type)
+
+        loop = EventLoop(
+            bus, {"user.activity": on_activity},
+            cursors=CursorStore(log.conn),
+            relay=on_activity,
+        )
+        loop.sync_extra_patterns(("note.created",))  # run 前先订阅(模拟启动时已批准)
+        async with _running_loop(loop):
+            # 事件1:已订阅的 note.created → 直推 + relay(无领域 handler)
+            await bus.publish(_event("note.created"))
+            # 事件2:动态撤掉 note.created 后发布 → 不进 loop(已退订)
+            loop.sync_extra_patterns(())
+            await bus.publish(_event("note.created"))
+            # 事件3:user.activity(领域 handler,不受动态影响)→ 直推 + relay
+            await bus.publish(_event("user.activity"))
+            await asyncio.sleep(0)
+            # 事件1 经 relay 1 次;事件2 不进;事件3 relay + 领域 handler 各 1 次
+            assert seen == ["note.created", "user.activity", "user.activity"]
 
 
 class TestReclaim:

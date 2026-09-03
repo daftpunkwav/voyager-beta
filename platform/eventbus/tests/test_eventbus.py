@@ -113,3 +113,52 @@ class TestEventBus:
         bus.unsubscribe(sub)
         await bus.publish(_ev("a"))
         assert sub.queue.empty()
+
+
+class TestSubscriptionDynamic:
+    """phase-75:patterns 运行期增删,matches 立即反映,不换订(agent 动态订阅底座)。"""
+
+    async def test_add_patterns_makes_publish_match(self, log) -> None:
+        bus = EventBus(log)
+        sub = bus.subscribe("task.progress")
+        assert not sub.matches("task.enqueued")
+        sub.add_patterns("task.enqueued")
+        assert sub.matches("task.enqueued")  # matches 立即反映
+        assert sub.patterns == ("task.progress", "task.enqueued")  # 保添加序
+        await bus.publish(_ev("task.enqueued", id="t1"))
+        assert (await sub.get(timeout=1)).payload == {"id": "t1"}  # 直推即刻到达
+
+    async def test_drop_patterns_stops_matching(self, log) -> None:
+        bus = EventBus(log)
+        sub = bus.subscribe("task.progress", "task.enqueued")
+        sub.drop_patterns("task.progress")
+        assert not sub.matches("task.progress")
+        assert sub.patterns == ("task.enqueued",)
+        await bus.publish(_ev("task.progress", pct=1))  # 已撤:不入队
+        await bus.publish(_ev("task.enqueued", id="t2"))
+        assert (await sub.get(timeout=1)).payload == {"id": "t2"}
+        assert sub.queue.empty()
+
+    async def test_add_duplicate_and_missing_drop_noop(self, log) -> None:
+        sub = EventBus(log).subscribe("a")
+        sub.add_patterns("a")  # 重复添加去重
+        sub.drop_patterns("ghost")  # 不存在 pattern 是空操作
+        assert sub.patterns == ("a",)
+
+    async def test_already_queued_event_not_retracted_by_drop(self, log) -> None:
+        """已按入队时 pattern 直推的事件不受后续 drop 影响(不双删不丢)。"""
+        bus = EventBus(log)
+        sub = bus.subscribe("a")
+        await bus.publish(_ev("a", n=1))  # 入队时匹配
+        sub.drop_patterns("a")  # 之后撤订
+        assert (await sub.get(timeout=1)).payload == {"n": 1}  # 队列中的仍可取
+
+    async def test_unsubscribe_removes_from_subs(self, log) -> None:
+        """B3:unsubscribe 后 _subs 不含废弃 sub,add/drop 在卸后是空操作。"""
+        bus = EventBus(log)
+        sub = bus.subscribe("a")
+        bus.unsubscribe(sub)
+        assert sub not in bus._subs
+        sub.add_patterns("b")
+        await bus.publish(_ev("b"))
+        assert sub.queue.empty()

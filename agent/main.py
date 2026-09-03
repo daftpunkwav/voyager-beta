@@ -197,6 +197,9 @@ def build_agent(
     # 插件(phase-72/74,§9.13):清单可扫描(list 可见),装载仅限持久化批准名单
     # (整包 agent.plugins.approved 与分项 agent.plugins.approvals 的并集);
     # 名单里的插件目录已被删时跳过,不炸启动。MCP 条目只在批准动作登记,启动不重登记。
+    # 事件订阅同步注入(phase-75):PluginManager 在 EventLoop 构造后才拿到,故先
+    # 建 manager(不注入)跑启动装载,再补注入;注入后批准/撤销会实时把
+    # hooks.event_patterns 推给 loop(批准即订 / 撤销即退,免重启)。
     plugins_root = Path(plugins_dir) if plugins_dir else (
         Path(__file__).resolve().parents[1] / "plugins"
     )
@@ -305,6 +308,9 @@ def build_agent(
         relay=relay,
         extra_patterns=hook_patterns,
     )
+    # 运行期订阅同步(phase-75):启动装载阶段 pattern 已随 extra_patterns 到位,
+    # 注入后每次批准/撤销都由 PluginManager 推最新 event_patterns 给 loop
+    plugins.set_subscription_sync(loop.sync_extra_patterns)
     return AgentApp(
         bus=bus,
         log=log,

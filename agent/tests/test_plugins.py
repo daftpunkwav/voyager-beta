@@ -2,8 +2,12 @@
 
 夹具全部用 tmp 插件目录(经 build_agent 的 plugins_dir 注入),不依赖仓库
 plugins/_example 的内容;默认不装载的既有语义由 test_skills/test_hooks 锁定。
+
+phase-75:批准/撤销后 hooks.event_patterns 实时推给 EventLoop(loop.sync_extra_patterns),
+loop.patterns 装配期快照不再定死;旧「须重启才进 loop.patterns」注释与断言已更新为动态。
 """
 
+import asyncio
 import json
 import shutil
 from pathlib import Path
@@ -11,10 +15,18 @@ from pathlib import Path
 import pytest
 from platform_actor import ActorContext
 from platform_capability import execute
-from platform_contracts import LOCAL_USER, ActorKind, ActorRef, ServiceError
+from platform_contracts import (
+    LOCAL_USER,
+    ActorKind,
+    ActorRef,
+    Event,
+    ServiceError,
+)
+from platform_eventbus import EventBus, EventLog
 
 from agent.llm import FakeLLM
 from agent.main import build_agent
+from agent.runtime import EventLoop
 
 USER_CTX = ActorContext(actor=LOCAL_USER)
 AGENT_CTX = ActorContext(actor=ActorRef(kind=ActorKind.AGENT, id="agent.main", scopes=()))
@@ -373,8 +385,8 @@ class TestSkillHookLoad:
     async def test_repeated_approve_idempotent(self, app, tmp_path) -> None:
         """重复批准(重试/启动后再次批准):skill root 去重、hook 不重复注册、订阅不翻倍。
 
-        注:运行期装载不实时改 bus 订阅快照(loop.patterns 装配期定死,重启才进),
-        故断言 hooks.event_patterns(registry 实时层)而非 loop.patterns。
+        运行期订阅同步(phase-75):批准即推给 loop,故这里直接断言 loop.patterns,
+        不再退回「registry 实时、loop 快照」的旧注释(该限制已由本刀解除)。
         """
         make_plugin(tmp_path / "plugins", "example", hook_enabled=True)
         await _approve(app)
@@ -383,6 +395,7 @@ class TestSkillHookLoad:
         assert names.count("daily-note") == 1
         assert app.hooks.registered() == {"on_event": 1}
         assert app.hooks.event_patterns.count("note.created") == 1
+        assert app.loop.patterns.count("note.created") == 1  # 运行期快照不翻倍
 
 
 class TestMcpRegistration:
@@ -755,5 +768,108 @@ class TestItemPatternRetention:
                       {"name": "alpha", "approved": False})
         assert app.hooks.registered() == {"on_event": 1}  # beta 的仍在
         assert app.hooks.event_patterns == ("note.created",)  # 订阅保留
+
+
+# ---- phase-75:运行期 hook 动态订阅(批准即订 / 撤销即退,免重启) ----
+
+
+async def _run_loop_task(loop: EventLoop):
+    task = asyncio.create_task(loop.run())
+    for _ in range(100):  # run() 先补读再 subscribe;等装配完成
+        if loop._sub is not None:
+            break
+        await asyncio.sleep(0)
+    await asyncio.sleep(0)  # 确保已阻塞在 sub.get
+    return task
+
+
+class TestRunTimeSubscription:
+    """D2/D3/E1/E2:同一进程不重建 app,批准→publish→hook 触发;撤销即退。"""
+
+    async def _app_with_live_loop(self, tmp_path):
+        """build_agent(注入共享 bus)+ 起真实 loop.run() 任务;返回 (app, bus, task)。
+
+        注入 bus = EventBus(events.db):EventLoop 直推订阅落在它上面,publish 即达。
+        app 内部自建的空 EventLog 用于游标(无历史,补读为空),测试后手动关闭。
+        """
+        bus = EventBus(EventLog(tmp_path / "events.db"))
+        app = build_agent(
+            data_dir=tmp_path / "rd", workspace_dir=tmp_path / "ws", llm=FakeLLM(),
+            plugins_dir=tmp_path / "plugins", bus=bus,
+        )
+        task = await _run_loop_task(app.loop)
+        return app, bus, task
+
+    async def test_approve_then_publish_triggers_hook(self, tmp_path) -> None:
+        """D2:批准(带领域事件 hook)后,同一进程发布该事件 → hook 被触发。"""
+        root = tmp_path / "plugins"
+        make_plugin(root, "example", hook_enabled=True)  # on note.created
+        app, bus, task = await self._app_with_live_loop(tmp_path)
+        try:
+            # 批准前:publish 不进 loop(无订阅)
+            assert "note.created" not in app.loop.patterns
+            await bus.publish(Event(type="note.created", actor=LOCAL_USER, payload={}))
+            await asyncio.sleep(0)
+            # 批准后:pattern 进 loop,再 publish → hook(经 on_event)触发
+            await _approve(app, "example")
+            assert "note.created" in app.loop.patterns  # 免重启即订
+            seen: list[str] = []
+            app.hooks.register("on_event", lambda event, **kw: seen.append(event.type),
+                               source="test")
+            await bus.publish(Event(type="note.created", actor=LOCAL_USER, payload={}))
+            await asyncio.sleep(0)
+            assert seen == ["note.created"]  # 真·触发
+        finally:
+            app.loop.stop()
+            task.cancel()
+            app.log.close()  # build_agent 内部自建的空 EventLog(owns_log=False)
+            app.memory.close()
+
+    async def test_unapprove_stops_trigger(self, tmp_path) -> None:
+        """D3:撤销后同类型事件不再触发;但其它已批准插件同 pattern 订阅保留。"""
+        root = tmp_path / "plugins"
+        make_plugin(root, "alpha", hook_enabled=True)  # note.created
+        make_plugin(root, "beta", hook_enabled=True)  # note.created
+        app, _bus, task = await self._app_with_live_loop(tmp_path)
+        try:
+            await _approve(app, "alpha")
+            await _approve(app, "beta")
+            assert app.loop.patterns.count("note.created") == 1  # 去重
+            # 撤 alpha:beta 仍装载同 pattern → loop 订阅保留
+            await execute(app.registry, "set_plugin_approval", USER_CTX,
+                          {"name": "alpha", "approved": False})
+            assert app.hooks.registered() == {"on_event": 1}
+            assert "note.created" in app.loop.patterns  # beta 还在,订阅不撤
+            # 撤 beta:无人需要 → pattern 退出 loop
+            await execute(app.registry, "set_plugin_approval", USER_CTX,
+                          {"name": "beta", "approved": False})
+            assert "note.created" not in app.loop.patterns  # 撤销即退
+        finally:
+            app.loop.stop()
+            task.cancel()
+            app.log.close()
+            app.memory.close()
+
+    async def test_run_time_sync_no_duplicate_dispatch(self, tmp_path) -> None:
+        """E2:同一事件不因动态订阅被双处理(直推一次;relay 一次)。"""
+        root = tmp_path / "plugins"
+        make_plugin(root, "example", hook_enabled=True)
+        app, bus, task = await self._app_with_live_loop(tmp_path)
+        try:
+            calls: list[str] = []
+            app.hooks.register("on_event",
+                               lambda event, **kw: calls.append(f"hook:{event.type}"),
+                               source="test")
+            await _approve(app, "example")
+            # 再手动 sync 一次(模拟幂等):订阅不翻倍
+            app.loop.sync_extra_patterns(app.hooks.event_patterns)
+            await bus.publish(Event(type="note.created", actor=LOCAL_USER, payload={}))
+            await asyncio.sleep(0)
+            assert calls == ["hook:note.created"]  # 恰一次
+        finally:
+            app.loop.stop()
+            task.cancel()
+            app.log.close()
+            app.memory.close()
 
 
