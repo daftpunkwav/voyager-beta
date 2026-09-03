@@ -8,6 +8,7 @@ recovery.py 此前没有调用方;本文件锁定接线后的行为:
 - 启动时无 resume 快照的 alive checkpoint 标 failed;带快照的转 PAUSED 待恢复(phase-69)。
 """
 
+import os
 import sqlite3
 import time
 from pathlib import Path
@@ -315,6 +316,86 @@ class TestReclaim:
             assert (cp_dir / "broken.json").read_text(encoding="utf-8") == "{not json"
         finally:
             app.memory.close()
+
+
+class TestCheckpointAtomicWrites:
+    """原子写(phase-73 §9.17 A):save 走 tmp + os.replace,读方永远见整文件。"""
+
+    def test_save_is_atomic_and_no_tmp_left(self, tmp_path) -> None:
+        """save 后目标合法 JSON,目录里不留 .tmp 孤儿文件。"""
+        store = CheckpointStore(tmp_path / "cp")
+        state = RunState(task="原子写", status=RunStatus.RUNNING)
+        state.add_step("llm", "round-1", "第 1 轮")
+
+        store.save(state)
+
+        loaded = store.load(state.run_id)
+        assert loaded.task == "原子写"
+        assert loaded.status is RunStatus.RUNNING
+        assert len(loaded.steps) == 1
+        leftovers = [p.name for p in (tmp_path / "cp").glob("*.tmp")]
+        assert leftovers == []
+
+    def test_save_does_not_truncate_existing_target(self, tmp_path, monkeypatch) -> None:
+        """目标已存在时,replace 成功前旧文件保持完整:半写窗口只限 tmp
+        (monkeypatch 让首次 replace 失败,save 抛错且旧 JSON 仍可读,
+        同 run 再 save 后覆盖成功)。"""
+        import agent.runtime.state as state_mod
+
+        store = CheckpointStore(tmp_path / "cp")
+        state = RunState(task="v1", status=RunStatus.RUNNING)
+        state.run_id = "atomicsave01"
+        store.save(state)
+
+        real_replace = os.replace
+        failed = {"n": 0}
+
+        def _flaky_replace(src, dst):
+            if failed["n"] == 0 and str(dst).endswith("atomicsave01.json"):
+                failed["n"] += 1
+                raise OSError("模拟 replace 失败")
+            return real_replace(src, dst)
+
+        monkeypatch.setattr(state_mod.os, "replace", _flaky_replace)
+        state.task = "v2"
+        with pytest.raises(OSError):  # replace 失败 → save 抛错,调用方可见
+            store.save(state)
+
+        loaded = store.load(state.run_id)
+        assert loaded.task == "v1"  # 旧整文件未被截断
+
+        monkeypatch.setattr(state_mod.os, "replace", real_replace)
+        store.save(state)  # 重试成功
+        assert store.load(state.run_id).task == "v2"
+
+    def test_concurrent_saves_then_load_valid(self, tmp_path) -> None:
+        """同一 run 并发连续 save:目标文件永远是某次完整写入(load 不炸),
+        即使 Windows 上并发 os.replace 偶发竞争失败,也不产生半写目标。"""
+        from concurrent.futures import ThreadPoolExecutor
+
+        store = CheckpointStore(tmp_path / "cp")
+        store.save(RunState(task="v0", status=RunStatus.RUNNING, run_id="concurrent1"))
+
+        def _save(i: int) -> None:
+            for _ in range(5):
+                st = RunState(task=f"v{i}", status=RunStatus.RUNNING)
+                st.run_id = "concurrent1"
+                try:
+                    store.save(st)
+                except OSError:
+                    # Windows 并发 replace 竞争可抛 PermissionError:
+                    # 单线程生产不触发;并发下个别 save 失败不等于文件半写
+                    pass
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(_save, range(50)))
+
+        loaded = store.load("concurrent1")  # 不抛 JSONDecodeError
+        assert loaded.status is RunStatus.RUNNING
+        assert loaded.task.startswith("v")
+        # 目录里只有一份目标文件;残留 .tmp 不影响 list_alive(只 glob *.json)
+        assert [p.name for p in (tmp_path / "cp").glob("*.json")] == ["concurrent1.json"]
+        assert {s.run_id for s in store.list_alive()} == {"concurrent1"}
 
 
 class TestBootEpisodicPurge:

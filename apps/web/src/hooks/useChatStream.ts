@@ -45,6 +45,16 @@ export function useChatStream(onNavigate: (path: string) => void) {
         if (msg) useUIStore.getState().addToast({ type: 'info', message: msg });
         return;
       }
+      if (ev.type === 'task.failed' && ev.payload?.kind === 'resume') {
+        // 续跑后台失败(phase-73,§9.17 D):卡片建在 chatStore(job_id=run_id),
+        // 另弹即时 toast 兜底折叠悬浮窗;其它 task.failed(code_exec/sources/
+        // graph)照旧只走卡片,不弹 toast
+        const err = String(ev.payload?.error ?? '').trim() || '原因未提供';
+        useUIStore.getState().addToast({
+          type: 'error',
+          message: `续跑失败:${err}`,
+        });
+      }
       useChatStore.getState().dispatch(ev as ChatEvent);
     });
     useChatStore.getState().setConnected(true);

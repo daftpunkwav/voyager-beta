@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 import uuid
@@ -119,8 +120,18 @@ class CheckpointStore:
         self._root.mkdir(parents=True, exist_ok=True)
 
     def save(self, state: RunState) -> Path:
+        """原子写(phase-73,§9.17):先写同目录临时文件再 os.replace 落位。
+
+        目标路径在 replace 成功前不被截断,中途崩溃最多留一份 .tmp 孤儿,
+        不会留下半写的 <run_id>.json(半写会让 list_alive 跳过并永久丢该
+        断点)。所有写盘路径(mid-save / turn 结束)都收敛到本方法。
+        """
         path = self._root / f"{_safe_run_id(state.run_id)}.json"
-        path.write_text(json.dumps(state.to_dict(), ensure_ascii=False), encoding="utf-8")
+        tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex[:8]}.tmp")
+        tmp.write_text(
+            json.dumps(state.to_dict(), ensure_ascii=False), encoding="utf-8"
+        )
+        os.replace(tmp, path)
         return path
 
     def load(self, run_id: str) -> RunState:

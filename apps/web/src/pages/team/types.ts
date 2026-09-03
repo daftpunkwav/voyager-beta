@@ -10,8 +10,9 @@ export interface RunningSubagent {
   last_step?: string;
 }
 
-/** 可恢复 checkpoint 条目(来自 list_resumable_checkpoints.items,phase-69/70;
- *  仅任务型 REACT、带恢复快照;status 为盘上状态,boot 后为 paused)。 */
+/** 可恢复/可放弃 checkpoint 条目(来自 list_resumable_checkpoints.items,
+ *  phase-69/70/73;status 为盘上状态,boot 后为 paused)。
+ *  resumable=false = 孤儿(对话型 / 非 react):只显示「放弃」,不给「继续」。 */
 export interface ResumableCheckpoint {
   run_id: string;
   status: string;
@@ -20,6 +21,12 @@ export interface ResumableCheckpoint {
   started_ts: number;
   last_step?: string;
   mode: string;
+  /** false = 仅可放弃的孤儿(phase-73 B);true = 任务型 react 可续跑 */
+  resumable?: boolean;
+  /** 对话型标注(孤儿定位用,phase-73 B) */
+  conversational?: boolean;
+  /** true = ReAct 中途崩溃,续跑从中途接;UI 显示「中途中断」(phase-73 E) */
+  in_turn?: boolean;
 }
 
 /** list_subagents.definitions 条目;allowed_tools 为 null 表示不裁剪(全部工具);

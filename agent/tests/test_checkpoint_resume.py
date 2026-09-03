@@ -108,11 +108,16 @@ class TestBootAndList:
             assert item["mode"] == "react"
             assert item["last_step"] == "第 1 轮"
             assert item["started_ts"] == loaded.started_ts
+            # phase-73 B/E:分区契约字段
+            assert item["resumable"] is True
+            assert item["conversational"] is False
+            assert item["in_turn"] is False
         finally:
             app.memory.close()
 
-    async def test_list_excludes_legacy_conversational_and_non_react(self, tmp_path) -> None:
-        """列表只收 任务型+react+有快照;legacy boot 已标 failed 不在 alive。"""
+    async def test_list_orphans_only_abandonable(self, tmp_path) -> None:
+        """孤儿(对话型/非 react 带快照)列表收、但 resumable=False(仅可放弃);
+        legacy 无快照 boot 已标 failed 不在 alive(phase-73 B)。"""
         rd = tmp_path / "rd"
         _seed_checkpoint(rd, _snapshot(), run_id="legacy00001", with_resume=False)
         _seed_checkpoint(
@@ -120,15 +125,22 @@ class TestBootAndList:
             run_id="convres001",
         )
         _seed_checkpoint(rd, _snapshot(mode="direct"), run_id="directres01")
+        _seed_checkpoint(
+            rd, _snapshot(in_turn=True), run_id="inturnres01",
+        )
         app = _build(tmp_path)
         try:
             out = await execute(app.registry, "list_resumable_checkpoints", USER_CTX, {})
-            assert out["items"] == []
+            by_id = {i["run_id"]: i for i in out["items"]}
             store = CheckpointStore(rd / "checkpoints")
-            assert store.load("legacy00001").status is RunStatus.FAILED
-            # 对话型/其它模式带快照:boot 机械转 PAUSED 存活,只是不给恢复入口
-            assert store.load("convres001").status is RunStatus.PAUSED
-            assert store.load("directres01").status is RunStatus.PAUSED
+            assert store.load("legacy00001").status is RunStatus.FAILED  # legacy 不在 alive
+            # 对话型/其它模式带快照:boot 机械转 PAUSED 存活,列为本刀孤儿入口
+            assert by_id["convres001"]["resumable"] is False
+            assert by_id["convres001"]["conversational"] is True
+            assert by_id["directres01"]["resumable"] is False
+            # 任务型 react:可恢复 + in_turn 标注(phase-73 E 数据源)
+            assert by_id["inturnres01"]["resumable"] is True
+            assert by_id["inturnres01"]["in_turn"] is True
         finally:
             app.memory.close()
 
@@ -486,8 +498,8 @@ class TestAbandonCheckpoint:
             app.memory.close()
 
     async def test_abandon_allows_conversational_snapshot(self, tmp_path) -> None:
-        """放弃比列表宽:对话型带合法快照的孤儿 checkpoint 列表不收,但可弃
-        (这是它们唯一的清理通道;行为钉住防未来无意收紧)。"""
+        """孤儿(对话型带合法快照)以 resumable=False 列出、可弃(phase-73 B:
+        唯一清理通道,resume 仍拒)。"""
         rd = tmp_path / "rd"
         _seed_checkpoint(
             rd, _snapshot(conversational=True, instance_id="instchat1"),
@@ -498,7 +510,8 @@ class TestAbandonCheckpoint:
             listed = await execute(
                 app.registry, "list_resumable_checkpoints", USER_CTX, {}
             )
-            assert listed["items"] == []  # 列表不收
+            item = next(i for i in listed["items"] if i["run_id"] == "convres001")
+            assert item["resumable"] is False  # 列表给入口,但只可放弃
             out = await execute(
                 app.registry, "abandon_resumable_checkpoint", USER_CTX,
                 {"run_id": "convres001"},
@@ -548,5 +561,83 @@ class TestSnapshotOnSave:
             assert loaded.resume["instance_id"] == inst.id
             assert loaded.resume["mode"] == "react"
             assert loaded.resume["conversational"] is False
+        finally:
+            app.memory.close()
+
+
+class TestResumeContinueFailureVisible:
+    """续跑后台失败可见(phase-73 §9.17 D):发 task.failed + 磁盘落 FAILED,不吞。"""
+
+    async def test_continue_failure_emits_task_failed_and_persists_failed(
+        self, tmp_path,
+    ) -> None:
+        rd = tmp_path / "rd"
+
+        async def _boom(messages, tools):
+            raise RuntimeError("续跑时 LLM 崩了")
+
+        state = _seed_checkpoint(rd, _snapshot())
+        app = build_agent(
+            data_dir=rd, workspace_dir=tmp_path / "ws",
+            llm=FakeLLM(dynamic=_boom),
+        )
+        try:
+            out = await execute(
+                app.registry, "resume_run", USER_CTX,
+                {"run_id": state.run_id, "continue_run": True},
+            )
+            assert out["continuing"] is True
+            await asyncio.sleep(0.2)
+
+            store = CheckpointStore(rd / "checkpoints")
+            loaded = store.load(state.run_id)
+            assert loaded.status is RunStatus.FAILED
+            assert "RuntimeError" in loaded.error
+            assert loaded not in store.list_alive()
+
+            evs = app.log.read_after(after_seq=0)
+            failed = [e for _, e in evs if e.type == "task.failed"]
+            assert any(
+                e.payload.get("run_id") == state.run_id
+                and e.payload.get("kind") == "resume"
+                and "RuntimeError" in e.payload.get("error", "")
+                for e in failed
+            )
+            assert any(
+                e.payload.get("kind") == "resume" and e.payload.get("title") == "侦察兵"
+                for e in failed
+            )
+            # job_id=run_id:chatStore.taskKey 靠 source_id/job_id 建卡,缺了卡片被丢
+            assert any(
+                e.payload.get("job_id") == state.run_id for e in failed
+            )
+        finally:
+            app.memory.close()
+
+    async def test_success_path_still_completes_and_clears(self, tmp_path) -> None:
+        """成功路径回归:续跑完成 → checkpoint COMPLETED、恢复列表消失。"""
+        rd = tmp_path / "rd"
+        state = _seed_checkpoint(rd, _snapshot())
+        app = build_agent(
+            data_dir=rd, workspace_dir=tmp_path / "ws",
+            llm=FakeLLM(script=[LLMReply(text="续跑成功。")]),
+        )
+        try:
+            await execute(
+                app.registry, "resume_run", USER_CTX,
+                {"run_id": state.run_id, "continue_run": True},
+            )
+            await asyncio.sleep(0.2)
+            store = CheckpointStore(rd / "checkpoints")
+            assert store.load(state.run_id).status is RunStatus.COMPLETED
+            listed = await execute(
+                app.registry, "list_resumable_checkpoints", USER_CTX, {}
+            )
+            assert listed["items"] == []
+            failed_evs = [
+                e for _, e in app.log.read_after(after_seq=0)
+                if e.type == "task.failed" and e.payload.get("kind") == "resume"
+            ]
+            assert failed_evs == []
         finally:
             app.memory.close()

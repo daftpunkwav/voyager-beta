@@ -149,4 +149,52 @@ describe('可恢复任务列表(phase-70 A)', () => {
     fireEvent.click(screen.getByRole('button', { name: '重试' }));
     expect(await screen.findByText('侦察兵')).toBeTruthy();
   });
+
+  it('孤儿条目(resumable=false):无「继续」按钮,分区展示,可放弃(phase-73 B)', async () => {
+    items = [
+      sampleItem({
+        run_id: 'orphan0001',
+        instance_name: '对话型孤儿',
+        resumable: false,
+        conversational: true,
+        mode: 'react',
+      }),
+    ];
+    render(<ResumableList />);
+    expect(await screen.findByText('对话型孤儿')).toBeTruthy();
+    // 分区标题出现,孤儿行只有「放弃」没有「继续」
+    expect(screen.getByText(/仅可放弃的孤儿断点/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '继续' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '放弃' }));
+    await waitFor(() =>
+      expect(callCapabilityMock).toHaveBeenCalledWith(
+        'agent', 'abandon_resumable_checkpoint', { run_id: 'orphan0001' },
+      ),
+    );
+  });
+
+  it('孤儿与可恢复条目同列表:可恢复条目保留「继续」(phase-73 B 分区)', async () => {
+    items = [
+      sampleItem({ run_id: 'runresum001' }), // 无 resumable 字段 → 视为可恢复
+      sampleItem({
+        run_id: 'orphan0002',
+        instance_name: 'direct 孤儿',
+        resumable: false,
+        mode: 'direct',
+      }),
+    ];
+    render(<ResumableList />);
+    expect(await screen.findByText('direct 孤儿')).toBeTruthy();
+    // 可恢复条目有「继续」,孤儿没有
+    expect(screen.getByRole('button', { name: '继续' })).toBeTruthy();
+    const abandonBtns = screen.getAllByRole('button', { name: '放弃' });
+    expect(abandonBtns).toHaveLength(2);
+  });
+
+  it('in_turn=true:显示「中途中断」次要文案,替代 last_step(phase-73 E)', async () => {
+    items = [sampleItem({ in_turn: true, last_step: '第 1 轮' })];
+    render(<ResumableList />);
+    expect(await screen.findByText(/中途中断/)).toBeTruthy();
+    expect(screen.queryByText(/当前:第 1 轮/)).toBeNull(); // 中途文案优先于 last_step
+  });
 });

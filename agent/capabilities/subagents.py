@@ -8,6 +8,7 @@ from platform_capability import Registry, capability
 from platform_contracts import ErrorSuffix, ServiceError
 
 from agent.capabilities.deps import CapabilityDeps
+from agent.runtime.state import RunStatus
 
 
 def register(reg: Registry, deps: CapabilityDeps) -> None:
@@ -31,7 +32,11 @@ def register(reg: Registry, deps: CapabilityDeps) -> None:
                         if i.state.steps else ""
                     ),
                 }
+                # 只列 alive 实例(phase-73,§9.17 C):终态(completed/failed/
+                # cancelled)仍留在 spawner.instances 供内存自省,但列表不再
+                # 返回,前端徽章/实例列表不因终态幽灵条目误显。
                 for i in deps.spawner.instances.values()
+                if i.status.alive
             ],
         }
 
@@ -77,11 +82,15 @@ def register(reg: Registry, deps: CapabilityDeps) -> None:
                 "network_mode": d.network_mode}
 
     @capability(reg, name="list_resumable_checkpoints",
-                description="可恢复的任务 checkpoint(进程重启后待恢复;任务型 REACT)")
+                description="可恢复/可放弃的任务 checkpoint(进程重启后待恢复/清理)")
     def list_resumable_checkpoints() -> dict:
-        """盘上 alive 且带 resume 快照的 checkpoint(phase-69,§9.17)。
+        """盘上 alive 且带 resume 快照的 checkpoint(phase-69/73,§9.17)。
 
-        只列本刀范围:mode=react 且非对话型;快照按 ResumeSnapshot 解析,
+        列表范围=有合法恢复快照的 alive 项,按是否可恢复分区:
+        - resumable=True:mode=react 且非对话型,UI 显示「继续 + 放弃」;
+        - resumable=False:对话型 / 非 react 的孤儿(phase-73 B),UI 只显示
+          「放弃」——它们是 boot 机械转 PAUSED 但 resume 永远走不通的条目,
+          本列表让用户能看见并清理(abandon 口径比列表宽,70 已允许)。
         残缺/非 dict 的坏条目跳过不给入口(与 37/38「坏文件不炸」同模式);
         legacy 无快照已被启动标 failed,不在 alive。
         """
@@ -96,8 +105,7 @@ def register(reg: Registry, deps: CapabilityDeps) -> None:
                 snap = ResumeSnapshot.from_dict(raw)
             except TypeError:
                 continue
-            if snap.mode != "react" or snap.conversational:
-                continue
+            resumable = snap.mode == "react" and not snap.conversational
             items.append({
                 "run_id": st.run_id,
                 "status": st.status.value,
@@ -106,6 +114,9 @@ def register(reg: Registry, deps: CapabilityDeps) -> None:
                 "started_ts": st.started_ts,
                 "last_step": (st.steps[-1].summary or "")[:120] if st.steps else "",
                 "mode": snap.mode,
+                "conversational": snap.conversational,
+                "resumable": resumable,  # False = 仅可放弃的孤儿(phase-73 B)
+                "in_turn": bool(snap.in_turn),  # True = 中途崩溃,续跑从中途接(phase-73 E)
             })
         return {"items": items}
 
@@ -158,7 +169,12 @@ def register(reg: Registry, deps: CapabilityDeps) -> None:
                 cost=2)
     async def resume_run(run_id: str, continue_run: bool = False) -> dict:
         """重建实例进内存(continue_run=false,状态保持 PAUSED 供 UI 稍后继续);
-        continue_run=true 时后台续跑整轮 ReAct(与 dispatch_task 同为后台,不阻塞)。"""
+        continue_run=true 时后台续跑整轮 ReAct(与 dispatch_task 同为后台,不阻塞)。
+
+        后台失败(phase-73,§9.17 D):不吞异常——run_turn 已把实例落 FAILED
+        并发 RunFailed;这里再补发 task.failed(带 run_id/kind/error)走既有
+        失败卡片通道,并把错误写回磁盘 checkpoint,UI 列表可见失败而非幽灵 PAUSED。
+        """
         inst = deps.spawner.resume_from_checkpoint(run_id)
         out = {
             "resumed": inst.id,
@@ -172,9 +188,25 @@ def register(reg: Registry, deps: CapabilityDeps) -> None:
                 try:
                     await deps.spawner.start(inst)
                 except asyncio.CancelledError:
-                    raise
-                except Exception:  # noqa: BLE001, S110  # run_turn 已落状态并发 RunFailed;此处无 master 通道可报
-                    pass
+                    raise  # 急停:AgentCancelled 已由 cancel() 发射,不落 failed
+                except Exception as exc:  # noqa: BLE001  # run_turn 已发 RunFailed;补发用户可见事件
+                    err = f"{type(exc).__name__}: {exc}"
+                    # 实例自持 RuntimeEvents(cancel 的 AgentCancelled 同源同流)。
+                    # job_id=run_id:chatStore.taskKey 依赖 source_id/job_id 建卡,
+                    # 不带则卡片被丢,只剩 toast
+                    await inst.events.emit(
+                        "task.failed", run_id=run_id, job_id=run_id,
+                        kind="resume", title=inst.name, error=err[:300],
+                    )
+                    try:
+                        state = deps.checkpoints.load(run_id)
+                        state.status = RunStatus.FAILED
+                        state.error = err
+                        deps.checkpoints.save(state)
+                    except Exception:  # noqa: BLE001, S110
+                        # task.failed 已发出,用户已可见;盘上回写是尽力而为,
+                        # 再失败(文件被删/IO 错误)不再叠加处理
+                        pass
 
             asyncio.create_task(_run())
             out["continuing"] = True

@@ -10,6 +10,7 @@ from platform_contracts import LOCAL_USER, ActorKind, ActorRef, ServiceError
 from agent.llm import FakeLLM
 from agent.main import build_agent
 from agent.runtime import MeterRecord
+from agent.subagent import Mode, TaskBook
 
 USER_CTX = ActorContext(actor=LOCAL_USER)
 AGENT_CTX = ActorContext(actor=ActorRef(kind=ActorKind.AGENT, id="agent.main", scopes=()))
@@ -384,3 +385,58 @@ class TestTeamSurface:
             Action(dimension="network", target="https://evil.com/x")
         )
         assert not decision.allow
+
+
+class TestRunningOnlyAlive:
+    """list_subagents.running 只含 alive(phase-73 §9.17 C):终态不返回。"""
+
+    async def test_running_excludes_terminal_instances(self, app) -> None:
+        """急停后实例仍留在 spawner.instances,但 running 数组不再含该 id。"""
+        inst = app.spawner.spawn(
+            TaskBook(goal="被急停的任务", mode=Mode.REACT, allowed_tools=("list_dir",)),
+            persona="recon", name="victim",
+        )
+        # 手动置终态,模拟急停完成后的内存残留(不真跑 LLM)
+        inst.cancel()
+        await app.spawner.cancel(inst.id)
+
+        out = await execute(app.registry, "list_subagents", USER_CTX, {})
+        assert all(r["id"] != inst.id for r in out["running"])
+        # 内存里实例仍可自省(本刀不强制 pop;C3 选型)
+        assert inst.id in app.spawner.instances
+
+    async def test_running_alive_states_are_listed(self, app) -> None:
+        """RUNNING / WAITING_INPUT / PAUSED 三种 alive 态都出现在 running。"""
+        from agent.runtime.state import RunStatus as RS
+
+        ids = []
+        for status in (RS.RUNNING, RS.WAITING_INPUT, RS.PAUSED):
+            inst = app.spawner.spawn(
+                TaskBook(goal=f"状态 {status.value}", mode=Mode.REACT),
+                persona="recon", name=status.value,
+            )
+            inst.state.status = status
+            ids.append(inst.id)
+
+        out = await execute(app.registry, "list_subagents", USER_CTX, {})
+        listed = {r["id"] for r in out["running"]}
+        assert set(ids) <= listed
+
+    async def test_chat_main_instance_still_visible_running(self, tmp_path) -> None:
+        """对话主实例(chat)运行时仍可见;完成后从列表消失(回归 03/07 徽章依赖)。"""
+        from agent.llm import LLMReply
+
+        app = build_agent(
+            data_dir=tmp_path / "rd",
+            workspace_dir=tmp_path / "ws",
+            llm=FakeLLM([LLMReply(text="完成了。")]),
+        )
+        try:
+            await app.master.handle_user_message("你好")
+            await asyncio.sleep(0.1)
+            out = await execute(app.registry, "list_subagents", USER_CTX, {})
+            # 对话主实例按 name=chat 匹配(cancel_run 同口径);一轮答完进
+            # WAITING_INPUT 仍 alive,徽章应继续可见,不因完成被误剔
+            assert any(r["name"] == "chat" for r in out["running"])
+        finally:
+            app.memory.close()
