@@ -11,6 +11,21 @@ class SkillLoader:
     def __init__(self, roots: list[str | Path]) -> None:
         self._roots = [Path(r) for r in roots]
 
+    def add_root(self, root: str | Path) -> None:
+        """追加扫描根(插件批准后,phase-72);resolve 后去重。"""
+        path = Path(root).resolve()
+        if all(existing.resolve() != path for existing in self._roots):
+            self._roots.append(path)
+
+    def remove_root(self, root: str | Path) -> bool:
+        """移除扫描根(插件热卸,phase-72);不存在返回 False。"""
+        path = Path(root).resolve()
+        for i, existing in enumerate(self._roots):
+            if existing.resolve() == path:
+                del self._roots[i]
+                return True
+        return False
+
     def index(self) -> list[dict[str, str]]:
         """索引条目只回 name + description;本机绝对路径不出 loader(§9.20)。"""
         return [

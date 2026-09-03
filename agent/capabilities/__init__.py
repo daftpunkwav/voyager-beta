@@ -14,6 +14,7 @@ from agent.capabilities import (
     memory,
     pages,
     personas,
+    plugins,
     resource,
     settings,
     skills,
@@ -32,6 +33,7 @@ def build_agent_registry(deps: CapabilityDeps) -> Registry:
     personas.register(reg, deps)
     tool_catalog.register(reg, deps)
     mcp.register(reg, deps)
+    plugins.register(reg, deps)
     memory.register(reg, deps)
     pages.register(reg, deps)
     ask.register(reg, deps)

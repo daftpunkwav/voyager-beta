@@ -58,6 +58,11 @@ DEFS = [
     SettingDef(key="agent.network.domains", module="agent", type=SettingType.JSON,
                default=["github.com", "arxiv.org"], user_only=True,
                description="网络白名单域名(仅用户可改)"),
+    # 插件批准名单(phase-72,§9.13):已整包批准的插件 name 列表;
+    # 重启时 build_agent 按它装载 skill/hook。user_only:装载边界,提示注入改不了。
+    SettingDef(key="agent.plugins.approved", module="agent", type=SettingType.JSON,
+               default=[], user_only=True,
+               description="已整包批准的插件名列表(§9.13;仅用户可改)"),
     SettingDef(key="agent.subagents.max_concurrent", module="agent", type=SettingType.INT,
                default=3, min=1, max=16, description="subagent 并发上限"),
     SettingDef(key="agent.memory.retention_days", module="agent", type=SettingType.INT,

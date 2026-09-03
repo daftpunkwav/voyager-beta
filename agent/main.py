@@ -25,6 +25,7 @@ from agent.master import Arbiter, DigestStore, Master, ProactiveBudget, Proactiv
 from agent.memory import Memory
 from agent.observe import Observer
 from agent.personas import canonical_persona_key, resolve_persona
+from agent.plugins import PluginManager
 from agent.policy import AppPolicy, FsPolicy, NetworkPolicy, PolicyEngine
 from agent.runtime import EventLoop, Meter, MeterStore, RuntimeEvents, Scheduler, metered_llm
 from agent.runtime.state import CheckpointStore, prepare_resumable_checkpoints
@@ -70,6 +71,7 @@ class AgentApp:
     registry: Any  # agent 能力注册表(§5 capabilities.py)
     mcp: McpClientPool  # 外接 MCP 连接池(phase-11b;空池合法)
     meter: Meter  # 内存计量(§9.9 资源维;metered_llm 与配额查询 capability 共用)
+    plugins: PluginManager  # 插件发现与整包批准(phase-72,§9.13)
     owns_settings: bool = True  # 共享 store(聚合运行)时为 False,close 不关它
     owns_log: bool = True  # 共享 bus(聚合运行共用 EventLog)时为 False
 
@@ -94,6 +96,7 @@ def build_agent(
     settings_store: SettingsStore | None = None,
     extra_tools: dict[str, AgentTool] | None = None,
     mcp_connect: ConnectFn | None = None,  # 外接 MCP 连接注入口(测试用 Fake)
+    plugins_dir: str | Path | None = None,  # 插件根(默认仓库根 plugins/;测试注入临时目录)
 ) -> AgentApp:
     data_dir = Path(data_dir)
     llm = llm or FakeLLM()
@@ -191,6 +194,16 @@ def build_agent(
     mcp = McpClientPool(settings=settings, toolbelt=toolbelt,
                         connect=mcp_connect, cwd=workspace)
 
+    # 插件(phase-72,§9.13):清单可扫描(list 可见),装载仅限持久化批准名单;
+    # 名单里的插件目录已被删时跳过,不炸启动。MCP 条目只在批准动作登记,启动不重登记。
+    plugins_root = Path(plugins_dir) if plugins_dir else (
+        Path(__file__).resolve().parents[1] / "plugins"
+    )
+    plugins = PluginManager(plugins_root, settings=settings, skills=skills, hooks=hooks, mcp=mcp)
+    for plugin_name in plugins.approved_names():
+        if plugins.find(plugin_name) is not None:
+            plugins.apply(plugin_name)
+
     scheduler = Scheduler(max_concurrent=int(settings.get("agent.subagents.max_concurrent")))
     checkpoints = CheckpointStore(data_dir / "checkpoints")
     # 启动恢复准备(§9.17,phase-69):有 resume 快照的 alive checkpoint 转 PAUSED 待恢复;
@@ -280,6 +293,7 @@ def build_agent(
             mcp=mcp,
             meter=meter,  # 与 Toolbelt / metered_llm 同一实例(§9.9 配额查询读同一份计量)
             checkpoints=checkpoints,  # 可恢复 checkpoint 列表(phase-69,§9.17)
+            plugins=plugins,  # 插件发现与批准(phase-72,§9.13)
         )
     )
     handlers, relay, hook_patterns = bind_event_loop(master, proactive, observer, hooks)
@@ -307,6 +321,7 @@ def build_agent(
         registry=registry,
         mcp=mcp,
         meter=meter,
+        plugins=plugins,
         owns_settings=owns_settings,
         owns_log=owns_log,
     )

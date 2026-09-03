@@ -85,3 +85,25 @@ export interface McpFormDraft {
   url: string;
   approval: 'package' | 'item';
 }
+
+export interface PluginPermissions {
+  scopes: string[];
+  network: string;
+  fs: string;
+}
+
+export interface PluginItem {
+  name: string;
+  version: string;
+  description: string;
+  approved: boolean;
+  permissions: PluginPermissions;
+  contains: { skills: number; hooks: number; mcp: boolean };
+  path: string;
+}
+
+export interface PluginApproveResult {
+  name: string;
+  approved: boolean;
+  loaded: { skills: string[]; hooks: number; mcp_registered: number; mcp_skipped: boolean };
+}

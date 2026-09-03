@@ -6,6 +6,7 @@ import { MemoryBlock } from './agent/MemoryBlock';
 import { MemoryRetentionBlock } from './agent/MemoryRetentionBlock';
 import { NetworkBlock } from './agent/NetworkBlock';
 import { ObserveBlock } from './agent/ObserveBlock';
+import { PluginsBlock } from './agent/PluginsBlock';
 import { ProactiveBlock } from './agent/ProactiveBlock';
 import { ReadRootsBlock } from './agent/ReadRootsBlock';
 import { RoundsBlock } from './agent/RoundsBlock';
@@ -35,6 +36,7 @@ export function AgentSettingsSection() {
       <ProactiveBlock />
       <ObserveBlock />
       <SkillsBlock />
+      <PluginsBlock />
       <McpBlock />
       <MemoryBlock />
       <MemoryRetentionBlock />

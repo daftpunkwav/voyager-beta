@@ -34,6 +34,11 @@ class HookRegistry:
         if pattern not in self._event_patterns:
             self._event_patterns.append(pattern)
 
+    def forget_event_pattern(self, pattern: str) -> None:
+        """撤销插件批准时撤回其声明的事件订阅(不存在的 pattern 是空操作)。"""
+        if pattern in self._event_patterns:
+            self._event_patterns.remove(pattern)
+
     @property
     def event_patterns(self) -> tuple[str, ...]:
         """声明式 hook 声明过的领域事件类型;生命周期点不记。"""
@@ -45,6 +50,15 @@ class HookRegistry:
                 "agent", ErrorSuffix.INVALID_INPUT, f"未知钩子点: {point}(可选: {HOOK_POINTS})"
             )
         self._hooks[point].append((source, fn))
+
+    def remove_source(self, prefix: str) -> int:
+        """按 source 前缀移除注册(插件热卸,phase-72);返回移除数。"""
+        removed = 0
+        for point, entries in self._hooks.items():
+            kept = [(s, fn) for s, fn in entries if not s.startswith(prefix)]
+            removed += len(entries) - len(kept)
+            self._hooks[point] = kept
+        return removed
 
     async def fire(self, point: str, **kwargs: Any) -> list[Any]:
         """依次触发;单个 hook 失败只记日志。pre_tool 任一返回 False 表示拦截。"""
