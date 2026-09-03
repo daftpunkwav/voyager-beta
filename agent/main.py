@@ -194,13 +194,14 @@ def build_agent(
     mcp = McpClientPool(settings=settings, toolbelt=toolbelt,
                         connect=mcp_connect, cwd=workspace)
 
-    # 插件(phase-72,§9.13):清单可扫描(list 可见),装载仅限持久化批准名单;
+    # 插件(phase-72/74,§9.13):清单可扫描(list 可见),装载仅限持久化批准名单
+    # (整包 agent.plugins.approved 与分项 agent.plugins.approvals 的并集);
     # 名单里的插件目录已被删时跳过,不炸启动。MCP 条目只在批准动作登记,启动不重登记。
     plugins_root = Path(plugins_dir) if plugins_dir else (
         Path(__file__).resolve().parents[1] / "plugins"
     )
     plugins = PluginManager(plugins_root, settings=settings, skills=skills, hooks=hooks, mcp=mcp)
-    for plugin_name in plugins.approved_names():
+    for plugin_name in plugins.loadable_names():
         if plugins.find(plugin_name) is not None:
             plugins.apply(plugin_name)
 

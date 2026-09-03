@@ -92,13 +92,37 @@ export interface PluginPermissions {
   fs: string;
 }
 
+/** list_plugins 每项的明细条目(phase-74) */
+export interface PluginSkillDetail {
+  name: string;
+  approved: boolean;
+}
+
+export interface PluginHookDetail {
+  path: string; // 相对插件目录;分项勾选/装载按它
+  on: string;
+  enabled: boolean;
+  approved: boolean;
+}
+
+export interface PluginMcpDetail {
+  id: string;
+  approved: boolean; // 插件分项是否勾选这台
+  registered: boolean; // 是否已在「外接 MCP」登记(待批准)
+  tools_approved: string[]; // 既有 MCP 存储的已批准工具(只读;空 = 未批准工具)
+}
+
 export interface PluginItem {
   name: string;
   version: string;
   description: string;
   approved: boolean;
+  granularity: '' | 'bundle' | 'item'; // 已批准时的装载粒度(phase-74)
   permissions: PluginPermissions;
   contains: { skills: number; hooks: number; mcp: boolean };
+  skills: PluginSkillDetail[];
+  hooks: PluginHookDetail[];
+  mcp: PluginMcpDetail[];
   path: string;
 }
 
@@ -106,4 +130,6 @@ export interface PluginApproveResult {
   name: string;
   approved: boolean;
   loaded: { skills: string[]; hooks: number; mcp_registered: number; mcp_skipped: boolean };
+  granularity?: 'bundle' | 'item';
+  skipped?: { skills: string[]; hooks: string[]; mcp: string[] };
 }

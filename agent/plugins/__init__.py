@@ -1,6 +1,7 @@
-"""插件包(§9.13,phase-72):发现、整包批准、声明式装载 skill/hook。"""
+"""插件包(§9.13,phase-72 整包 / phase-74 分项):发现、批准、声明式装载 skill/hook。"""
 
 from agent.plugins.manager import (
+    APPROVALS_KEY,
     APPROVED_KEY,
     PluginManager,
     PluginManifest,
@@ -9,6 +10,7 @@ from agent.plugins.manager import (
 )
 
 __all__ = [
+    "APPROVALS_KEY",
     "APPROVED_KEY",
     "PluginManager",
     "PluginManifest",

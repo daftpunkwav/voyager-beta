@@ -1,5 +1,6 @@
-/** 设置页插件块单测(phase-72):挂载打 list_plugins、渲染名称/版本/批准状态/contains、
- *  批准/撤销打到 set_plugin_approval 且成功/失败 toast;不调 getApi()。 */
+/** 设置页插件块单测(phase-72 整包 + phase-74 分项):挂载打 list_plugins、渲染
+ *  名称/版本/批准状态/权限清单/明细、整包批准、自定义分项勾选、撤销;
+ *  成功/失败 toast;不调 getApi()。 */
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -39,30 +40,48 @@ const SETTINGS: Record<string, unknown> = {
   'agent.workspace.dir': 'workspace',
 };
 
-/** list_plugins 的样例:未批准、带 skill/hook/MCP 声明 */
+/** list_plugins 的样例:未批准、2 skill + 1 hook + 1 MCP(与 phase-72 区分开) */
 const PLUGIN = {
   name: 'example',
   version: '0.1.0',
   description: '最小插件示例',
   approved: false,
+  granularity: '',
   permissions: { scopes: ['notes.write'], network: 'off', fs: 'none' },
-  contains: { skills: 1, hooks: 1, mcp: true },
+  contains: { skills: 2, hooks: 1, mcp: true },
+  skills: [
+    { name: 'daily-note', approved: false },
+    { name: 'weekly-review', approved: false },
+  ],
+  hooks: [{ path: 'hooks/on-note-created.json', on: 'note.created', enabled: true, approved: false }],
+  mcp: [{ id: 'example-search', approved: false, registered: false, tools_approved: [] }],
   path: 'example',
 };
 
-function backend(overrides: Record<string, unknown> = {}, failList = false) {
+/** 结果回包:整包 loaded 3 skill? skills 是数组(装载的 skill 名) */
+const RESULT = {
+  name: 'example',
+  approved: true,
+  granularity: 'item',
+  loaded: { skills: ['daily-note'], hooks: 1, mcp_registered: 1, mcp_skipped: false },
+  skipped: { skills: [], hooks: [], mcp: [] },
+};
+
+function backend(
+  overrides: Record<string, unknown> = {},
+  failList = false,
+  failApproval = false,
+) {
   return (_domain: string, name: string, args: Record<string, unknown>) => {
     switch (name) {
       case 'list_plugins':
-        return failList
-          ? Promise.reject(new Error('boom'))
-          : Promise.resolve({ items: overrides.items ?? [{ ...PLUGIN, ...overrides.plugin }] });
-      case 'set_plugin_approval':
+        if (failList) return Promise.reject(new Error('boom'));
         return Promise.resolve({
-          name: args.name,
-          approved: args.approved,
-          loaded: { skills: ['daily-note'], hooks: 0, mcp_registered: 1, mcp_skipped: false },
+          items: overrides.items ?? [{ ...PLUGIN, ...(overrides.plugin as object) }],
         });
+      case 'set_plugin_approval':
+        if (failApproval) return Promise.reject(new Error('仅限用户操作'));
+        return Promise.resolve({ ...RESULT, name: args.name, approved: args.approved });
       case 'get_memory':
         return Promise.resolve(SNAPSHOT);
       case 'get_setting':
@@ -87,12 +106,12 @@ beforeEach(() => {
 });
 
 describe('设置页插件块(phase-72)', () => {
-  it('挂载打 list_plugins,渲染名称/版本/描述/未批准/contains;不调 getApi()', async () => {
+  it('挂载打 list_plugins,渲染名称/版本/描述/未批准/权限清单与 contains;不调 getApi()', async () => {
     renderSection(backend());
     await waitFor(() => expect(screen.getByText('example v0.1.0')).toBeTruthy());
     expect(screen.getByText('最小插件示例')).toBeTruthy();
-    expect(screen.getByText(/未批准 · notes.write/)).toBeTruthy();
-    expect(screen.getByText(/技能 1 · 钩子 1 · MCP 配置/)).toBeTruthy();
+    expect(screen.getByText(/未批准 · 请求权限：notes\.write · 网络 off · 文件 none/)).toBeTruthy();
+    expect(screen.getByText(/技能 2 · 钩子 1 · MCP 配置/)).toBeTruthy();
     expect(callCapabilityMock).toHaveBeenCalledWith('agent', 'list_plugins', {});
     expect(getApiMock).not.toHaveBeenCalled();
   });
@@ -108,14 +127,15 @@ describe('设置页插件块(phase-72)', () => {
     expect(screen.getByLabelText('工作目录')).toBeTruthy();
   });
 
-  it('「批准插件」→ set_plugin_approval approved:true,成功 toast 提示 MCP 待批准', async () => {
+  it('「整包批准」→ set_plugin_approval granularity bundle,成功 toast 提示 MCP 待批准', async () => {
     renderSection(backend());
-    await waitFor(() => expect(screen.getByRole('button', { name: '批准插件 example' })).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: '批准插件 example' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: '整包批准 example' })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: '整包批准 example' }));
     await waitFor(() =>
       expect(callCapabilityMock).toHaveBeenCalledWith('agent', 'set_plugin_approval', {
         name: 'example',
         approved: true,
+        granularity: 'bundle',
       }),
     );
     await waitFor(() =>
@@ -124,16 +144,19 @@ describe('设置页插件块(phase-72)', () => {
   });
 
   it('已批准项显示「撤销批准」→ approved:false,toast 提示已移除', async () => {
-    renderSection(backend({ plugin: { approved: true } }));
+    renderSection(
+      backend({ plugin: { approved: true, granularity: 'bundle' } }),
+    );
     await waitFor(() =>
       expect(screen.getByRole('button', { name: '撤销批准 example' })).toBeTruthy(),
     );
-    expect(screen.getByText(/^已批准 ·/)).toBeTruthy();
+    expect(screen.getByText(/已批准（整包） · 请求权限/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '撤销批准 example' }));
     await waitFor(() =>
       expect(callCapabilityMock).toHaveBeenCalledWith('agent', 'set_plugin_approval', {
         name: 'example',
         approved: false,
+        granularity: 'bundle',
       }),
     );
     await waitFor(() =>
@@ -142,13 +165,104 @@ describe('设置页插件块(phase-72)', () => {
   });
 
   it('批准失败弹 error toast(文案含失败原因,不带裸错误码)', async () => {
-    callCapabilityMock.mockImplementation((_d: string, name: string) => {
-      if (name === 'list_plugins') return Promise.resolve({ items: [PLUGIN] });
-      return Promise.reject(new Error('仅限用户操作'));
-    });
-    render(<AgentSettingsSection />);
-    await waitFor(() => expect(screen.getByRole('button', { name: '批准插件 example' })).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: '批准插件 example' }));
+    renderSection(backend({}, false, true));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '整包批准 example' })).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '整包批准 example' }));
+    await waitFor(() =>
+      expect(toastTexts().some((m) => m.startsWith('批准失败：'))).toBe(true),
+    );
+  });
+});
+
+describe('设置页插件块自定义分项(phase-74)', () => {
+  it('展开自定义批准展示 skill/hook/MCP 明细 checkbox,至少勾一项才可提交', async () => {
+    renderSection(backend());
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '自定义批准 example' })).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '自定义批准 example' }));
+    // 明细 checkbox 渲染(accessibility label 由文本生成)
+    expect(screen.getByRole('checkbox', { name: 'daily-note' })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: 'weekly-review' })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: 'note.created' })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: /example-search/ })).toBeTruthy();
+    // 未勾选时提交禁用;勾选一项后可提交
+    const submit = screen.getByRole('button', { name: '自定义批准' });
+    expect((submit as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'daily-note' }));
+    expect((submit as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('勾选后提交 → granularity item + 勾选名单;成功 toast 与刷新', async () => {
+    renderSection(backend());
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '自定义批准 example' })).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '自定义批准 example' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'daily-note' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'note.created' }));
+    fireEvent.click(screen.getByRole('button', { name: '自定义批准' }));
+    await waitFor(() =>
+      expect(callCapabilityMock).toHaveBeenCalledWith('agent', 'set_plugin_approval', {
+        name: 'example',
+        approved: true,
+        granularity: 'item',
+        skills: ['daily-note'],
+        hooks: ['hooks/on-note-created.json'],
+        mcp: [],
+      }),
+    );
+    await waitFor(() =>
+      expect(toastTexts().some((m) => m.includes('已批准插件') && m.includes('外接 MCP'))).toBe(true),
+    );
+  });
+
+  it('已批准(分项)项可「修改分项」回填已勾选,再提交幂等重装', async () => {
+    renderSection(
+      backend({
+        plugin: {
+          approved: true,
+          granularity: 'item',
+          skills: [
+            { name: 'daily-note', approved: true },
+            { name: 'weekly-review', approved: false },
+          ],
+          hooks: [{ path: 'hooks/on-note-created.json', on: 'note.created', enabled: true, approved: true }],
+        },
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '修改分项 example' })).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '修改分项 example' }));
+    // 已批准的分项预勾选
+    expect((screen.getByRole('checkbox', { name: 'daily-note' }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('checkbox', { name: 'weekly-review' }) as HTMLInputElement).checked).toBe(false);
+    // 取消勾选一个再提交 → 只装剩下勾选的
+    fireEvent.click(screen.getByRole('checkbox', { name: 'daily-note' }));
+    fireEvent.click(screen.getByRole('button', { name: '自定义批准' }));
+    await waitFor(() =>
+      expect(callCapabilityMock).toHaveBeenCalledWith('agent', 'set_plugin_approval', {
+        name: 'example',
+        approved: true,
+        granularity: 'item',
+        skills: [],
+        hooks: ['hooks/on-note-created.json'],
+        mcp: [],
+      }),
+    );
+  });
+
+  it('分项批准失败弹 error toast 且不关闭勾选面板', async () => {
+    renderSection(backend({}, false, true));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '自定义批准 example' })).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: '自定义批准 example' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'daily-note' }));
+    fireEvent.click(screen.getByRole('button', { name: '自定义批准' }));
     await waitFor(() =>
       expect(toastTexts().some((m) => m.startsWith('批准失败：'))).toBe(true),
     );

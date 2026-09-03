@@ -63,6 +63,14 @@ DEFS = [
     SettingDef(key="agent.plugins.approved", module="agent", type=SettingType.JSON,
                default=[], user_only=True,
                description="已整包批准的插件名列表(§9.13;仅用户可改)"),
+    # 插件分项批准(phase-74,§9.13):{<插件名>: {skills: list|"*", hooks: list|"*",
+    # mcp: list|"*"}}——skill/hook/MCP 逐项勾选的持久化。与 approved(整包名单)
+    # 写侧互斥:分项批准时该名只进 approvals,整包批准时只进 approved;撤销两键都清。
+    # 只有旧键(approved 含名)的存量数据读侧自然按整包 "*" 装载(向后兼容)。
+    # user_only:装载边界,提示注入改不了(与 approved 同权)。
+    SettingDef(key="agent.plugins.approvals", module="agent", type=SettingType.JSON,
+               default={}, user_only=True,
+               description="插件分项批准状态(§9.13):按插件记录已勾选的 skill/hook/MCP(仅用户可改)"),
     SettingDef(key="agent.subagents.max_concurrent", module="agent", type=SettingType.INT,
                default=3, min=1, max=16, description="subagent 并发上限"),
     SettingDef(key="agent.memory.retention_days", module="agent", type=SettingType.INT,

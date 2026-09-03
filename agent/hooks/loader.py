@@ -31,30 +31,37 @@ class HookLoader:
             return 0
         count = 0
         for path in sorted(Path(hooks_dir).glob("*.json")):
-            data = json.loads(path.read_text(encoding="utf-8"))
-            if not data.get("enabled", False):
-                continue
-            on = data.get("on", "")
-            desc = data.get("description", path.stem)
-            src = f"{source}:{path.stem}"
-
-            if on in HOOK_POINTS:
-                async def _log_only(_desc: str = desc, **kwargs) -> None:
-                    log.info("declarative hook 触发: %s (%s)", _desc, kwargs)
-
-                self._registry.register(on, _log_only, source=src)
-            else:
-                async def _on_event_hook(
-                    event, _pattern: str = on, _desc: str = desc, **_kwargs
-                ) -> None:
-                    """领域事件过滤器:事件类型匹配(支持通配)才记日志。"""
-                    etype = str(getattr(event, "type", ""))
-                    if fnmatch.fnmatchcase(etype, _pattern):
-                        log.info("declarative hook 触发: %s (%s)", _desc, etype)
-
-                self._registry.register("on_event", _on_event_hook, source=src)
-                # 记下声明的事件 pattern,供 EventLoop 精确订阅(phase-28);
-                # 生命周期点(on ∈ HOOK_POINTS)不是事件类型,不记
-                self._registry.record_event_pattern(on)
-            count += 1
+            count += self.load_file(path, source=source, approved=True)
         return count
+
+    def load_file(self, hook_path: str | Path, *, source: str, approved: bool) -> int:
+        """载入单个 hook json(phase-74:插件分项按文件装载);跳过禁用的。"""
+        if not approved:
+            return 0
+        path = Path(hook_path)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not data.get("enabled", False):
+            return 0
+        on = data.get("on", "")
+        desc = data.get("description", path.stem)
+        src = f"{source}:{path.stem}"
+
+        if on in HOOK_POINTS:
+            async def _log_only(_desc: str = desc, **kwargs) -> None:
+                log.info("declarative hook 触发: %s (%s)", _desc, kwargs)
+
+            self._registry.register(on, _log_only, source=src)
+        else:
+            async def _on_event_hook(
+                event, _pattern: str = on, _desc: str = desc, **_kwargs
+            ) -> None:
+                """领域事件过滤器:事件类型匹配(支持通配)才记日志。"""
+                etype = str(getattr(event, "type", ""))
+                if fnmatch.fnmatchcase(etype, _pattern):
+                    log.info("declarative hook 触发: %s (%s)", _desc, etype)
+
+            self._registry.register("on_event", _on_event_hook, source=src)
+            # 记下声明的事件 pattern,供 EventLoop 精确订阅(phase-28);
+            # 生命周期点(on ∈ HOOK_POINTS)不是事件类型,不记
+            self._registry.record_event_pattern(on)
+        return 1
